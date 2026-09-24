@@ -18,7 +18,7 @@ if game.PlaceId == 79783567666809 then
 end
 
 local IsTeam = function(plr)
-    if game.PlaceId == 112757576021097 then
+    if game.PlaceId == 112757576021097 or game.PlaceId == 138485390344924 then
         return LocalPlayer.PlayerStates.Team.Value == plr.PlayerStates.Team.Value
     end
 

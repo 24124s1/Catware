@@ -19,15 +19,20 @@ end
 
 local IsTeam = function(plr)
     if game.PlaceId == 112757576021097 then
-        return LocalPlayer.PlayerStates.Team.Value == plr.PlayerStates.Team.Value
+        local myStates = LocalPlayer:FindFirstChild("PlayerStates")
+        local plrStates = plr:FindFirstChild("PlayerStates")
+        if myStates and plrStates and myStates:FindFirstChild("Team") and plrStates:FindFirstChild("Team") then
+            return myStates.Team.Value == plrStates.Team.Value
+        end
+        return false
     end
     
-    if game.PlaceId == 138485390344924  then
+    if game.PlaceId == 138485390344924 then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 
     if game.PlaceId == 115872975504419 then
-        return table.find(TeamManager.Members, plr.UserId)
+        return table.find(TeamManager.Members, plr.UserId) ~= nil
     end
 
     return plr.Team == LocalPlayer.Team

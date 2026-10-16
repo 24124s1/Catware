@@ -27,7 +27,7 @@ local IsTeam = function(plr)
         return false
     end
     
-    if game.PlaceId == 138485390344924 then
+    if game.PlaceId == 138485390344924 or ame.PlaceId == 87204735676240 then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 

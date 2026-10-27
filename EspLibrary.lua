@@ -155,46 +155,18 @@ local TeamManager = {
     Members = {},
 }
 
-if game.PlaceId == 79783567666809 then
-    local SquadRemotes = Services.WorkSpace:FindFirstChild("SquadRemotes") or game:GetService("ReplicatedStorage"):FindFirstChild("SquadRemotes")
-    if SquadRemotes then
-        SquadRemotes = cloneref(SquadRemotes)
-        local SquadUpdate = SquadRemotes:FindFirstChild("SquadUpdate")
-        if SquadUpdate then
-            SquadUpdate.OnClientEvent:Connect(function(data)
-                if data and data.members then
-                    TeamManager.Members = data.members
-                end
-            end)
-        end
-    end
-end
-
-local function IsTeam(plr)
-    if not plr or plr == Services.LocalPlayer then return false end
-    if game.PlaceId == 112757576021097 then
-        local lpStates = Services.LocalPlayer:FindFirstChild("PlayerStates")
-        local plrStates = plr:FindFirstChild("PlayerStates")
-        if lpStates and plrStates then
-            local lpTeam = lpStates:FindFirstChild("Team")
-            local plrTeam = plrStates:FindFirstChild("Team")
-            if lpTeam and plrTeam then
-                return lpTeam.Value == plrTeam.Value
-            end
-        end
+local IsTeam
+pcall(function()
+    IsTeam = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/TeamCheck.lua"))()
+end)
+if type(IsTeam) ~= "function" then
+    IsTeam = function(plr)
+        if not plr or plr == Services.LocalPlayer then return false end
+        if plr.Team and Services.LocalPlayer.Team and plr.Team == Services.LocalPlayer.Team then return true end
+        local character = plr.Character
+        if character and character:FindFirstChild("SquadBillboard") then return true end
         return false
     end
-    if game.PlaceId == 115872975504419 or game.PlaceId == 79783567666809 then
-        return table.find(TeamManager.Members, plr.UserId) ~= nil
-    end
-    if plr.Team and Services.LocalPlayer.Team and plr.Team == Services.LocalPlayer.Team then
-        return true
-    end
-    local character = plr.Character
-    if character and character:FindFirstChild("SquadBillboard") then
-        return true
-    end
-    return false
 end
 
 local function getEspFont(fontName)

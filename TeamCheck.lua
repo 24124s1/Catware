@@ -27,12 +27,12 @@ local IsTeam = function(plr)
         return false
     end
     
-    if game.PlaceId == 138485390344924 or ame.PlaceId == 87204735676240 then
-        return LocalPlayer:FindFirstChild("RoundValues"):FindFirstChild("Role").Value == pl:FindFirstChild("RoundValues"):FindFirstChild("Role").Value
+    if game.PlaceId == 138485390344924 or game.PlaceId == 87204735676240 then
+        return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 
     if game.PlaceId == 84449017742177 then
-        return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
+        return LocalPlayer:FindFirstChild("RoundValues"):FindFirstChild("Role").Value == pl:FindFirstChild("RoundValues"):FindFirstChild("Role").Value
     end
 
     if game.PlaceId == 115872975504419 then

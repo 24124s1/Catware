@@ -12,6 +12,7 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         TextSize = 12,
+        Font = "ProggyTiny",
         Skeleton = false,
         SkeletonThickness = 0.5,
         Chams = false,
@@ -40,6 +41,7 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         TextSize = 12,
+        Font = "ProggyTiny",
         Skeleton = false,
         SkeletonThickness = 0.5,
         Chams = false,
@@ -68,6 +70,7 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         TextSize = 12,
+        Font = "ProggyTiny",
         Skeleton = false,
         SkeletonThickness = 0.5,
         Chams = false,
@@ -89,6 +92,7 @@ espModule.Settings = {
         Enabled = false,
         MaxDistance = 200,
         TextSize = 12,
+        Font = "ProggyTiny",
         ShowNames = false,
         ShowDistance = false,
         ShowContents = false,
@@ -122,10 +126,11 @@ espModule._connections = {}
 espModule._bots = {}
 espModule._containers = {}
 espModule._players = {}
+espModule.Fonts = {}
 
 local cloneref = cloneref or function(...) return ... end
 local GetService = setmetatable({}, {
-    __index = function(self, key)
+    CachedValue = function(self, key)
         return cloneref(game:GetService(key))
     end
 })
@@ -136,6 +141,7 @@ local Services = {
     UserInputService = GetService.UserInputService,
     CoreGui = GetService.CoreGui,
     WorkSpace = GetService.Workspace,
+    HttpService = GetService.HttpService,
 }
 Services.CurrentCamera = Services.WorkSpace.CurrentCamera
 Services.LocalPlayer = Services.Players.LocalPlayer
@@ -145,7 +151,56 @@ local HEALTH_SEGMENTS = 24
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 
-local function getEspFont()
+local TeamManager = {
+    Members = {},
+}
+
+if game.PlaceId == 79783567666809 then
+    local SquadRemotes = Services.WorkSpace:FindFirstChild("SquadRemotes") or game:GetService("ReplicatedStorage"):FindFirstChild("SquadRemotes")
+    if SquadRemotes then
+        SquadRemotes = cloneref(SquadRemotes)
+        local SquadUpdate = SquadRemotes:FindFirstChild("SquadUpdate")
+        if SquadUpdate then
+            SquadUpdate.OnClientEvent:Connect(function(data)
+                if data and data.members then
+                    TeamManager.Members = data.members
+                end
+            end)
+        end
+    end
+end
+
+local function IsTeam(plr)
+    if not plr or plr == Services.LocalPlayer then return false end
+    if game.PlaceId == 112757576021097 then
+        local lpStates = Services.LocalPlayer:FindFirstChild("PlayerStates")
+        local plrStates = plr:FindFirstChild("PlayerStates")
+        if lpStates and plrStates then
+            local lpTeam = lpStates:FindFirstChild("Team")
+            local plrTeam = plrStates:FindFirstChild("Team")
+            if lpTeam and plrTeam then
+                return lpTeam.Value == plrTeam.Value
+            end
+        end
+        return false
+    end
+    if game.PlaceId == 115872975504419 or game.PlaceId == 79783567666809 then
+        return table.find(TeamManager.Members, plr.UserId) ~= nil
+    end
+    if plr.Team and Services.LocalPlayer.Team and plr.Team == Services.LocalPlayer.Team then
+        return true
+    end
+    local character = plr.Character
+    if character and character:FindFirstChild("SquadBillboard") then
+        return true
+    end
+    return false
+end
+
+local function getEspFont(fontName)
+    if fontName and espModule.Fonts[fontName] then
+        return espModule.Fonts[fontName]
+    end
     if PixelFont then
         return PixelFont
     end
@@ -153,52 +208,81 @@ local function getEspFont()
 end
 
 local function loadFont()
-    if PixelFont then return end
-    local paths = { "esp_pixel.ttf", "1111.ttf", "ffff.ttf" }
-    local urls = {
-        "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/smallest_pixel-7.ttf",
-        "https://github.com/weasely111/beta/raw/refs/heads/main/fs-tahoma-8px.ttf",
+    if next(espModule.Fonts) then return end
+    local FontFolder = "esp_fonts"
+    if not isfolder(FontFolder) then
+        pcall(makefolder, FontFolder)
+    end
+
+    local fontList = {
+        {"Comfortaa", "Comfortaa-Regular.ttf"},
+        {"HankenGrotesk", "HankenGrotesk-SemiBold.ttf"},
+        {"Inter Medium", "Inter_28pt-Medium.ttf"},
+        {"Inter SemiBold", "Inter_28pt-SemiBold.ttf"},
+        {"Light Modern", "Light Modern.ttf"},
+        {"Minecraftia", "Minecraftia-Regular.ttf"},
+        {"ProggyClean", "ProggyClean.ttf"},
+        {"ProggyTiny", "ProggyTiny.ttf"},
+        {"Rubik", "Rubik-Regular.ttf"},
+        {"Tahoma Modern Bold", "Tahoma-Modern-Bold.ttf"},
+        {"Tahoma Modern", "Tahoma-Modern.ttf"},
+        {"Verdana", "Verdana-Font.ttf"},
+        {"Tahoma 8px", "fs-tahoma-8px.ttf"},
+        {"Open Sans PX", "open-sans-px.ttf"},
+        {"Smallest Pixel-7", "smallest_pixel-7.ttf"},
+        {"Tahoma Bold", "tahoma_bold.ttf"},
     }
-    local data = nil
-    for _, path in ipairs(paths) do
-        local ok, content = pcall(function()
-            if isfile and isfile(path) then
-                return readfile(path)
+
+    local baseUrl = "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/"
+
+    for _, entry in ipairs(fontList) do
+        local Name, FileName = entry[1], entry[2]
+        local Path = FontFolder .. "/" .. FileName
+        local data = nil
+        local ok = pcall(function()
+            if isfile and isfile(Path) then
+                data = readfile(Path)
             end
         end)
-        if ok and content and #content > 100 then
-            data = content
-            break
-        end
-    end
-    if not data then
-        for _, url in ipairs(urls) do
-            local ok, content = pcall(game.HttpGet, game, url)
-            if ok and content and #content > 100 then
+        if not data or #data < 100 then
+            local url = baseUrl .. FileName:gsub(" ", "%%20")
+            local success, content = pcall(function()
+                return game:HttpGet(url)
+            end)
+            if success and content and #content > 100 then
                 data = content
                 pcall(function()
                     if writefile then
-                        writefile("esp_pixel.ttf", content)
+                        writefile(Path, content)
                     end
                 end)
-                break
+            end
+        end
+        if data and #data > 100 then
+            local success, font = pcall(function()
+                local f = Drawing.new("Font")
+                f.Data = data
+                return f
+            end)
+            if success and font then
+                espModule.Fonts[Name] = font
             end
         end
     end
-    if data then
-        local ok, font = pcall(function()
-            local f = Drawing.new("Font")
-            f.Data = data
-            return f
-        end)
-        if ok and font then
-            PixelFont = font
-            return
-        end
+
+    if not espModule.Fonts["Tahoma"] then
+        espModule.Fonts["Tahoma"] = espModule.Fonts["Tahoma Modern"] or espModule.Fonts["Tahoma 8px"]
     end
-    pcall(function()
-        PixelFont = Drawing.Fonts.UI
-    end)
+    if not espModule.Fonts["Consolas Bold"] then
+        espModule.Fonts["Consolas Bold"] = espModule.Fonts["ProggyClean"] or espModule.Fonts["Smallest Pixel-7"]
+    end
+
+    PixelFont = espModule.Fonts["ProggyTiny"] or espModule.Fonts["Smallest Pixel-7"] or espModule.Fonts["ProggyClean"]
+    if not PixelFont then
+        pcall(function()
+            PixelFont = Drawing.Fonts.UI
+        end)
+    end
     if not PixelFont then
         pcall(function()
             PixelFont = Drawing.Fonts.System
@@ -207,14 +291,6 @@ local function loadFont()
     if not PixelFont then
         PixelFont = Drawing.Fonts.Monospace
     end
-end
-
-local function isTeammate(player)
-    if not player or player == Services.LocalPlayer then return false end
-    if player.Team and player.Team == Services.LocalPlayer.Team then return true end
-    local character = player.Character
-    if character and character:FindFirstChild("SquadBillboard") then return true end
-    return false
 end
 
 local function Create(type, props)
@@ -539,6 +615,7 @@ local function ProcessItem(item)
     local showNames = cfg.ShowNames
     local showDist = cfg.ShowDistance
     local showContents = cfg.ShowContents
+    local font = getEspFont(cfg.Font)
 
     local nameDistStr = ""
     if showNames then
@@ -556,7 +633,7 @@ local function ProcessItem(item)
     if nameDistStr ~= "" then
         data.NameDistText.Text = nameDistStr
         data.NameDistText.Size = textSize
-        data.NameDistText.Font = getEspFont()
+        data.NameDistText.Font = font
         data.NameDistText.Color = color
         data.NameDistText.Position = Vector2.new(pos.X, pos.Y - 12)
         data.NameDistText.Visible = true
@@ -586,7 +663,7 @@ local function ProcessItem(item)
             end
             data.ContentsText.Text = contentStr
             data.ContentsText.Size = textSize - 1
-            data.ContentsText.Font = getEspFont()
+            data.ContentsText.Font = font
             data.ContentsText.Color = color
             data.ContentsText.Position = Vector2.new(pos.X, pos.Y + 16)
             data.ContentsText.Visible = true
@@ -620,9 +697,7 @@ end
 
 local function ProcessEntity(entity)
     if entity == Services.LocalPlayer then return end
-
-    local character
-    local isPlayer = false
+    local character, isPlayer
     if typeof(entity) == "Instance" and entity:IsA("Player") then
         isPlayer = true
         character = entity.Character
@@ -630,53 +705,49 @@ local function ProcessEntity(entity)
         character = entity
     end
     if not character then return end
-
     if isPlayer then
         local inRaid = entity:FindFirstChild("InRaid")
         if not inRaid or not inRaid:IsA("BoolValue") or not inRaid.Value then
             local data = espModule._drawings[entity]
             if data then
                 HideESP(data)
-                if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+                if espModule._highlights[entity] then 
+                    espModule._highlights[entity].Enabled = false 
+                end
             end
             return
         end
     end
-
     CreateEntityESP(entity)
     local data = espModule._drawings[entity]
-
-    local cfg
-    if isPlayer then
-        cfg = isTeammate(entity) and espModule.Settings.Teammate or espModule.Settings.Enemy
-    else
-        cfg = espModule.Settings.AI
-    end
-
+    if not data then return end
+    local cfg = isPlayer and (IsTeam(entity) and espModule.Settings.Teammate or espModule.Settings.Enemy) or espModule.Settings.AI
     if not cfg.Enabled then
         HideESP(data)
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then 
+            espModule._highlights[entity].Enabled = false 
+        end
         return
     end
-
     local hrp = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local Camera = Services.CurrentCamera
-    local viewport = Camera.ViewportSize
-
     if not (hrp and humanoid and humanoid.Health > 0) then
         HideESP(data)
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then 
+            espModule._highlights[entity].Enabled = false 
+        end
         return
     end
-
+    local Camera = Services.CurrentCamera
+    if not Camera then return end
     local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
     if rawStuds > MAX_ENTITY_DIST then
         HideESP(data)
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then 
+            espModule._highlights[entity].Enabled = false 
+        end
         return
     end
-
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if not onScreen or hrpPos.Z <= 0 then
         HideESP(data)
@@ -726,27 +797,20 @@ local function ProcessEntity(entity)
     local sx = math.max(math.floor(maxX - minX + 0.5), 6)
     local sy = math.max(math.floor(maxY - minY + 0.5), 6)
     local meters = math.floor(rawStuds / 2.81 + 0.5)
+    local font = getEspFont(cfg.Font)
 
     if cfg.BoxEnabled then
         if cfg.BoxType == "Full" then
             local co = data.CornerOutline
-            co.TL1.Visible = false
-            co.TL2.Visible = false
-            co.TR1.Visible = false
-            co.TR2.Visible = false
-            co.BL1.Visible = false
-            co.BL2.Visible = false
-            co.BR1.Visible = false
-            co.BR2.Visible = false
+            co.TL1.Visible, co.TL2.Visible = false, false
+            co.TR1.Visible, co.TR2.Visible = false, false
+            co.BL1.Visible, co.BL2.Visible = false, false
+            co.BR1.Visible, co.BR2.Visible = false, false
             local c = data.Corner
-            c.TL1.Visible = false
-            c.TL2.Visible = false
-            c.TR1.Visible = false
-            c.TR2.Visible = false
-            c.BL1.Visible = false
-            c.BL2.Visible = false
-            c.BR1.Visible = false
-            c.BR2.Visible = false
+            c.TL1.Visible, c.TL2.Visible = false, false
+            c.TR1.Visible, c.TR2.Visible = false, false
+            c.BL1.Visible, c.BL2.Visible = false, false
+            c.BR1.Visible, c.BR2.Visible = false, false
 
             local fo = data.FullOutline
             fo.Top.From = Vector2.new(x - 1, y)
@@ -900,7 +964,7 @@ local function ProcessEntity(entity)
             local hpVal = math.floor(humanoid.Health + 0.5)
             data.HealthText.Text = tostring(hpVal)
             data.HealthText.Size = cfg.TextSize
-            data.HealthText.Font = getEspFont()
+            data.HealthText.Font = font
             local tw = data.HealthText.TextBounds.X
             local fillH = sy * hp
             local minClamp = y - 2
@@ -925,7 +989,7 @@ local function ProcessEntity(entity)
         local name = isPlayer and entity.DisplayName or character.Name
         data.NameText.Text = name
         data.NameText.Size = cfg.TextSize
-        data.NameText.Font = getEspFont()
+        data.NameText.Font = font
         data.NameText.Color = cfg.TextColor
         data.NameText.Position = Vector2.new(x + sx * 0.5, y - 14)
         data.NameText.Visible = true
@@ -936,7 +1000,7 @@ local function ProcessEntity(entity)
     if cfg.Distance then
         data.DistanceText.Text = "[" .. tostring(meters) .. "m]"
         data.DistanceText.Size = cfg.TextSize
-        data.DistanceText.Font = getEspFont()
+        data.DistanceText.Font = font
         data.DistanceText.Color = cfg.TextColor
         data.DistanceText.Position = Vector2.new(x + sx + 4, y - 1)
         data.DistanceText.Visible = true
@@ -948,7 +1012,7 @@ local function ProcessEntity(entity)
         local tool = character:FindFirstChildOfClass("Tool")
         data.ToolText.Text = tool and tool.Name or "None"
         data.ToolText.Size = cfg.TextSize
-        data.ToolText.Font = getEspFont()
+        data.ToolText.Font = font
         data.ToolText.Color = cfg.TextColor
         data.ToolText.Position = Vector2.new(x + sx * 0.5, y + sy + 2)
         data.ToolText.Visible = true
@@ -957,6 +1021,7 @@ local function ProcessEntity(entity)
     end
 
     if cfg.Tracers then
+        local viewport = Camera.ViewportSize
         local from
         if cfg.TracerOrigin == "Bottom" then
             from = Vector2.new(viewport.X * 0.5, viewport.Y)
@@ -1056,15 +1121,20 @@ local function ProcessEntity(entity)
 end
 
 local _espFrame = 0
+local _cameraCache = nil
+local _cameraCacheTime = 0
 local function espLoop()
     local s = espModule.Settings
     local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
     local anyItem = s.Items.Enabled
-    if not anyEntity and not anyItem then
-        return
-    end
+    if not anyEntity and not anyItem then return end
     _espFrame = _espFrame + 1
-    Services.CurrentCamera = Services.WorkSpace.CurrentCamera
+    if tick() - _cameraCacheTime > 0.1 then
+        _cameraCache = Services.WorkSpace.CurrentCamera
+        _cameraCacheTime = tick()
+    end
+    Services.CurrentCamera = _cameraCache
+    if not Services.CurrentCamera then return end
 
     if anyEntity then
         local players = Services.Players:GetPlayers()
@@ -1193,6 +1263,15 @@ function espModule:Toggle()
     else
         self:Start()
     end
+end
+
+function espModule:GetFonts()
+    local list = {}
+    for name in pairs(self.Fonts) do
+        list[#list + 1] = name
+    end
+    table.sort(list)
+    return list
 end
 
 return espModule

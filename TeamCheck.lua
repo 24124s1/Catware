@@ -31,6 +31,10 @@ local IsTeam = function(plr)
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 
+    if game.PlaceId == 124417592421329 then
+        return (LocalPlayer:GetAttribute("_Team") == plr:GetAttribute("_Team")) and (LocalPlayer:GetAttribute("_InMatch") == plr:GetAttribute("_InMatch"))
+    end
+
     if game.PlaceId == 84449017742177 then
         return LocalPlayer:FindFirstChild("RoundValues"):FindFirstChild("Role").Value == pl:FindFirstChild("RoundValues"):FindFirstChild("Role").Value
     end

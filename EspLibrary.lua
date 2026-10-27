@@ -151,10 +151,6 @@ local HEALTH_SEGMENTS = 24
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 
-local TeamManager = {
-    Members = {},
-}
-
 local IsTeam
 pcall(function()
     IsTeam = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/TeamCheck.lua"))()
@@ -211,7 +207,7 @@ local function loadFont()
         local Name, FileName = entry[1], entry[2]
         local Path = FontFolder .. "/" .. FileName
         local data = nil
-        local ok = pcall(function()
+        pcall(function()
             if isfile and isfile(Path) then
                 data = readfile(Path)
             end

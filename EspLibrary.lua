@@ -1,3 +1,5 @@
+print("1")
+
 local espModule = {}
 
 espModule.Settings = {
@@ -130,7 +132,7 @@ espModule.Fonts = {}
 
 local cloneref = cloneref or function(...) return ... end
 local GetService = setmetatable({}, {
-    CachedValue = function(self, key)
+    __index = function(self, key)
         return cloneref(game:GetService(key))
     end
 })

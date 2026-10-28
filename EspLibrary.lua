@@ -1,9 +1,8 @@
-print('8')
+print("1")
 
 local espModule = {}
 
 espModule.Settings = {
-    RefreshRate = 144,
     TextFont = "ProggyTiny",
     FlagsFont = "ProggyTiny",
     HealthFont = "ProggyTiny",
@@ -12,12 +11,6 @@ espModule.Settings = {
         BoxEnabled = false,
         BoxType = "Corner",
         Thickness = 1,
-        BoxFill = false,
-        BoxFillColor1 = Color3.fromRGB(255, 80, 80),
-        BoxFillColor2 = Color3.fromRGB(255, 40, 40),
-        BoxFillTransparency = 0.7,
-        BoxFillRotation = 90,
-        BoxFillSpeed = 0,
         Names = false,
         Distance = false,
         Tool = false,
@@ -25,34 +18,30 @@ espModule.Settings = {
         HealthText = false,
         TextSize = 12,
         Skeleton = false,
-        SkeletonThickness = 1,
+        SkeletonThickness = 0.5,
         Chams = false,
-        ChamsFill = {0, 255, 100, 0.35},
-        ChamsOutline = {0, 255, 100, 0},
-        ChamsGlow = true,
-        ChamsGlowFill = {0, 255, 100, 0.6},
+        ChamsFillTransparency = 0.5,
+        ChamsOutlineTransparency = 0,
+        ChamsGlow = false,
+        ChamsGlowTransparency = 0.7,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
-        LineColor = Color3.fromRGB(0, 255, 100),
+        LineColor = Color3.fromRGB(255, 80, 80),
         TextColor = Color3.fromRGB(255, 255, 255),
-        HealthHigh = Color3.fromRGB(0, 255, 100),
-        HealthMid = Color3.fromRGB(255, 255, 0),
-        HealthLow = Color3.fromRGB(255, 40, 40),
-        SkeletonColor = Color3.fromRGB(0, 0, 0),
-        TracerColor = Color3.fromRGB(0, 255, 100),
+        HealthTop = Color3.fromRGB(0, 255, 100),
+        HealthBottom = Color3.fromRGB(255, 40, 40),
+        SkeletonColor = Color3.fromRGB(255, 80, 80),
+        ChamsFillColor = Color3.fromRGB(255, 80, 80),
+        ChamsOutlineColor = Color3.fromRGB(255, 80, 80),
+        ChamsGlowColor = Color3.fromRGB(255, 80, 80),
+        TracerColor = Color3.fromRGB(255, 80, 80),
     },
     Teammate = {
         Enabled = false,
         BoxEnabled = false,
         BoxType = "Corner",
         Thickness = 1,
-        BoxFill = false,
-        BoxFillColor1 = Color3.fromRGB(0, 180, 255),
-        BoxFillColor2 = Color3.fromRGB(0, 100, 200),
-        BoxFillTransparency = 0.7,
-        BoxFillRotation = 90,
-        BoxFillSpeed = 0,
         Names = false,
         Distance = false,
         Tool = false,
@@ -60,21 +49,23 @@ espModule.Settings = {
         HealthText = false,
         TextSize = 12,
         Skeleton = false,
-        SkeletonThickness = 1,
+        SkeletonThickness = 0.5,
         Chams = false,
-        ChamsFill = {0, 180, 255, 0.25},
-        ChamsOutline = {0, 180, 255, 0},
-        ChamsGlow = true,
-        ChamsGlowFill = {0, 180, 255, 0.55},
+        ChamsFillTransparency = 0.1,
+        ChamsOutlineTransparency = 0,
+        ChamsGlow = false,
+        ChamsGlowTransparency = 0.75,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(0, 180, 255),
         TextColor = Color3.fromRGB(180, 230, 255),
-        HealthHigh = Color3.fromRGB(0, 200, 255),
-        HealthMid = Color3.fromRGB(100, 200, 255),
-        HealthLow = Color3.fromRGB(30, 80, 140),
-        SkeletonColor = Color3.fromRGB(0, 0, 0),
+        HealthTop = Color3.fromRGB(0, 200, 255),
+        HealthBottom = Color3.fromRGB(30, 80, 140),
+        SkeletonColor = Color3.fromRGB(0, 180, 255),
+        ChamsFillColor = Color3.fromRGB(0, 180, 255),
+        ChamsOutlineColor = Color3.fromRGB(0, 180, 255),
+        ChamsGlowColor = Color3.fromRGB(0, 180, 255),
         TracerColor = Color3.fromRGB(0, 180, 255),
     },
     AI = {
@@ -82,12 +73,6 @@ espModule.Settings = {
         BoxEnabled = false,
         BoxType = "Corner",
         Thickness = 1,
-        BoxFill = false,
-        BoxFillColor1 = Color3.fromRGB(255, 200, 50),
-        BoxFillColor2 = Color3.fromRGB(255, 150, 0),
-        BoxFillTransparency = 0.7,
-        BoxFillRotation = 90,
-        BoxFillSpeed = 0,
         Names = false,
         Distance = false,
         Tool = false,
@@ -95,21 +80,23 @@ espModule.Settings = {
         HealthText = false,
         TextSize = 12,
         Skeleton = false,
-        SkeletonThickness = 1,
+        SkeletonThickness = 0.5,
         Chams = false,
-        ChamsFill = {255, 200, 50, 0.35},
-        ChamsOutline = {255, 200, 50, 0},
-        ChamsGlow = true,
-        ChamsGlowFill = {255, 200, 50, 0.6},
+        ChamsFillTransparency = 0.5,
+        ChamsOutlineTransparency = 0,
+        ChamsGlow = false,
+        ChamsGlowTransparency = 0.7,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 200, 50),
         TextColor = Color3.fromRGB(255, 255, 255),
-        HealthHigh = Color3.fromRGB(0, 255, 100),
-        HealthMid = Color3.fromRGB(255, 255, 0),
-        HealthLow = Color3.fromRGB(255, 40, 40),
-        SkeletonColor = Color3.fromRGB(0, 0, 0),
+        HealthTop = Color3.fromRGB(0, 255, 100),
+        HealthBottom = Color3.fromRGB(255, 40, 40),
+        SkeletonColor = Color3.fromRGB(255, 200, 50),
+        ChamsFillColor = Color3.fromRGB(255, 200, 50),
+        ChamsOutlineColor = Color3.fromRGB(255, 200, 50),
+        ChamsGlowColor = Color3.fromRGB(255, 200, 50),
         TracerColor = Color3.fromRGB(255, 200, 50),
     },
     Items = {
@@ -150,7 +137,6 @@ espModule._connections = {}
 espModule._bots = {}
 espModule._containers = {}
 espModule.Fonts = {}
-espModule._boxFillAngles = {}
 
 local cloneref = cloneref or function(...) return ... end
 local GetService = setmetatable({}, {
@@ -162,6 +148,7 @@ local GetService = setmetatable({}, {
 local Services = {
     RunService = GetService.RunService,
     Players = GetService.Players,
+    UserInputService = GetService.UserInputService,
     CoreGui = GetService.CoreGui,
     WorkSpace = GetService.Workspace,
     HttpService = GetService.HttpService,
@@ -283,23 +270,6 @@ local function MakeBone()
     }
 end
 
-local function Color4ToColor3(c4)
-    if typeof(c4) == "Color3" then return c4, 0 end
-    if type(c4) == "table" then
-        return Color3.fromRGB(c4[1] or 255, c4[2] or 255, c4[3] or 255), c4[4] or 0
-    end
-    return Color3.new(1, 1, 1), 0
-end
-
-local function GetHealthColor(hp, high, mid, low)
-    hp = math.clamp(hp, 0, 1)
-    if hp >= 0.5 then
-        return mid:Lerp(high, (hp - 0.5) * 2)
-    else
-        return low:Lerp(mid, hp * 2)
-    end
-end
-
 local function CreateEntityESP(entity)
     if espModule._drawings[entity] then return end
     espModule._drawings[entity] = {
@@ -335,7 +305,6 @@ local function CreateEntityESP(entity)
             BR1 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
             BR2 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         },
-        BoxFill = Create("Square", {Filled = true, Visible = false, ZIndex = 0}),
         HealthBGOutline = Create("Square", {Filled = false, Thickness = 1, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 2}),
         HealthBG = Create("Square", {Filled = true, Color = Color3.fromRGB(15, 15, 15), Visible = false, ZIndex = 3}),
         HealthFill = Create("Square", {Filled = true, Color = Color3.fromRGB(0, 255, 100), Visible = false, ZIndex = 4}),
@@ -389,7 +358,6 @@ local function HideESP(data)
     c.BL2.Visible = false
     c.BR1.Visible = false
     c.BR2.Visible = false
-    data.BoxFill.Visible = false
     data.HealthBG.Visible = false
     data.HealthBGOutline.Visible = false
     data.HealthFill.Visible = false
@@ -412,7 +380,6 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Full) do v:Remove() end
     for _, v in pairs(data.CornerOutline) do v:Remove() end
     for _, v in pairs(data.Corner) do v:Remove() end
-    data.BoxFill:Remove()
     data.HealthBG:Remove()
     data.HealthBGOutline:Remove()
     data.HealthFill:Remove()
@@ -426,7 +393,6 @@ local function RemoveESP(entity)
         bone.Line:Remove()
     end
     espModule._drawings[entity] = nil
-    espModule._boxFillAngles[entity] = nil
     if espModule._highlights[entity] then
         espModule._highlights[entity]:Destroy()
         espModule._highlights[entity] = nil
@@ -736,24 +702,6 @@ local function ProcessEntity(entity)
     local flagsFont = getEspFont(espModule.Settings.FlagsFont)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
-    if cfg.BoxFill then
-        if not espModule._boxFillAngles[entity] then
-            espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 90
-        end
-        if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
-            espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
-        end
-        local t = (math.sin(math.rad(espModule._boxFillAngles[entity])) + 1) / 2
-        local fillCol = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, t)
-        data.BoxFill.Size = Vector2.new(sx, sy)
-        data.BoxFill.Position = Vector2.new(x, y)
-        data.BoxFill.Color = fillCol
-        data.BoxFill.Transparency = cfg.BoxFillTransparency or 0.7
-        data.BoxFill.Visible = true
-    else
-        data.BoxFill.Visible = false
-    end
-
     if cfg.BoxEnabled then
         if cfg.BoxType == "Full" then
             local co = data.CornerOutline
@@ -856,7 +804,6 @@ local function ProcessEntity(entity)
         local barW = 2
         local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
         local fillH = math.floor(sy * hp + 0.5)
-        local healthCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
 
         data.HealthBGOutline.Size = Vector2.new(barW + 2, sy + 2)
         data.HealthBGOutline.Position = Vector2.new(barX - 1, y - 1)
@@ -867,7 +814,7 @@ local function ProcessEntity(entity)
 
         data.HealthFill.Size = Vector2.new(barW, fillH)
         data.HealthFill.Position = Vector2.new(barX, y + sy - fillH)
-        data.HealthFill.Color = healthCol
+        data.HealthFill.Color = cfg.HealthBottom:Lerp(cfg.HealthTop, hp)
         data.HealthFill.Visible = true
 
         if cfg.HealthText then
@@ -989,9 +936,6 @@ local function ProcessEntity(entity)
     end
 
     if cfg.Chams then
-        local fillCol, fillTrans = Color4ToColor3(cfg.ChamsFill)
-        local outlineCol, outlineTrans = Color4ToColor3(cfg.ChamsOutline)
-
         local hl = espModule._highlights[entity]
         if not hl then
             hl = Instance.new("Highlight")
@@ -1001,14 +945,13 @@ local function ProcessEntity(entity)
             espModule._highlights[entity] = hl
         end
         hl.Adornee = character
-        hl.FillColor = fillCol
-        hl.OutlineColor = outlineCol
-        hl.FillTransparency = fillTrans
-        hl.OutlineTransparency = outlineTrans
+        hl.FillColor = cfg.ChamsFillColor
+        hl.OutlineColor = cfg.ChamsOutlineColor
+        hl.FillTransparency = cfg.ChamsFillTransparency
+        hl.OutlineTransparency = cfg.ChamsOutlineTransparency
         hl.Enabled = true
 
         if cfg.ChamsGlow then
-            local glowCol, glowTrans = Color4ToColor3(cfg.ChamsGlowFill)
             local glow = espModule._glowHighlights[entity]
             if not glow then
                 glow = Instance.new("Highlight")
@@ -1018,9 +961,9 @@ local function ProcessEntity(entity)
                 espModule._glowHighlights[entity] = glow
             end
             glow.Adornee = character
-            glow.FillColor = glowCol
-            glow.OutlineColor = glowCol
-            glow.FillTransparency = glowTrans
+            glow.FillColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
+            glow.OutlineColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
+            glow.FillTransparency = cfg.ChamsGlowTransparency or 0.7
             glow.OutlineTransparency = 1
             glow.Enabled = true
         else
@@ -1038,34 +981,24 @@ local function ProcessEntity(entity)
     end
 end
 
-local _lastUpdate = 0
+local _espFrame = 0
 local _cameraCache = nil
 local _cameraCacheTime = 0
 local function espLoop()
     local s = espModule.Settings
     local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
     local anyItem = s.Items.Enabled and HAS_BOTS_ITEMS
-    if not anyEntity and not anyItem then
-        for entity in pairs(espModule._drawings) do
-            RemoveESP(entity)
-        end
-        return
-    end
+    if not anyEntity and not anyItem then return end
 
-    local rate = math.clamp(s.RefreshRate or 144, 60, 240)
-    local interval = 1 / rate
-    local now = tick()
-    if now - _lastUpdate < interval then return end
-    _lastUpdate = now
-
-    if now - _cameraCacheTime > 0.1 then
+    _espFrame = _espFrame + 1
+    if tick() - _cameraCacheTime > 0.15 then
         _cameraCache = Services.WorkSpace.CurrentCamera
-        _cameraCacheTime = now
+        _cameraCacheTime = tick()
     end
     Services.CurrentCamera = _cameraCache
     if not Services.CurrentCamera then return end
 
-    if anyEntity then
+    if anyEntity and (_espFrame % 2 == 0) then
         if HAS_CUSTOM_CHARS then
             local bots = espModule._bots
             for i = 1, #bots do
@@ -1094,7 +1027,7 @@ local function espLoop()
         end
     end
 
-    if anyItem then
+    if anyItem and (_espFrame % 4 == 0) then
         local containers = espModule._containers
         for i = 1, #containers do
             local item = containers[i]

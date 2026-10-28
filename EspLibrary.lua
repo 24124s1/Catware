@@ -1,8 +1,9 @@
-print('4')
+print('1')
 
 local espModule = {}
 
 espModule.Settings = {
+    RefreshRate = 144,
     TextFont = "ProggyTiny",
     FlagsFont = "ProggyTiny",
     HealthFont = "ProggyTiny",
@@ -20,21 +21,19 @@ espModule.Settings = {
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsFillTransparency = 0.5,
-        ChamsOutlineTransparency = 0,
+        ChamsFill = {255, 80, 80, 0.5},
+        ChamsOutline = {255, 80, 80, 0},
         ChamsGlow = false,
-        ChamsGlowTransparency = 0.7,
+        ChamsGlowFill = {255, 80, 80, 0.7},
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 80, 80),
         TextColor = Color3.fromRGB(255, 255, 255),
-        HealthTop = Color3.fromRGB(0, 255, 100),
-        HealthBottom = Color3.fromRGB(255, 40, 40),
+        HealthHigh = Color3.fromRGB(0, 255, 100),
+        HealthMid = Color3.fromRGB(255, 255, 0),
+        HealthLow = Color3.fromRGB(255, 40, 40),
         SkeletonColor = Color3.fromRGB(255, 80, 80),
-        ChamsFillColor = Color3.fromRGB(255, 80, 80),
-        ChamsOutlineColor = Color3.fromRGB(255, 80, 80),
-        ChamsGlowColor = Color3.fromRGB(255, 80, 80),
         TracerColor = Color3.fromRGB(255, 80, 80),
     },
     Teammate = {
@@ -51,21 +50,19 @@ espModule.Settings = {
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsFillTransparency = 0.1,
-        ChamsOutlineTransparency = 0,
+        ChamsFill = {0, 180, 255, 0.1},
+        ChamsOutline = {0, 180, 255, 0},
         ChamsGlow = false,
-        ChamsGlowTransparency = 0.75,
+        ChamsGlowFill = {0, 180, 255, 0.75},
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(0, 180, 255),
         TextColor = Color3.fromRGB(180, 230, 255),
-        HealthTop = Color3.fromRGB(0, 200, 255),
-        HealthBottom = Color3.fromRGB(30, 80, 140),
+        HealthHigh = Color3.fromRGB(0, 200, 255),
+        HealthMid = Color3.fromRGB(100, 200, 255),
+        HealthLow = Color3.fromRGB(30, 80, 140),
         SkeletonColor = Color3.fromRGB(0, 180, 255),
-        ChamsFillColor = Color3.fromRGB(0, 180, 255),
-        ChamsOutlineColor = Color3.fromRGB(0, 180, 255),
-        ChamsGlowColor = Color3.fromRGB(0, 180, 255),
         TracerColor = Color3.fromRGB(0, 180, 255),
     },
     AI = {
@@ -82,21 +79,19 @@ espModule.Settings = {
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsFillTransparency = 0.5,
-        ChamsOutlineTransparency = 0,
+        ChamsFill = {255, 200, 50, 0.5},
+        ChamsOutline = {255, 200, 50, 0},
         ChamsGlow = false,
-        ChamsGlowTransparency = 0.7,
+        ChamsGlowFill = {255, 200, 50, 0.7},
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 200, 50),
         TextColor = Color3.fromRGB(255, 255, 255),
-        HealthTop = Color3.fromRGB(0, 255, 100),
-        HealthBottom = Color3.fromRGB(255, 40, 40),
+        HealthHigh = Color3.fromRGB(0, 255, 100),
+        HealthMid = Color3.fromRGB(255, 255, 0),
+        HealthLow = Color3.fromRGB(255, 40, 40),
         SkeletonColor = Color3.fromRGB(255, 200, 50),
-        ChamsFillColor = Color3.fromRGB(255, 200, 50),
-        ChamsOutlineColor = Color3.fromRGB(255, 200, 50),
-        ChamsGlowColor = Color3.fromRGB(255, 200, 50),
         TracerColor = Color3.fromRGB(255, 200, 50),
     },
     Items = {
@@ -267,6 +262,23 @@ local function MakeBone()
         Outline = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Line = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
     }
+end
+
+local function Color4ToColor3(c4)
+    if typeof(c4) == "Color3" then return c4, 0 end
+    if type(c4) == "table" then
+        return Color3.fromRGB(c4[1] or 255, c4[2] or 255, c4[3] or 255), c4[4] or 0
+    end
+    return Color3.new(1, 1, 1), 0
+end
+
+local function GetHealthColor(hp, high, mid, low)
+    hp = math.clamp(hp, 0, 1)
+    if hp > 0.5 then
+        return mid:Lerp(high, (hp - 0.5) * 2)
+    else
+        return low:Lerp(mid, hp * 2)
+    end
 end
 
 local function CreateEntityESP(entity)
@@ -803,6 +815,7 @@ local function ProcessEntity(entity)
         local barW = 2
         local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
         local fillH = math.floor(sy * hp + 0.5)
+        local healthCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
 
         data.HealthBGOutline.Size = Vector2.new(barW + 2, sy + 2)
         data.HealthBGOutline.Position = Vector2.new(barX - 1, y - 1)
@@ -813,7 +826,7 @@ local function ProcessEntity(entity)
 
         data.HealthFill.Size = Vector2.new(barW, fillH)
         data.HealthFill.Position = Vector2.new(barX, y + sy - fillH)
-        data.HealthFill.Color = cfg.HealthBottom:Lerp(cfg.HealthTop, hp)
+        data.HealthFill.Color = healthCol
         data.HealthFill.Visible = true
 
         if cfg.HealthText then
@@ -935,6 +948,9 @@ local function ProcessEntity(entity)
     end
 
     if cfg.Chams then
+        local fillCol, fillTrans = Color4ToColor3(cfg.ChamsFill)
+        local outlineCol, outlineTrans = Color4ToColor3(cfg.ChamsOutline)
+
         local hl = espModule._highlights[entity]
         if not hl then
             hl = Instance.new("Highlight")
@@ -944,13 +960,14 @@ local function ProcessEntity(entity)
             espModule._highlights[entity] = hl
         end
         hl.Adornee = character
-        hl.FillColor = cfg.ChamsFillColor
-        hl.OutlineColor = cfg.ChamsOutlineColor
-        hl.FillTransparency = cfg.ChamsFillTransparency
-        hl.OutlineTransparency = cfg.ChamsOutlineTransparency
+        hl.FillColor = fillCol
+        hl.OutlineColor = outlineCol
+        hl.FillTransparency = fillTrans
+        hl.OutlineTransparency = outlineTrans
         hl.Enabled = true
 
         if cfg.ChamsGlow then
+            local glowCol, glowTrans = Color4ToColor3(cfg.ChamsGlowFill)
             local glow = espModule._glowHighlights[entity]
             if not glow then
                 glow = Instance.new("Highlight")
@@ -960,9 +977,9 @@ local function ProcessEntity(entity)
                 espModule._glowHighlights[entity] = glow
             end
             glow.Adornee = character
-            glow.FillColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
-            glow.OutlineColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
-            glow.FillTransparency = cfg.ChamsGlowTransparency or 0.7
+            glow.FillColor = glowCol
+            glow.OutlineColor = glowCol
+            glow.FillTransparency = glowTrans
             glow.OutlineTransparency = 1
             glow.Enabled = true
         else
@@ -980,7 +997,7 @@ local function ProcessEntity(entity)
     end
 end
 
-local _espFrame = 0
+local _lastUpdate = 0
 local _cameraCache = nil
 local _cameraCacheTime = 0
 local function espLoop()
@@ -994,15 +1011,20 @@ local function espLoop()
         return
     end
 
-    _espFrame = _espFrame + 1
-    if tick() - _cameraCacheTime > 0.15 then
+    local rate = math.clamp(s.RefreshRate or 144, 60, 240)
+    local interval = 1 / rate
+    local now = tick()
+    if now - _lastUpdate < interval then return end
+    _lastUpdate = now
+
+    if now - _cameraCacheTime > 0.1 then
         _cameraCache = Services.WorkSpace.CurrentCamera
-        _cameraCacheTime = tick()
+        _cameraCacheTime = now
     end
     Services.CurrentCamera = _cameraCache
     if not Services.CurrentCamera then return end
 
-    if anyEntity and (_espFrame % 2 == 0) then
+    if anyEntity then
         if HAS_CUSTOM_CHARS then
             local bots = espModule._bots
             for i = 1, #bots do
@@ -1031,7 +1053,7 @@ local function espLoop()
         end
     end
 
-    if anyItem and (_espFrame % 4 == 0) then
+    if anyItem then
         local containers = espModule._containers
         for i = 1, #containers do
             local item = containers[i]

@@ -1,5 +1,3 @@
-print("1")
-
 local espModule = {}
 
 espModule.Settings = {
@@ -127,41 +125,32 @@ espModule.Settings = {
     }
 }
 
-espModule._drawings = {}
-espModule._highlights = {}
-espModule._glowHighlights = {}
-espModule._itemDrawings = {}
-espModule._itemHighlights = {}
-espModule._isRunning = false
-espModule._connections = {}
+espModule._cache = {}
+espModule._itemCache = {}
 espModule._bots = {}
 espModule._containers = {}
+espModule._isRunning = false
+espModule._connections = {}
 espModule.Fonts = {}
+espModule.Holder = nil
 
 local cloneref = cloneref or function(...) return ... end
-local GetService = setmetatable({}, {
-    __index = function(self, key)
-        return cloneref(game:GetService(key))
-    end
-})
-
+local GetService = setmetatable({}, {__index = function(_, k) return cloneref(game:GetService(k)) end})
 local Services = {
     RunService = GetService.RunService,
     Players = GetService.Players,
-    UserInputService = GetService.UserInputService,
     CoreGui = GetService.CoreGui,
     WorkSpace = GetService.Workspace,
     HttpService = GetService.HttpService,
 }
-Services.CurrentCamera = Services.WorkSpace.CurrentCamera
 Services.LocalPlayer = Services.Players.LocalPlayer
+Services.CurrentCamera = Services.WorkSpace.CurrentCamera
 
-local PixelFont = nil
-local MAX_ENTITY_DIST = 1200
-local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
 local HAS_BOTS_ITEMS = PLACE_ID == 79783567666809
 local HAS_CUSTOM_CHARS = PLACE_ID == 138485390344924
+local MAX_ENTITY_DIST = 1200
+local MAX_ITEM_DIST_MULT = 2.81
 
 local IsTeam
 pcall(function()
@@ -175,14 +164,6 @@ if type(IsTeam) ~= "function" then
         if character and character:FindFirstChild("SquadBillboard") then return true end
         return false
     end
-end
-
-local function getEspFont(fontName)
-    if fontName and espModule.Fonts[fontName] then
-        return espModule.Fonts[fontName]
-    end
-    if PixelFont then return PixelFont end
-    return Drawing.Fonts.UI or Drawing.Fonts.System or Drawing.Fonts.Monospace
 end
 
 local function loadFont()
@@ -219,25 +200,23 @@ local function loadFont()
     for _, entry in ipairs(fontList) do
         local Name, FileName = entry[1], entry[2]
         local Path = FontFolder .. "/" .. FileName
-        local data = nil
-        pcall(function()
-            if isfile and isfile(Path) then data = readfile(Path) end
-        end)
+        local data
+        pcall(function() if isfile and isfile(Path) then data = readfile(Path) end end)
         if not data or #data < 100 then
             local url = altUrls[FileName] or (baseUrl .. FileName:gsub(" ", "%%20"))
-            local success, content = pcall(function() return game:HttpGet(url) end)
-            if success and content and #content > 100 then
+            local ok, content = pcall(function() return game:HttpGet(url) end)
+            if ok and content and #content > 100 then
                 data = content
                 pcall(function() if writefile then writefile(Path, content) end end)
             end
         end
         if data and #data > 100 then
-            local success, font = pcall(function()
+            local ok, font = pcall(function()
                 local f = Drawing.new("Font")
                 f.Data = data
                 return f
             end)
-            if success and font then espModule.Fonts[Name] = font end
+            if ok and font then espModule.Fonts[Name] = font end
         end
     end
 
@@ -247,792 +226,333 @@ local function loadFont()
     if not espModule.Fonts["Consolas Bold"] then
         espModule.Fonts["Consolas Bold"] = espModule.Fonts["ProggyClean"] or espModule.Fonts["Smallest Pixel-7"]
     end
-    if not espModule.Fonts["SmallestPixel"] then
-        espModule.Fonts["SmallestPixel"] = espModule.Fonts["Smallest Pixel-7"]
-    end
-
-    PixelFont = espModule.Fonts["ProggyTiny"] or espModule.Fonts["Smallest Pixel-7"] or espModule.Fonts["ProggyClean"]
-    if not PixelFont then pcall(function() PixelFont = Drawing.Fonts.UI end) end
-    if not PixelFont then pcall(function() PixelFont = Drawing.Fonts.System end) end
-    if not PixelFont then PixelFont = Drawing.Fonts.Monospace end
 end
 
-local function Create(type, props)
-    local obj = Drawing.new(type)
-    for k, v in pairs(props) do obj[k] = v end
+local function Create(name, props)
+    local obj = Instance.new(name)
+    for k, v in pairs(props or {}) do obj[k] = v end
     return obj
 end
 
-local function MakeBone()
-    return {
-        Outline = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-        Line = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+local function getFont(name)
+    return espModule.Fonts[name] or Drawing.Fonts.UI or Drawing.Fonts.System
+end
+
+function espModule:CreateTarget(entity)
+    if self._cache[entity] then return end
+    local data = {
+        Entity = entity,
+        Objects = {},
+        Conns = {},
+        Highlight = nil,
+        GlowHighlight = nil,
     }
+    self._cache[entity] = data
+
+    local objs = data.Objects
+    objs.Holder = Create("Frame", {
+        Parent = self.Holder,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Visible = false,
+    })
+
+    objs.BoxOutline = Create("Frame", {
+        Parent = objs.Holder,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+    })
+    Create("UIStroke", {
+        Parent = objs.BoxOutline,
+        Thickness = 3,
+        Color = Color3.new(0, 0, 0),
+        LineJoinMode = Enum.LineJoinMode.Miter,
+    })
+
+    objs.Box = Create("Frame", {
+        Parent = objs.Holder,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+    })
+    Create("UIStroke", {
+        Parent = objs.Box,
+        Thickness = 1,
+        Color = Color3.fromRGB(255, 80, 80),
+        LineJoinMode = Enum.LineJoinMode.Miter,
+    })
+
+    objs.HealthBG = Create("Frame", {
+        Parent = objs.Holder,
+        BackgroundColor3 = Color3.fromRGB(15, 15, 15),
+        BorderSizePixel = 0,
+        Visible = false,
+    })
+    objs.HealthFill = Create("Frame", {
+        Parent = objs.HealthBG,
+        BackgroundColor3 = Color3.fromRGB(0, 255, 100),
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 0, 1, 0),
+    })
+
+    objs.NameText = Create("TextLabel", {
+        Parent = objs.Holder,
+        BackgroundTransparency = 1,
+        TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.new(0, 0, 0),
+        TextSize = 12,
+        TextColor3 = Color3.new(1, 1, 1),
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Visible = false,
+    })
+    objs.DistanceText = Create("TextLabel", {
+        Parent = objs.Holder,
+        BackgroundTransparency = 1,
+        TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.new(0, 0, 0),
+        TextSize = 12,
+        TextColor3 = Color3.new(1, 1, 1),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Visible = false,
+    })
+    objs.ToolText = Create("TextLabel", {
+        Parent = objs.Holder,
+        BackgroundTransparency = 1,
+        TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.new(0, 0, 0),
+        TextSize = 12,
+        TextColor3 = Color3.new(1, 1, 1),
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Visible = false,
+    })
+    objs.HealthText = Create("TextLabel", {
+        Parent = objs.Holder,
+        BackgroundTransparency = 1,
+        TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.new(0, 0, 0),
+        TextSize = 12,
+        TextColor3 = Color3.new(1, 1, 1),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Visible = false,
+    })
 end
 
-local function CreateEntityESP(entity)
-    if espModule._drawings[entity] then return end
-    espModule._drawings[entity] = {
-        FullOutline = {
-            Top = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            Bottom = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            Left = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            Right = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-        },
-        Full = {
-            Top = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            Bottom = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            Left = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            Right = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-        },
-        CornerOutline = {
-            TL1 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            TL2 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            TR1 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            TR2 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            BL1 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            BL2 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            BR1 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-            BR2 = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-        },
-        Corner = {
-            TL1 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            TL2 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            TR1 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            TR2 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BL1 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BL2 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BR1 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BR2 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-        },
-        HealthBGOutline = Create("Square", {Filled = false, Thickness = 1, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 2}),
-        HealthBG = Create("Square", {Filled = true, Color = Color3.fromRGB(15, 15, 15), Visible = false, ZIndex = 3}),
-        HealthFill = Create("Square", {Filled = true, Color = Color3.fromRGB(0, 255, 100), Visible = false, ZIndex = 4}),
-        HealthText = Create("Text", {Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
-        NameText = Create("Text", {Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
-        DistanceText = Create("Text", {Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
-        ToolText = Create("Text", {Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
-        Tracer = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-        Skeleton = {
-            HeadTorso = MakeBone(),
-            TorsoHip = MakeBone(),
-            HipL = MakeBone(),
-            HipR = MakeBone(),
-            LLeg = MakeBone(),
-            RLeg = MakeBone(),
-            LArm = MakeBone(),
-            RArm = MakeBone(),
-            LFore = MakeBone(),
-            RFore = MakeBone(),
-        }
-    }
-end
-
-local function HideESP(data)
+function espModule:RemoveTarget(entity)
+    local data = self._cache[entity]
     if not data then return end
-    local fo = data.FullOutline
-    fo.Top.Visible = false
-    fo.Bottom.Visible = false
-    fo.Left.Visible = false
-    fo.Right.Visible = false
-    local f = data.Full
-    f.Top.Visible = false
-    f.Bottom.Visible = false
-    f.Left.Visible = false
-    f.Right.Visible = false
-    local co = data.CornerOutline
-    co.TL1.Visible = false
-    co.TL2.Visible = false
-    co.TR1.Visible = false
-    co.TR2.Visible = false
-    co.BL1.Visible = false
-    co.BL2.Visible = false
-    co.BR1.Visible = false
-    co.BR2.Visible = false
-    local c = data.Corner
-    c.TL1.Visible = false
-    c.TL2.Visible = false
-    c.TR1.Visible = false
-    c.TR2.Visible = false
-    c.BL1.Visible = false
-    c.BL2.Visible = false
-    c.BR1.Visible = false
-    c.BR2.Visible = false
-    data.HealthBG.Visible = false
-    data.HealthBGOutline.Visible = false
-    data.HealthFill.Visible = false
-    data.HealthText.Visible = false
-    data.NameText.Visible = false
-    data.DistanceText.Visible = false
-    data.ToolText.Visible = false
-    data.Tracer.Visible = false
-    local sk = data.Skeleton
-    for _, bone in pairs(sk) do
-        bone.Outline.Visible = false
-        bone.Line.Visible = false
-    end
+    for _, c in pairs(data.Conns) do pcall(function() c:Disconnect() end) end
+    if data.Objects.Holder then data.Objects.Holder:Destroy() end
+    if data.Highlight then data.Highlight:Destroy() end
+    if data.GlowHighlight then data.GlowHighlight:Destroy() end
+    self._cache[entity] = nil
 end
 
-local function RemoveESP(entity)
-    local data = espModule._drawings[entity]
+function espModule:UpdateTarget(entity)
+    local data = self._cache[entity]
     if not data then return end
-    for _, v in pairs(data.FullOutline) do v:Remove() end
-    for _, v in pairs(data.Full) do v:Remove() end
-    for _, v in pairs(data.CornerOutline) do v:Remove() end
-    for _, v in pairs(data.Corner) do v:Remove() end
-    data.HealthBG:Remove()
-    data.HealthBGOutline:Remove()
-    data.HealthFill:Remove()
-    data.HealthText:Remove()
-    data.NameText:Remove()
-    data.DistanceText:Remove()
-    data.ToolText:Remove()
-    data.Tracer:Remove()
-    for _, bone in pairs(data.Skeleton) do
-        bone.Outline:Remove()
-        bone.Line:Remove()
-    end
-    espModule._drawings[entity] = nil
-    if espModule._highlights[entity] then
-        espModule._highlights[entity]:Destroy()
-        espModule._highlights[entity] = nil
-    end
-    if espModule._glowHighlights[entity] then
-        espModule._glowHighlights[entity]:Destroy()
-        espModule._glowHighlights[entity] = nil
-    end
-end
 
-local function CreateItemESP(item)
-    if espModule._itemDrawings[item] then return end
-    espModule._itemDrawings[item] = {
-        NameDistText = Create("Text", {Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
-        ContentsText = Create("Text", {Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
-    }
-end
+    local isPlayer = typeof(entity) == "Instance" and entity:IsA("Player")
+    local cfg = isPlayer and (IsTeam(entity) and self.Settings.Teammate or self.Settings.Enemy) or self.Settings.AI
 
-local function RemoveItemESP(item)
-    local data = espModule._itemDrawings[item]
-    if not data then return end
-    data.NameDistText:Remove()
-    data.ContentsText:Remove()
-    espModule._itemDrawings[item] = nil
-    if espModule._itemHighlights[item] then
-        espModule._itemHighlights[item]:Destroy()
-        espModule._itemHighlights[item] = nil
-    end
-end
-
-local itemTypeMap = {
-    ["Safe"] = "Safe",
-    ["Civilian Airdrop"] = "CivilianAirdrop",
-    ["Abandoned Car"] = "AbandonedCar",
-    ["Duffel Bag"] = "DuffelBag",
-    ["Food Crate"] = "FoodCrate",
-    ["Leather Pouch"] = "LeatherPouch",
-    ["Supply Crate"] = "SupplyCrate",
-    ["Medical Pouch"] = "MedicalPouch",
-    ["DroppedItemContainer"] = "DroppedItemContainer",
-    ["T.C.R Supply Crate"] = "TCRCrate",
-    ["Metal Crate"] = "MetalCrate",
-    ["Specops Supply Crate"] = "SpecopsCrate",
-    ["Tall Metal Crate"] = "TallMetalCrate",
-    ["Wooden Crate"] = "WoodenCrate",
-    ["Ammo Box"] = "AmmoBox",
-    ["Dead"] = "Dead",
-}
-
-local typeList = {
-    "Safe", "Civilian Airdrop", "Abandoned Car", "Duffel Bag",
-    "Food Crate", "Leather Pouch", "Supply Crate", "Medical Pouch",
-    "DroppedItemContainer", "T.C.R Supply Crate", "Metal Crate",
-    "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
-}
-
-local bodyParts = {"HumanoidRootPart", "Head", "LeftFoot", "RightFoot", "LeftHand", "RightHand"}
-
-local function ProcessItem(item)
-    if not HAS_BOTS_ITEMS then return end
-    if not item:IsA("Model") then return end
-    local cfg = espModule.Settings.Items
     if not cfg.Enabled then
-        RemoveItemESP(item)
+        data.Objects.Holder.Visible = false
+        if data.Highlight then data.Highlight.Enabled = false end
+        if data.GlowHighlight then data.GlowHighlight.Enabled = false end
         return
     end
 
-    local camera = Services.CurrentCamera
-    if not camera then return end
-    local pivot = item:GetPivot()
-    if not pivot then return end
-
-    local pos, onScreen = camera:WorldToViewportPoint(pivot.Position)
-    if not onScreen or pos.Z <= 0 then
-        local data = espModule._itemDrawings[item]
-        if data then
-            data.NameDistText.Visible = false
-            data.ContentsText.Visible = false
-            if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-        end
-        return
-    end
-
-    local dist = (camera.CFrame.Position - pivot.Position).Magnitude
-    if dist > cfg.MaxDistance * MAX_ITEM_DIST_MULT then
-        local data = espModule._itemDrawings[item]
-        if data then
-            data.NameDistText.Visible = false
-            data.ContentsText.Visible = false
-            if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-        end
-        return
-    end
-
-    local itemName = item.Name
-    local itemType = nil
-    local isDead = false
-
-    for i = 1, #typeList do
-        if string.find(itemName, typeList[i], 1, true) then
-            itemType = typeList[i]
-            break
-        end
-    end
-
-    if string.find(itemName, "Dead", 1, true) then
-        isDead = true
-        if not itemType then itemType = "Dead" end
-    end
-
-    if not itemType then
-        RemoveItemESP(item)
-        return
-    end
-
-    local settingsKey = itemTypeMap[itemType]
-    if not settingsKey then
-        RemoveItemESP(item)
-        return
-    end
-
-    if isDead then
-        if not cfg.Dead.Enabled then
-            RemoveItemESP(item)
-            return
-        end
-        settingsKey = "Dead"
-    end
-
-    local itemCfg = cfg[settingsKey]
-    if not itemCfg or not itemCfg.Enabled then
-        RemoveItemESP(item)
-        return
-    end
-
-    CreateItemESP(item)
-    local data = espModule._itemDrawings[item]
-    local color = itemCfg.Color or Color3.fromRGB(255, 255, 255)
-    local textSize = cfg.TextSize
-    local showNames = cfg.ShowNames
-    local showDist = cfg.ShowDistance
-    local showContents = cfg.ShowContents
-    local textFont = getEspFont(espModule.Settings.TextFont)
-    local flagsFont = getEspFont(espModule.Settings.FlagsFont)
-
-    local nameDistStr = ""
-    if showNames then nameDistStr = itemName end
-    if showDist then
-        local distM = math.floor(dist / 2.81 + 0.5)
-        if showNames then
-            nameDistStr = nameDistStr .. " [" .. distM .. "m]"
-        else
-            nameDistStr = "[" .. distM .. "m]"
-        end
-    end
-
-    if nameDistStr ~= "" then
-        data.NameDistText.Text = nameDistStr
-        data.NameDistText.Size = textSize
-        data.NameDistText.Font = showDist and flagsFont or textFont
-        data.NameDistText.Color = color
-        data.NameDistText.Position = Vector2.new(pos.X, pos.Y - 12)
-        data.NameDistText.Visible = true
-    else
-        data.NameDistText.Visible = false
-    end
-
-    if showContents then
-        local slots = item:FindFirstChild("Slots")
-        local contents = {}
-        if slots then
-            for _, slot in ipairs(slots:GetChildren()) do
-                if string.match(slot.Name, "^Slot%d+$") then
-                    local itemNameVal = slot:FindFirstChild("ItemName")
-                    local stackVal = slot:FindFirstChild("Stack")
-                    if itemNameVal and stackVal and stackVal:IsA("IntValue") and stackVal.Value > 0 then
-                        local name = itemNameVal:IsA("StringValue") and itemNameVal.Value or tostring(itemNameVal)
-                        contents[#contents + 1] = name .. " (" .. stackVal.Value .. ")"
-                    end
-                end
-            end
-        end
-        if #contents > 0 then
-            local contentStr = table.concat(contents, " | ")
-            if #contentStr > 60 then contentStr = string.sub(contentStr, 1, 57) .. "..." end
-            data.ContentsText.Text = contentStr
-            data.ContentsText.Size = textSize - 1
-            data.ContentsText.Font = textFont
-            data.ContentsText.Color = color
-            data.ContentsText.Position = Vector2.new(pos.X, pos.Y + 16)
-            data.ContentsText.Visible = true
-        else
-            data.ContentsText.Visible = false
-        end
-    else
-        data.ContentsText.Visible = false
-    end
-
-    if cfg.Chams then
-        local hl = espModule._itemHighlights[item]
-        if not hl then
-            hl = Instance.new("Highlight")
-            hl.Name = "ItemHighlight"
-            hl.Parent = Services.CoreGui
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            espModule._itemHighlights[item] = hl
-        end
-        hl.Adornee = item
-        hl.FillColor = color
-        hl.OutlineColor = Color3.new(0, 0, 0)
-        hl.FillTransparency = cfg.ChamsFillTransparency
-        hl.OutlineTransparency = 1
-        hl.Enabled = true
-    else
-        if espModule._itemHighlights[item] then
-            espModule._itemHighlights[item].Enabled = false
-        end
-    end
-end
-
-local function ProcessEntity(entity)
-    if entity == Services.LocalPlayer then return end
-    local character, isPlayer
-    if typeof(entity) == "Instance" and entity:IsA("Player") then
-        isPlayer = true
-        character = entity.Character
-    else
-        character = entity
-    end
+    local character = isPlayer and entity.Character or entity
     if not character then
-        RemoveESP(entity)
-        return
-    end
-    if isPlayer then
-        local inRaid = entity:FindFirstChild("InRaid")
-        if inRaid and inRaid:IsA("BoolValue") and not inRaid.Value then
-            RemoveESP(entity)
-            return
-        end
-    end
-
-    local cfg = isPlayer and (IsTeam(entity) and espModule.Settings.Teammate or espModule.Settings.Enemy) or espModule.Settings.AI
-    if not cfg.Enabled then
-        RemoveESP(entity)
+        data.Objects.Holder.Visible = false
         return
     end
 
     local hrp = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not (hrp and humanoid and humanoid.Health > 0) then
-        RemoveESP(entity)
+    if not hrp or not humanoid or humanoid.Health <= 0 then
+        data.Objects.Holder.Visible = false
         return
     end
 
-    local Camera = Services.CurrentCamera
-    if not Camera then return end
-    local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
-    if rawStuds > MAX_ENTITY_DIST then
-        HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
-        if espModule._glowHighlights[entity] then espModule._glowHighlights[entity].Enabled = false end
+    local cam = Services.CurrentCamera
+    if not cam then return end
+
+    local pos, onScreen = cam:WorldToViewportPoint(hrp.Position)
+    if not onScreen or pos.Z <= 0 then
+        data.Objects.Holder.Visible = false
         return
     end
 
-    local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-    if not onScreen or hrpPos.Z <= 0 then
-        HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
-        if espModule._glowHighlights[entity] then espModule._glowHighlights[entity].Enabled = false end
+    local dist = (cam.CFrame.Position - hrp.Position).Magnitude
+    if dist > MAX_ENTITY_DIST then
+        data.Objects.Holder.Visible = false
         return
     end
 
-    CreateEntityESP(entity)
-    local data = espModule._drawings[entity]
-    if not data then return end
+    local size = Vector2.new(math.clamp(60 * (20 / dist), 20, 80), math.clamp(90 * (20 / dist), 30, 120))
+    local x = pos.X - size.X / 2
+    local y = pos.Y - size.Y / 2
 
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    local validParts = 0
+    data.Objects.Holder.Position = UDim2.fromOffset(x, y)
+    data.Objects.Holder.Size = UDim2.fromOffset(size.X, size.Y)
+    data.Objects.Holder.Visible = true
 
-    for i = 1, #bodyParts do
-        local part = character:FindFirstChild(bodyParts[i])
-        if part and part:IsA("BasePart") then
-            local sp, vis = Camera:WorldToViewportPoint(part.Position)
-            if vis and sp.Z > 0 then
-                validParts = validParts + 1
-                if sp.X < minX then minX = sp.X end
-                if sp.Y < minY then minY = sp.Y end
-                if sp.X > maxX then maxX = sp.X end
-                if sp.Y > maxY then maxY = sp.Y end
-            end
-        end
-    end
-
-    if validParts == 0 then
-        HideESP(data)
-        return
-    end
-
-    local pad = 4
-    local x = math.floor(minX - pad + 0.5)
-    local y = math.floor(minY - pad + 0.5)
-    local sx = math.max(math.floor(maxX - minX + pad * 2 + 0.5), 8)
-    local sy = math.max(math.floor(maxY - minY + pad * 2 + 0.5), 8)
-    local meters = math.floor(rawStuds / 2.81 + 0.5)
-    local textFont = getEspFont(espModule.Settings.TextFont)
-    local flagsFont = getEspFont(espModule.Settings.FlagsFont)
-    local healthFont = getEspFont(espModule.Settings.HealthFont)
+    local textFont = getFont(self.Settings.TextFont)
+    local flagsFont = getFont(self.Settings.FlagsFont)
+    local healthFont = getFont(self.Settings.HealthFont)
 
     if cfg.BoxEnabled then
-        if cfg.BoxType == "Full" then
-            local co = data.CornerOutline
-            co.TL1.Visible = false co.TL2.Visible = false
-            co.TR1.Visible = false co.TR2.Visible = false
-            co.BL1.Visible = false co.BL2.Visible = false
-            co.BR1.Visible = false co.BR2.Visible = false
-            local c = data.Corner
-            c.TL1.Visible = false c.TL2.Visible = false
-            c.TR1.Visible = false c.TR2.Visible = false
-            c.BL1.Visible = false c.BL2.Visible = false
-            c.BR1.Visible = false c.BR2.Visible = false
-
-            local fo = data.FullOutline
-            fo.Top.From = Vector2.new(x - 1, y)
-            fo.Top.To = Vector2.new(x + sx + 1, y)
-            fo.Top.Visible = true
-            fo.Bottom.From = Vector2.new(x - 1, y + sy)
-            fo.Bottom.To = Vector2.new(x + sx + 1, y + sy)
-            fo.Bottom.Visible = true
-            fo.Left.From = Vector2.new(x, y - 1)
-            fo.Left.To = Vector2.new(x, y + sy + 1)
-            fo.Left.Visible = true
-            fo.Right.From = Vector2.new(x + sx, y - 1)
-            fo.Right.To = Vector2.new(x + sx, y + sy + 1)
-            fo.Right.Visible = true
-
-            local f = data.Full
-            f.Top.From = Vector2.new(x, y)
-            f.Top.To = Vector2.new(x + sx, y)
-            f.Top.Color = cfg.LineColor
-            f.Top.Thickness = cfg.Thickness
-            f.Top.Visible = true
-            f.Bottom.From = Vector2.new(x, y + sy)
-            f.Bottom.To = Vector2.new(x + sx, y + sy)
-            f.Bottom.Color = cfg.LineColor
-            f.Bottom.Thickness = cfg.Thickness
-            f.Bottom.Visible = true
-            f.Left.From = Vector2.new(x, y)
-            f.Left.To = Vector2.new(x, y + sy)
-            f.Left.Color = cfg.LineColor
-            f.Left.Thickness = cfg.Thickness
-            f.Left.Visible = true
-            f.Right.From = Vector2.new(x + sx, y)
-            f.Right.To = Vector2.new(x + sx, y + sy)
-            f.Right.Color = cfg.LineColor
-            f.Right.Thickness = cfg.Thickness
-            f.Right.Visible = true
-        else
-            local fo = data.FullOutline
-            fo.Top.Visible = false
-            fo.Bottom.Visible = false
-            fo.Left.Visible = false
-            fo.Right.Visible = false
-            local f = data.Full
-            f.Top.Visible = false
-            f.Bottom.Visible = false
-            f.Left.Visible = false
-            f.Right.Visible = false
-
-            local len = math.clamp(0.22 + (rawStuds / 400) * 0.18, 0.22, 0.38)
-            local cw = math.max(2, math.floor(sx * len + 0.5))
-            local ch = math.max(2, math.floor(sy * len + 0.5))
-
-            local co = data.CornerOutline
-            co.TL1.From = Vector2.new(x - 1, y) co.TL1.To = Vector2.new(x + cw + 1, y) co.TL1.Visible = true
-            co.TL2.From = Vector2.new(x, y - 1) co.TL2.To = Vector2.new(x, y + ch + 1) co.TL2.Visible = true
-            co.TR1.From = Vector2.new(x + sx + 1, y) co.TR1.To = Vector2.new(x + sx - cw - 1, y) co.TR1.Visible = true
-            co.TR2.From = Vector2.new(x + sx, y - 1) co.TR2.To = Vector2.new(x + sx, y + ch + 1) co.TR2.Visible = true
-            co.BL1.From = Vector2.new(x - 1, y + sy) co.BL1.To = Vector2.new(x + cw + 1, y + sy) co.BL1.Visible = true
-            co.BL2.From = Vector2.new(x, y + sy + 1) co.BL2.To = Vector2.new(x, y + sy - ch) co.BL2.Visible = true
-            co.BR1.From = Vector2.new(x + sx + 1, y + sy) co.BR1.To = Vector2.new(x + sx - cw - 1, y + sy) co.BR1.Visible = true
-            co.BR2.From = Vector2.new(x + sx, y + sy + 1) co.BR2.To = Vector2.new(x + sx, y + sy - ch) co.BR2.Visible = true
-
-            local c = data.Corner
-            c.TL1.From = Vector2.new(x, y) c.TL1.To = Vector2.new(x + cw, y) c.TL1.Color = cfg.LineColor c.TL1.Thickness = cfg.Thickness c.TL1.Visible = true
-            c.TL2.From = Vector2.new(x, y) c.TL2.To = Vector2.new(x, y + ch) c.TL2.Color = cfg.LineColor c.TL2.Thickness = cfg.Thickness c.TL2.Visible = true
-            c.TR1.From = Vector2.new(x + sx, y) c.TR1.To = Vector2.new(x + sx - cw, y) c.TR1.Color = cfg.LineColor c.TR1.Thickness = cfg.Thickness c.TR1.Visible = true
-            c.TR2.From = Vector2.new(x + sx, y) c.TR2.To = Vector2.new(x + sx, y + ch) c.TR2.Color = cfg.LineColor c.TR2.Thickness = cfg.Thickness c.TR2.Visible = true
-            c.BL1.From = Vector2.new(x, y + sy) c.BL1.To = Vector2.new(x + cw, y + sy) c.BL1.Color = cfg.LineColor c.BL1.Thickness = cfg.Thickness c.BL1.Visible = true
-            c.BL2.From = Vector2.new(x, y + sy) c.BL2.To = Vector2.new(x, y + sy - ch) c.BL2.Color = cfg.LineColor c.BL2.Thickness = cfg.Thickness c.BL2.Visible = true
-            c.BR1.From = Vector2.new(x + sx, y + sy) c.BR1.To = Vector2.new(x + sx - cw, y + sy) c.BR1.Color = cfg.LineColor c.BR1.Thickness = cfg.Thickness c.BR1.Visible = true
-            c.BR2.From = Vector2.new(x + sx, y + sy) c.BR2.To = Vector2.new(x + sx, y + sy - ch) c.BR2.Color = cfg.LineColor c.BR2.Thickness = cfg.Thickness c.BR2.Visible = true
+        data.Objects.BoxOutline.Size = UDim2.fromOffset(size.X, size.Y)
+        data.Objects.BoxOutline.Visible = true
+        data.Objects.Box.Size = UDim2.fromOffset(size.X - 2, size.Y - 2)
+        data.Objects.Box.Position = UDim2.fromOffset(1, 1)
+        data.Objects.Box.Visible = true
+        local stroke = data.Objects.Box:FindFirstChildOfClass("UIStroke")
+        if stroke then
+            stroke.Color = cfg.LineColor
+            stroke.Thickness = cfg.Thickness
         end
     else
-        local fo = data.FullOutline
-        fo.Top.Visible = false fo.Bottom.Visible = false fo.Left.Visible = false fo.Right.Visible = false
-        local f = data.Full
-        f.Top.Visible = false f.Bottom.Visible = false f.Left.Visible = false f.Right.Visible = false
-        local co = data.CornerOutline
-        co.TL1.Visible = false co.TL2.Visible = false co.TR1.Visible = false co.TR2.Visible = false
-        co.BL1.Visible = false co.BL2.Visible = false co.BR1.Visible = false co.BR2.Visible = false
-        local c = data.Corner
-        c.TL1.Visible = false c.TL2.Visible = false c.TR1.Visible = false c.TR2.Visible = false
-        c.BL1.Visible = false c.BL2.Visible = false c.BR1.Visible = false c.BR2.Visible = false
+        data.Objects.BoxOutline.Visible = false
+        data.Objects.Box.Visible = false
     end
 
     if cfg.HealthBar then
-        local barX = x - 5
-        local barW = 2
         local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-        local fillH = math.floor(sy * hp + 0.5)
-
-        data.HealthBGOutline.Size = Vector2.new(barW + 2, sy + 2)
-        data.HealthBGOutline.Position = Vector2.new(barX - 1, y - 1)
-        data.HealthBGOutline.Visible = true
-        data.HealthBG.Size = Vector2.new(barW, sy)
-        data.HealthBG.Position = Vector2.new(barX, y)
-        data.HealthBG.Visible = true
-
-        data.HealthFill.Size = Vector2.new(barW, fillH)
-        data.HealthFill.Position = Vector2.new(barX, y + sy - fillH)
-        data.HealthFill.Color = cfg.HealthBottom:Lerp(cfg.HealthTop, hp)
-        data.HealthFill.Visible = true
-
-        if cfg.HealthText then
-            local hpVal = math.floor(humanoid.Health + 0.5)
-            data.HealthText.Text = tostring(hpVal)
-            data.HealthText.Size = cfg.TextSize
-            data.HealthText.Font = healthFont
-            local tw = data.HealthText.TextBounds.X
-            local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
-            data.HealthText.Position = Vector2.new(barX - 3 - tw, ty)
-            data.HealthText.Color = Color3.new(1, 1, 1)
-            data.HealthText.Visible = true
-        else
-            data.HealthText.Visible = false
-        end
+        data.Objects.HealthBG.Size = UDim2.fromOffset(3, size.Y)
+        data.Objects.HealthBG.Position = UDim2.fromOffset(-6, 0)
+        data.Objects.HealthBG.Visible = true
+        data.Objects.HealthFill.Size = UDim2.new(1, 0, hp, 0)
+        data.Objects.HealthFill.BackgroundColor3 = cfg.HealthBottom:Lerp(cfg.HealthTop, hp)
     else
-        data.HealthBG.Visible = false
-        data.HealthBGOutline.Visible = false
-        data.HealthFill.Visible = false
-        data.HealthText.Visible = false
+        data.Objects.HealthBG.Visible = false
     end
 
     if cfg.Names then
-        local name = isPlayer and entity.DisplayName or character.Name
-        data.NameText.Text = name
-        data.NameText.Size = cfg.TextSize
-        data.NameText.Font = textFont
-        data.NameText.Color = cfg.TextColor
-        data.NameText.Position = Vector2.new(x + sx * 0.5, y - 14)
-        data.NameText.Visible = true
+        data.Objects.NameText.Text = isPlayer and entity.DisplayName or character.Name
+        data.Objects.NameText.FontFace = textFont
+        data.Objects.NameText.TextSize = cfg.TextSize
+        data.Objects.NameText.TextColor3 = cfg.TextColor
+        data.Objects.NameText.Position = UDim2.fromOffset(0, -16)
+        data.Objects.NameText.Size = UDim2.new(1, 0, 0, 14)
+        data.Objects.NameText.Visible = true
     else
-        data.NameText.Visible = false
+        data.Objects.NameText.Visible = false
     end
 
     if cfg.Distance then
-        data.DistanceText.Text = "[" .. tostring(meters) .. "m]"
-        data.DistanceText.Size = cfg.TextSize
-        data.DistanceText.Font = flagsFont
-        data.DistanceText.Color = cfg.TextColor
-        data.DistanceText.Position = Vector2.new(x + sx + 4, y - 1)
-        data.DistanceText.Visible = true
+        data.Objects.DistanceText.Text = string.format("[%dm]", math.floor(dist / 2.81 + 0.5))
+        data.Objects.DistanceText.FontFace = flagsFont
+        data.Objects.DistanceText.TextSize = cfg.TextSize
+        data.Objects.DistanceText.TextColor3 = cfg.TextColor
+        data.Objects.DistanceText.Position = UDim2.fromOffset(size.X + 4, 0)
+        data.Objects.DistanceText.Size = UDim2.fromOffset(50, 14)
+        data.Objects.DistanceText.Visible = true
     else
-        data.DistanceText.Visible = false
+        data.Objects.DistanceText.Visible = false
     end
 
     if cfg.Tool then
         local tool = character:FindFirstChildOfClass("Tool")
-        data.ToolText.Text = tool and tool.Name or "None"
-        data.ToolText.Size = cfg.TextSize
-        data.ToolText.Font = textFont
-        data.ToolText.Color = cfg.TextColor
-        data.ToolText.Position = Vector2.new(x + sx * 0.5, y + sy + 2)
-        data.ToolText.Visible = true
+        data.Objects.ToolText.Text = tool and tool.Name or "None"
+        data.Objects.ToolText.FontFace = textFont
+        data.Objects.ToolText.TextSize = cfg.TextSize
+        data.Objects.ToolText.TextColor3 = cfg.TextColor
+        data.Objects.ToolText.Position = UDim2.fromOffset(0, size.Y + 2)
+        data.Objects.ToolText.Size = UDim2.new(1, 0, 0, 14)
+        data.Objects.ToolText.Visible = true
     else
-        data.ToolText.Visible = false
+        data.Objects.ToolText.Visible = false
     end
 
-    if cfg.Tracers then
-        local viewport = Camera.ViewportSize
-        local from
-        if cfg.TracerOrigin == "Bottom" then
-            from = Vector2.new(viewport.X * 0.5, viewport.Y)
-        elseif cfg.TracerOrigin == "Top" then
-            from = Vector2.new(viewport.X * 0.5, 0)
-        else
-            from = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
-        end
-        data.Tracer.From = from
-        data.Tracer.To = Vector2.new(x + sx * 0.5, y + sy)
-        data.Tracer.Color = cfg.TracerColor
-        data.Tracer.Thickness = cfg.TracerThickness
-        data.Tracer.Visible = true
+    if cfg.HealthText then
+        data.Objects.HealthText.Text = tostring(math.floor(humanoid.Health + 0.5))
+        data.Objects.HealthText.FontFace = healthFont
+        data.Objects.HealthText.TextSize = cfg.TextSize
+        data.Objects.HealthText.TextColor3 = Color3.new(1, 1, 1)
+        data.Objects.HealthText.Position = UDim2.fromOffset(-32, 0)
+        data.Objects.HealthText.Size = UDim2.fromOffset(28, 14)
+        data.Objects.HealthText.Visible = true
     else
-        data.Tracer.Visible = false
-    end
-
-    if cfg.Skeleton then
-        local function DrawBone(bone, p1n, p2n)
-            local p1 = character:FindFirstChild(p1n)
-            local p2 = character:FindFirstChild(p2n)
-            if p1 and p2 then
-                local s1, v1 = Camera:WorldToViewportPoint(p1.Position)
-                local s2, v2 = Camera:WorldToViewportPoint(p2.Position)
-                if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
-                    local a = Vector2.new(s1.X, s1.Y)
-                    local b = Vector2.new(s2.X, s2.Y)
-                    bone.Outline.From = a
-                    bone.Outline.To = b
-                    bone.Outline.Thickness = cfg.SkeletonThickness + 2
-                    bone.Outline.Visible = true
-                    bone.Line.From = a
-                    bone.Line.To = b
-                    bone.Line.Color = cfg.SkeletonColor
-                    bone.Line.Thickness = cfg.SkeletonThickness
-                    bone.Line.Visible = true
-                    return
-                end
-            end
-            bone.Outline.Visible = false
-            bone.Line.Visible = false
-        end
-        local sk = data.Skeleton
-        DrawBone(sk.HeadTorso, "Head", "UpperTorso")
-        DrawBone(sk.TorsoHip, "UpperTorso", "LowerTorso")
-        DrawBone(sk.HipL, "LowerTorso", "LeftUpperLeg")
-        DrawBone(sk.HipR, "LowerTorso", "RightUpperLeg")
-        DrawBone(sk.LLeg, "LeftUpperLeg", "LeftLowerLeg")
-        DrawBone(sk.RLeg, "RightUpperLeg", "RightLowerLeg")
-        DrawBone(sk.LArm, "UpperTorso", "LeftUpperArm")
-        DrawBone(sk.RArm, "UpperTorso", "RightUpperArm")
-        DrawBone(sk.LFore, "LeftUpperArm", "LeftLowerArm")
-        DrawBone(sk.RFore, "RightUpperArm", "RightLowerArm")
-    else
-        local sk = data.Skeleton
-        for _, bone in pairs(sk) do
-            bone.Outline.Visible = false
-            bone.Line.Visible = false
-        end
+        data.Objects.HealthText.Visible = false
     end
 
     if cfg.Chams then
-        local hl = espModule._highlights[entity]
-        if not hl then
-            hl = Instance.new("Highlight")
-            hl.Name = "ESPHighlight"
-            hl.Parent = Services.CoreGui
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            espModule._highlights[entity] = hl
+        if not data.Highlight then
+            data.Highlight = Instance.new("Highlight")
+            data.Highlight.Parent = Services.CoreGui
+            data.Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         end
-        hl.Adornee = character
-        hl.FillColor = cfg.ChamsFillColor
-        hl.OutlineColor = cfg.ChamsOutlineColor
-        hl.FillTransparency = cfg.ChamsFillTransparency
-        hl.OutlineTransparency = cfg.ChamsOutlineTransparency
-        hl.Enabled = true
+        data.Highlight.Adornee = character
+        data.Highlight.FillColor = cfg.ChamsFillColor
+        data.Highlight.OutlineColor = cfg.ChamsOutlineColor
+        data.Highlight.FillTransparency = cfg.ChamsFillTransparency
+        data.Highlight.OutlineTransparency = cfg.ChamsOutlineTransparency
+        data.Highlight.Enabled = true
 
         if cfg.ChamsGlow then
-            local glow = espModule._glowHighlights[entity]
-            if not glow then
-                glow = Instance.new("Highlight")
-                glow.Name = "ESPGlow"
-                glow.Parent = Services.CoreGui
-                glow.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                espModule._glowHighlights[entity] = glow
+            if not data.GlowHighlight then
+                data.GlowHighlight = Instance.new("Highlight")
+                data.GlowHighlight.Parent = Services.CoreGui
+                data.GlowHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             end
-            glow.Adornee = character
-            glow.FillColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
-            glow.OutlineColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
-            glow.FillTransparency = cfg.ChamsGlowTransparency or 0.7
-            glow.OutlineTransparency = 1
-            glow.Enabled = true
-        else
-            if espModule._glowHighlights[entity] then
-                espModule._glowHighlights[entity].Enabled = false
-            end
+            data.GlowHighlight.Adornee = character
+            data.GlowHighlight.FillColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
+            data.GlowHighlight.OutlineColor = cfg.ChamsGlowColor or cfg.ChamsFillColor
+            data.GlowHighlight.FillTransparency = cfg.ChamsGlowTransparency or 0.7
+            data.GlowHighlight.OutlineTransparency = 1
+            data.GlowHighlight.Enabled = true
+        elseif data.GlowHighlight then
+            data.GlowHighlight.Enabled = false
         end
     else
-        if espModule._highlights[entity] then
-            espModule._highlights[entity].Enabled = false
-        end
-        if espModule._glowHighlights[entity] then
-            espModule._glowHighlights[entity].Enabled = false
-        end
+        if data.Highlight then data.Highlight.Enabled = false end
+        if data.GlowHighlight then data.GlowHighlight.Enabled = false end
     end
 end
 
-local _espFrame = 0
-local _cameraCache = nil
-local _cameraCacheTime = 0
-local function espLoop()
+local _frame = 0
+local function loop()
+    _frame = _frame + 1
+    if _frame % 2 ~= 0 then return end
+
     local s = espModule.Settings
-    local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
-    local anyItem = s.Items.Enabled and HAS_BOTS_ITEMS
-    if not anyEntity and not anyItem then return end
-
-    _espFrame = _espFrame + 1
-    if tick() - _cameraCacheTime > 0.15 then
-        _cameraCache = Services.WorkSpace.CurrentCamera
-        _cameraCacheTime = tick()
+    local any = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
+    if not any then
+        for entity, data in pairs(espModule._cache) do
+            data.Objects.Holder.Visible = false
+            if data.Highlight then data.Highlight.Enabled = false end
+            if data.GlowHighlight then data.GlowHighlight.Enabled = false end
+        end
+        return
     end
-    Services.CurrentCamera = _cameraCache
-    if not Services.CurrentCamera then return end
 
-    if anyEntity and (_espFrame % 2 == 0) then
-        if HAS_CUSTOM_CHARS then
-            local bots = espModule._bots
-            for i = 1, #bots do
-                local bot = bots[i]
-                if bot and bot.Parent then
-                    ProcessEntity(bot)
+    if HAS_CUSTOM_CHARS then
+        for _, bot in ipairs(espModule._bots) do
+            if bot and bot.Parent then
+                if not espModule._cache[bot] then
+                    espModule:CreateTarget(bot)
                 end
-            end
-        else
-            local players = Services.Players:GetPlayers()
-            for i = 1, #players do
-                local player = players[i]
-                if player ~= Services.LocalPlayer then
-                    ProcessEntity(player)
-                end
-            end
-            if HAS_BOTS_ITEMS then
-                local bots = espModule._bots
-                for i = 1, #bots do
-                    local bot = bots[i]
-                    if bot and bot.Parent then
-                        ProcessEntity(bot)
-                    end
-                end
+                espModule:UpdateTarget(bot)
             end
         end
-    end
-
-    if anyItem and (_espFrame % 4 == 0) then
-        local containers = espModule._containers
-        for i = 1, #containers do
-            local item = containers[i]
-            if item and item.Parent and item:IsA("Model") then
-                ProcessItem(item)
+    else
+        for _, player in ipairs(Services.Players:GetPlayers()) do
+            if player ~= Services.LocalPlayer then
+                if not espModule._cache[player] then
+                    espModule:CreateTarget(player)
+                end
+                espModule:UpdateTarget(player)
+            end
+        end
+        if HAS_BOTS_ITEMS then
+            for _, bot in ipairs(espModule._bots) do
+                if bot and bot.Parent then
+                    if not espModule._cache[bot] then
+                        espModule:CreateTarget(bot)
+                    end
+                    espModule:UpdateTarget(bot)
+                end
             end
         end
     end
@@ -1043,95 +563,76 @@ function espModule:Start()
     self._isRunning = true
     loadFont()
 
+    if not self.Holder then
+        self.Holder = Create("ScreenGui", {
+            Name = "ESPHolder",
+            Parent = gethui and gethui() or Services.CoreGui,
+            ResetOnSpawn = false,
+            ZIndexBehavior = Enum.ZIndexBehavior.Global,
+            IgnoreGuiInset = true,
+            DisplayOrder = 10000,
+        })
+    end
+
     table.clear(self._bots)
     table.clear(self._containers)
 
     if HAS_BOTS_ITEMS then
-        local botsFolder = Services.WorkSpace:FindFirstChild("IngameBots")
-        if botsFolder then
-            for _, bot in ipairs(botsFolder:GetChildren()) do
-                if bot:IsA("Model") then
-                    self._bots[#self._bots + 1] = bot
-                end
+        local folder = Services.WorkSpace:FindFirstChild("IngameBots")
+        if folder then
+            for _, v in ipairs(folder:GetChildren()) do
+                if v:IsA("Model") then self._bots[#self._bots + 1] = v end
             end
-            self._connections.BotAdded = botsFolder.ChildAdded:Connect(function(child)
-                if child:IsA("Model") then
-                    self._bots[#self._bots + 1] = child
-                end
+            self._connections.BotAdded = folder.ChildAdded:Connect(function(c)
+                if c:IsA("Model") then self._bots[#self._bots + 1] = c end
             end)
-            self._connections.BotRemoving = botsFolder.ChildRemoved:Connect(function(child)
-                local idx = table.find(self._bots, child)
+            self._connections.BotRemoving = folder.ChildRemoved:Connect(function(c)
+                local idx = table.find(self._bots, c)
                 if idx then table.remove(self._bots, idx) end
-                RemoveESP(child)
-            end)
-        end
-
-        local containers = Services.WorkSpace:FindFirstChild("Containers")
-        if containers then
-            for _, item in ipairs(containers:GetChildren()) do
-                if item:IsA("Model") then
-                    self._containers[#self._containers + 1] = item
-                end
-            end
-            self._connections.ContainerAdded = containers.ChildAdded:Connect(function(child)
-                if child:IsA("Model") then
-                    self._containers[#self._containers + 1] = child
-                end
-            end)
-            self._connections.ContainerRemoving = containers.ChildRemoved:Connect(function(child)
-                local idx = table.find(self._containers, child)
-                if idx then table.remove(self._containers, idx) end
-                RemoveItemESP(child)
+                self:RemoveTarget(c)
             end)
         end
     end
 
     if HAS_CUSTOM_CHARS then
-        local gameLogic = Services.WorkSpace:FindFirstChild("GameLogic")
-        if gameLogic then
-            local chars = gameLogic:FindFirstChild("Characters")
+        local gl = Services.WorkSpace:FindFirstChild("GameLogic")
+        if gl then
+            local chars = gl:FindFirstChild("Characters")
             if chars then
-                for _, child in ipairs(chars:GetChildren()) do
-                    if child:IsA("Model") then
-                        self._bots[#self._bots + 1] = child
-                    end
+                for _, v in ipairs(chars:GetChildren()) do
+                    if v:IsA("Model") then self._bots[#self._bots + 1] = v end
                 end
-                self._connections.CharAdded = chars.ChildAdded:Connect(function(child)
-                    if child:IsA("Model") then
-                        self._bots[#self._bots + 1] = child
-                    end
+                self._connections.CharAdded = chars.ChildAdded:Connect(function(c)
+                    if c:IsA("Model") then self._bots[#self._bots + 1] = c end
                 end)
-                self._connections.CharRemoving = chars.ChildRemoved:Connect(function(child)
-                    local idx = table.find(self._bots, child)
+                self._connections.CharRemoving = chars.ChildRemoved:Connect(function(c)
+                    local idx = table.find(self._bots, c)
                     if idx then table.remove(self._bots, idx) end
-                    RemoveESP(child)
+                    self:RemoveTarget(c)
                 end)
             end
         end
     end
 
-    self._connections.PlayerRemoving = Services.Players.PlayerRemoving:Connect(RemoveESP)
-    self._connections.RenderStepped = Services.RunService.Heartbeat:Connect(espLoop)
+    self._connections.PlayerRemoving = Services.Players.PlayerRemoving:Connect(function(p)
+        self:RemoveTarget(p)
+    end)
+    self._connections.Heartbeat = Services.RunService.Heartbeat:Connect(loop)
 end
 
 function espModule:Stop()
     if not self._isRunning then return end
     self._isRunning = false
-    for _, conn in pairs(self._connections) do
-        conn:Disconnect()
-    end
+    for _, c in pairs(self._connections) do pcall(function() c:Disconnect() end) end
     self._connections = {}
-    for entity in pairs(self._drawings) do
-        RemoveESP(entity)
+    for entity in pairs(self._cache) do
+        self:RemoveTarget(entity)
     end
-    self._drawings = {}
-    self._highlights = {}
-    self._glowHighlights = {}
-    for item in pairs(self._itemDrawings) do
-        RemoveItemESP(item)
+    self._cache = {}
+    if self.Holder then
+        self.Holder:Destroy()
+        self.Holder = nil
     end
-    self._itemDrawings = {}
-    self._itemHighlights = {}
     table.clear(self._bots)
     table.clear(self._containers)
 end
@@ -1141,7 +642,7 @@ function espModule:Restart()
     self:Start()
 end
 
-function espModule:UpdateSettings(newSettings)
+function espModule:UpdateSettings(new)
     local function merge(t1, t2)
         for k, v in pairs(t2) do
             if type(v) == "table" and type(t1[k]) == "table" then
@@ -1151,7 +652,7 @@ function espModule:UpdateSettings(newSettings)
             end
         end
     end
-    merge(self.Settings, newSettings)
+    merge(self.Settings, new)
 end
 
 function espModule:GetSettings()
@@ -1159,18 +660,12 @@ function espModule:GetSettings()
 end
 
 function espModule:Toggle()
-    if self._isRunning then
-        self:Stop()
-    else
-        self:Start()
-    end
+    if self._isRunning then self:Stop() else self:Start() end
 end
 
 function espModule:GetFonts()
     local list = {}
-    for name in pairs(self.Fonts) do
-        list[#list + 1] = name
-    end
+    for name in pairs(self.Fonts) do list[#list + 1] = name end
     table.sort(list)
     return list
 end

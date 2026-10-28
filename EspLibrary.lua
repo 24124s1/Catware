@@ -1,4 +1,4 @@
-print('12')
+print("1")
 
 local espModule = {}
 
@@ -16,8 +16,8 @@ espModule.Settings = {
         BoxFillColor1 = Color3.fromRGB(255, 80, 80),
         BoxFillColor2 = Color3.fromRGB(255, 40, 40),
         BoxFillTransparency = 0.7,
-        BoxFillRotation = 90,
-        BoxFillSpeed = 0,
+        BoxFillRotation = 0,
+        BoxFillSpeed = 2,
         Names = false,
         Distance = false,
         Tool = false,
@@ -51,8 +51,8 @@ espModule.Settings = {
         BoxFillColor1 = Color3.fromRGB(0, 180, 255),
         BoxFillColor2 = Color3.fromRGB(0, 100, 200),
         BoxFillTransparency = 0.7,
-        BoxFillRotation = 90,
-        BoxFillSpeed = 0,
+        BoxFillRotation = 0,
+        BoxFillSpeed = 2,
         Names = false,
         Distance = false,
         Tool = false,
@@ -86,8 +86,8 @@ espModule.Settings = {
         BoxFillColor1 = Color3.fromRGB(255, 200, 50),
         BoxFillColor2 = Color3.fromRGB(255, 150, 0),
         BoxFillTransparency = 0.7,
-        BoxFillRotation = 90,
-        BoxFillSpeed = 0,
+        BoxFillRotation = 0,
+        BoxFillSpeed = 2,
         Names = false,
         Distance = false,
         Tool = false,
@@ -170,7 +170,7 @@ Services.LocalPlayer = Services.Players.LocalPlayer
 
 local PixelFont = nil
 local HEALTH_SEGMENTS = 24
-local BOXFILL_SEGMENTS = 256
+local BOXFILL_SEGMENTS = 32
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
@@ -283,6 +283,17 @@ local function GetHealthColor(t, high, mid, low)
     else
         return low:Lerp(mid, t * 2)
     end
+end
+
+local function getCharacterParts(character)
+    local isR15 = character:FindFirstChild("UpperTorso") ~= nil
+    local parts
+    if isR15 then
+        parts = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "LeftHand", "RightHand", "LeftFoot", "RightFoot"}
+    else
+        parts = {"HumanoidRootPart", "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+    end
+    return parts, isR15
 end
 
 local function CreateEntityESP(entity)
@@ -475,8 +486,6 @@ local typeList = {
     "DroppedItemContainer", "T.C.R Supply Crate", "Metal Crate",
     "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
 }
-
-local bodyParts = {"HumanoidRootPart", "Head", "LeftFoot", "RightFoot", "LeftHand", "RightHand"}
 
 local function ProcessItem(item)
     if not HAS_BOTS_ITEMS then return end
@@ -694,12 +703,14 @@ local function ProcessEntity(entity)
     local data = espModule._drawings[entity]
     if not data then return end
 
+    local parts, isR15 = getCharacterParts(character)
+
     local minX, minY = math.huge, math.huge
     local maxX, maxY = -math.huge, -math.huge
     local validParts = 0
 
-    for i = 1, #bodyParts do
-        local part = character:FindFirstChild(bodyParts[i])
+    for i = 1, #parts do
+        local part = character:FindFirstChild(parts[i])
         if part and part:IsA("BasePart") then
             local sp, vis = Camera:WorldToViewportPoint(part.Position)
             if vis and sp.Z > 0 then
@@ -734,19 +745,22 @@ local function ProcessEntity(entity)
         if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
             espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
         end
-    
-        local t = (math.sin(math.rad(espModule._boxFillAngles[entity])) + 1) / 2
-        local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, t)
-        
-        local fill = data.BoxFillSegments[1]
-        fill.Size = Vector2.new(sx, sy)
-        fill.Position = Vector2.new(x, y)
-        fill.Color = col
-        fill.Transparency = cfg.BoxFillTransparency or 0.7
-        fill.Visible = true
-    
-        for i = 2, BOXFILL_SEGMENTS do
-            data.BoxFillSegments[i].Visible = false
+
+        local angle = espModule._boxFillAngles[entity]
+        local segH = sy / BOXFILL_SEGMENTS
+        local trans = math.clamp(cfg.BoxFillTransparency or 0.7, 0.3, 0.95)
+
+        for i = 1, BOXFILL_SEGMENTS do
+            local seg = data.BoxFillSegments[i]
+            local t = (i - 1) / (BOXFILL_SEGMENTS - 1)
+            local wave = (math.sin(math.rad(angle + t * 360)) + 1) / 2
+            local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, wave)
+
+            seg.Size = Vector2.new(sx + 1, segH + 1.1)
+            seg.Position = Vector2.new(x - 0.5, y + (i - 1) * segH - 0.5)
+            seg.Color = col
+            seg.Transparency = trans
+            seg.Visible = true
         end
     else
         for i = 1, BOXFILL_SEGMENTS do
@@ -979,17 +993,31 @@ local function ProcessEntity(entity)
             bone.Outline.Visible = false
             bone.Line.Visible = false
         end
+
         local sk = data.Skeleton
-        DrawBone(sk.HeadTorso, "Head", "UpperTorso")
-        DrawBone(sk.TorsoHip, "UpperTorso", "LowerTorso")
-        DrawBone(sk.HipL, "LowerTorso", "LeftUpperLeg")
-        DrawBone(sk.HipR, "LowerTorso", "RightUpperLeg")
-        DrawBone(sk.LLeg, "LeftUpperLeg", "LeftLowerLeg")
-        DrawBone(sk.RLeg, "RightUpperLeg", "RightLowerLeg")
-        DrawBone(sk.LArm, "UpperTorso", "LeftUpperArm")
-        DrawBone(sk.RArm, "UpperTorso", "RightUpperArm")
-        DrawBone(sk.LFore, "LeftUpperArm", "LeftLowerArm")
-        DrawBone(sk.RFore, "RightUpperArm", "RightLowerArm")
+        if isR15 then
+            DrawBone(sk.HeadTorso, "Head", "UpperTorso")
+            DrawBone(sk.TorsoHip, "UpperTorso", "LowerTorso")
+            DrawBone(sk.HipL, "LowerTorso", "LeftUpperLeg")
+            DrawBone(sk.HipR, "LowerTorso", "RightUpperLeg")
+            DrawBone(sk.LLeg, "LeftUpperLeg", "LeftLowerLeg")
+            DrawBone(sk.RLeg, "RightUpperLeg", "RightLowerLeg")
+            DrawBone(sk.LArm, "UpperTorso", "LeftUpperArm")
+            DrawBone(sk.RArm, "UpperTorso", "RightUpperArm")
+            DrawBone(sk.LFore, "LeftUpperArm", "LeftLowerArm")
+            DrawBone(sk.RFore, "RightUpperArm", "RightLowerArm")
+        else
+            DrawBone(sk.HeadTorso, "Head", "Torso")
+            DrawBone(sk.TorsoHip, "Torso", "Torso")
+            DrawBone(sk.HipL, "Torso", "Left Leg")
+            DrawBone(sk.HipR, "Torso", "Right Leg")
+            DrawBone(sk.LLeg, "Left Leg", "Left Leg")
+            DrawBone(sk.RLeg, "Right Leg", "Right Leg")
+            DrawBone(sk.LArm, "Torso", "Left Arm")
+            DrawBone(sk.RArm, "Torso", "Right Arm")
+            DrawBone(sk.LFore, "Left Arm", "Left Arm")
+            DrawBone(sk.RFore, "Right Arm", "Right Arm")
+        end
     else
         local sk = data.Skeleton
         for _, bone in pairs(sk) do

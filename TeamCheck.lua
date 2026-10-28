@@ -51,6 +51,11 @@ local IsTeam = function(plr)
     if game.PlaceId == 138485390344924 or game.PlaceId == 87204735676240 then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
+
+    if game.PlaceId == 75959630651788 then
+        return LocalPlayer:GetAttribute("MatchTeam") == plr:GetAttribute("MatchTeam")
+    end
+
     if game.PlaceId == 124417592421329 then
         return (LocalPlayer:GetAttribute("_Team") == plr:GetAttribute("_Team")) and (LocalPlayer:GetAttribute("_InMatch") == plr:GetAttribute("_InMatch"))
     end

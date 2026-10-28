@@ -1,5 +1,3 @@
-print("1")
-
 local espModule = {}
 
 espModule.Settings = {
@@ -170,7 +168,7 @@ Services.LocalPlayer = Services.Players.LocalPlayer
 
 local PixelFont = nil
 local HEALTH_SEGMENTS = 24
-local BOXFILL_SEGMENTS = 32
+local BOXFILL_SEGMENTS = 256
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId

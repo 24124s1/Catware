@@ -1,5 +1,3 @@
-print('4')
-
 local espModule = {}
 
 espModule.Settings = {
@@ -10,7 +8,7 @@ espModule.Settings = {
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner", -- "Corner", "Full", or "3D"
+        BoxType = "Corner", 
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 80, 80),
@@ -45,7 +43,7 @@ espModule.Settings = {
     Teammate = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner", -- "Corner", "Full", or "3D"
+        BoxType = "Corner", 
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(0, 180, 255),
@@ -80,7 +78,7 @@ espModule.Settings = {
     AI = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner", -- "Corner", "Full", or "3D"
+        BoxType = "Corner", 
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 200, 50),
@@ -914,7 +912,7 @@ local function ProcessEntity(entity)
                 end
             end
             
-        else -- Corner
+        else
             for _, line in pairs(data.Entity3DBoxOutline) do line.Visible = false end
             for _, line in pairs(data.Entity3DBox) do line.Visible = false end
             local fo = data.FullOutline

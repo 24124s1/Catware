@@ -735,22 +735,18 @@ local function ProcessEntity(entity)
             espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
         end
     
-        local angle = espModule._boxFillAngles[entity]
-        local segH = sy / BOXFILL_SEGMENTS
-        local trans = math.clamp(cfg.BoxFillTransparency or 0.75, 0.4, 0.95)
+        local t = (math.sin(math.rad(espModule._boxFillAngles[entity])) + 1) / 2
+        local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, t)
+        
+        local fill = data.BoxFillSegments[1]
+        fill.Size = Vector2.new(sx, sy)
+        fill.Position = Vector2.new(x, y)
+        fill.Color = col
+        fill.Transparency = cfg.BoxFillTransparency or 0.7
+        fill.Visible = true
     
-        for i = 1, BOXFILL_SEGMENTS do
-            local seg = data.BoxFillSegments[i]
-            local t = (i - 1) / (BOXFILL_SEGMENTS - 1)
-    
-            local wave = (math.sin(math.rad(angle + t * 360)) + 1) / 2
-            local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, wave)
-    
-            seg.Size = Vector2.new(sx + 2, segH + 1.5)
-            seg.Position = Vector2.new(x - 1, y + (i - 1) * segH - 0.75)
-            seg.Color = col
-            seg.Transparency = trans
-            seg.Visible = true
+        for i = 2, BOXFILL_SEGMENTS do
+            data.BoxFillSegments[i].Visible = false
         end
     else
         for i = 1, BOXFILL_SEGMENTS do

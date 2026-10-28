@@ -727,22 +727,26 @@ local function ProcessEntity(entity)
     local flagsFont = getEspFont(espModule.Settings.FlagsFont)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
-    if cfg.BoxFill then
+     if cfg.BoxFill then
         if not espModule._boxFillAngles[entity] then
-            espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 90
+            espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
         end
         if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
             espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
         end
+    
         local angle = espModule._boxFillAngles[entity]
         local segH = sy / BOXFILL_SEGMENTS
+    
         for i = 1, BOXFILL_SEGMENTS do
             local seg = data.BoxFillSegments[i]
             local t = (i - 1) / (BOXFILL_SEGMENTS - 1)
-            local wave = (math.sin(math.rad(angle + t * 180)) + 1) / 2
+    
+            local wave = (math.sin(math.rad(angle + t * 360)) + 1) / 2
             local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, wave)
-            seg.Size = Vector2.new(sx, segH + 0.5)
-            seg.Position = Vector2.new(x, y + (i - 1) * segH)
+    
+            seg.Size = Vector2.new(sx + 1, segH + 1.2)
+            seg.Position = Vector2.new(x - 0.5, y + (i - 1) * segH - 0.5)
             seg.Color = col
             seg.Transparency = cfg.BoxFillTransparency or 0.7
             seg.Visible = true

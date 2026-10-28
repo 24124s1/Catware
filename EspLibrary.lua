@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local espModule = {}
 
@@ -274,7 +274,7 @@ end
 
 local function GetHealthColor(hp, high, mid, low)
     hp = math.clamp(hp, 0, 1)
-    if hp > 0.5 then
+    if hp >= 0.5 then
         return mid:Lerp(high, (hp - 0.5) * 2)
     else
         return low:Lerp(mid, hp * 2)
@@ -816,19 +816,19 @@ local function ProcessEntity(entity)
         local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
         local fillH = math.floor(sy * hp + 0.5)
         local healthCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
-
+    
         data.HealthBGOutline.Size = Vector2.new(barW + 2, sy + 2)
         data.HealthBGOutline.Position = Vector2.new(barX - 1, y - 1)
         data.HealthBGOutline.Visible = true
         data.HealthBG.Size = Vector2.new(barW, sy)
         data.HealthBG.Position = Vector2.new(barX, y)
         data.HealthBG.Visible = true
-
+    
         data.HealthFill.Size = Vector2.new(barW, fillH)
         data.HealthFill.Position = Vector2.new(barX, y + sy - fillH)
         data.HealthFill.Color = healthCol
         data.HealthFill.Visible = true
-
+    
         if cfg.HealthText then
             local hpVal = math.floor(humanoid.Health + 0.5)
             data.HealthText.Text = tostring(hpVal)
@@ -842,7 +842,7 @@ local function ProcessEntity(entity)
         else
             data.HealthText.Visible = false
         end
-    else
+    end
         data.HealthBG.Visible = false
         data.HealthBGOutline.Visible = false
         data.HealthFill.Visible = false

@@ -1,4 +1,5 @@
-print("2")
+print("3")
+
 local espModule = {}
 
 espModule.Settings = {
@@ -9,7 +10,7 @@ espModule.Settings = {
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner",
+        BoxType = "Corner", 
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 80, 80),
@@ -44,7 +45,7 @@ espModule.Settings = {
     Teammate = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner",
+        BoxType = "Corner", 
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(0, 180, 255),
@@ -79,7 +80,7 @@ espModule.Settings = {
     AI = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner",
+        BoxType = "Corner", 
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 200, 50),
@@ -305,6 +306,14 @@ local function CreateEntityESP(entity)
     for i = 1, BOXFILL_SEGMENTS do
         fillSegs[i] = Create("Square", {Filled = true, Visible = false, ZIndex = 0})
     end
+    
+    local box3dOutline = {}
+    local box3dInner = {}
+    for i = 1, 12 do
+        box3dOutline["L"..i] = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1})
+        box3dInner["L"..i] = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+    end
+
     espModule._drawings[entity] = {
         FullOutline = {
             Top = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
@@ -338,6 +347,8 @@ local function CreateEntityESP(entity)
             BR1 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
             BR2 = Create("Line", {Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         },
+        Entity3DBoxOutline = box3dOutline,
+        Entity3DBox = box3dInner,
         BoxFillSegments = fillSegs,
         HealthBGOutline = Create("Square", {Filled = false, Thickness = 1, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 2}),
         HealthBG = Create("Square", {Filled = true, Color = Color3.fromRGB(15, 15, 15), Visible = false, ZIndex = 3}),
@@ -392,6 +403,10 @@ local function HideESP(data)
     c.BL2.Visible = false
     c.BR1.Visible = false
     c.BR2.Visible = false
+    
+    for _, line in pairs(data.Entity3DBoxOutline) do line.Visible = false end
+    for _, line in pairs(data.Entity3DBox) do line.Visible = false end
+    
     for i = 1, BOXFILL_SEGMENTS do
         data.BoxFillSegments[i].Visible = false
     end
@@ -419,6 +434,8 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Full) do v:Remove() end
     for _, v in pairs(data.CornerOutline) do v:Remove() end
     for _, v in pairs(data.Corner) do v:Remove() end
+    for _, v in pairs(data.Entity3DBoxOutline) do v:Remove() end
+    for _, v in pairs(data.Entity3DBox) do v:Remove() end
     for i = 1, BOXFILL_SEGMENTS do data.BoxFillSegments[i]:Remove() end
     data.HealthBG:Remove()
     data.HealthBGOutline:Remove()
@@ -737,7 +754,7 @@ local function ProcessEntity(entity)
     local flagsFont = getEspFont(espModule.Settings.FlagsFont)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
-    if cfg.BoxFill then
+    if cfg.BoxFill and cfg.BoxEnabled then
         if not espModule._boxFillAngles[entity] then
             espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
         end
@@ -769,6 +786,8 @@ local function ProcessEntity(entity)
 
     if cfg.BoxEnabled then
         if cfg.BoxType == "Full" then
+            for _, line in pairs(data.Entity3DBoxOutline) do line.Visible = false end
+            for _, line in pairs(data.Entity3DBox) do line.Visible = false end
             local co = data.CornerOutline
             co.TL1.Visible = false co.TL2.Visible = false
             co.TR1.Visible = false co.TR2.Visible = false
@@ -815,7 +834,78 @@ local function ProcessEntity(entity)
             f.Right.Color = cfg.LineColor
             f.Right.Thickness = cfg.Thickness
             f.Right.Visible = true
-        else
+            
+        elseif cfg.BoxType == "3D" then
+            local co = data.CornerOutline
+            co.TL1.Visible = false co.TL2.Visible = false
+            co.TR1.Visible = false co.TR2.Visible = false
+            co.BL1.Visible = false co.BL2.Visible = false
+            co.BR1.Visible = false co.BR2.Visible = false
+            local c = data.Corner
+            c.TL1.Visible = false c.TL2.Visible = false
+            c.TR1.Visible = false c.TR2.Visible = false
+            c.BL1.Visible = false c.BL2.Visible = false
+            c.BR1.Visible = false c.BR2.Visible = false
+
+            local fo = data.FullOutline
+            fo.Top.Visible = false fo.Bottom.Visible = false fo.Left.Visible = false fo.Right.Visible = false
+            local f = data.Full
+            f.Top.Visible = false f.Bottom.Visible = false f.Left.Visible = false f.Right.Visible = false
+            
+            local bboxCf, bboxSize = character:GetBoundingBox()
+            local center = bboxCf.Position
+            local hrpCf = hrp.CFrame
+            local rot = hrpCf - hrpCf.Position
+            local orientedCf = CFrame.new(center) * rot
+            local sX, sY, sZ = bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2
+            
+            local v = {
+                orientedCf * Vector3.new(sX, sY, sZ),   -- Top Front Right
+                orientedCf * Vector3.new(-sX, sY, sZ),  -- Top Front Left
+                orientedCf * Vector3.new(-sX, sY, -sZ), -- Top Back Left
+                orientedCf * Vector3.new(sX, sY, -sZ),  -- Top Back Right
+                orientedCf * Vector3.new(sX, -sY, sZ),  -- Bottom Front Right
+                orientedCf * Vector3.new(-sX, -sY, sZ), -- Bottom Front Left
+                orientedCf * Vector3.new(-sX, -sY, -sZ),-- Bottom Back Left
+                orientedCf * Vector3.new(sX, -sY, -sZ)  -- Bottom Back Right
+            }
+            
+            local p = {}
+            local vis = {}
+            for i = 1, 8 do
+                local pos, on = Camera:WorldToViewportPoint(v[i])
+                p[i] = Vector2.new(pos.X, pos.Y)
+                vis[i] = on and pos.Z > 0
+            end
+            
+            local edges = {
+                {1,2}, {2,3}, {3,4}, {4,1}, -- Top
+                {5,6}, {6,7}, {7,8}, {8,5}, -- Bottom
+                {1,5}, {2,6}, {3,7}, {4,8}  -- Verticals
+            }
+            
+            for i = 1, 12 do
+                local e = edges[i]
+                local lineO = data.Entity3DBoxOutline["L"..i]
+                local line = data.Entity3DBox["L"..i]
+                if vis[e[1]] and vis[e[2]] then
+                    lineO.From = p[e[1]]
+                    lineO.To = p[e[2]]
+                    lineO.Visible = true
+                    line.From = p[e[1]]
+                    line.To = p[e[2]]
+                    line.Color = cfg.LineColor
+                    line.Thickness = cfg.Thickness
+                    line.Visible = true
+                else
+                    lineO.Visible = false
+                    line.Visible = false
+                end
+            end
+            
+        else -- Corner
+            for _, line in pairs(data.Entity3DBoxOutline) do line.Visible = false end
+            for _, line in pairs(data.Entity3DBox) do line.Visible = false end
             local fo = data.FullOutline
             fo.Top.Visible = false
             fo.Bottom.Visible = false
@@ -852,6 +942,8 @@ local function ProcessEntity(entity)
             c.BR2.From = Vector2.new(x + sx, y + sy) c.BR2.To = Vector2.new(x + sx, y + sy - ch) c.BR2.Color = cfg.LineColor c.BR2.Thickness = cfg.Thickness c.BR2.Visible = true
         end
     else
+        for _, line in pairs(data.Entity3DBoxOutline) do line.Visible = false end
+        for _, line in pairs(data.Entity3DBox) do line.Visible = false end
         local fo = data.FullOutline
         fo.Top.Visible = false fo.Bottom.Visible = false fo.Left.Visible = false fo.Right.Visible = false
         local f = data.Full

@@ -1,3 +1,5 @@
+print("1")
+
 local espModule = {}
 
 espModule.Settings = {
@@ -827,18 +829,20 @@ local function ProcessEntity(entity)
             f.Right.Visible = false
 
             local len = math.clamp(0.22 + (rawStuds / 400) * 0.18, 0.22, 0.38)
-            local cw = math.max(2, math.floor(sx * len + 0.5))
-            local ch = math.max(2, math.floor(sy * len + 0.5))
+            local minDim = math.min(sx, sy)
+            local maxArm = math.max(1, math.floor(minDim / 2) - 1)
+            local arm = math.clamp(math.floor(minDim * len + 0.5), 1, maxArm)
+            local cw, ch = arm, arm
 
             local co = data.CornerOutline
-            co.TL1.From = Vector2.new(x - 1, y) co.TL1.To = Vector2.new(x + cw + 1, y) co.TL1.Visible = true
-            co.TL2.From = Vector2.new(x, y - 1) co.TL2.To = Vector2.new(x, y + ch + 1) co.TL2.Visible = true
+            co.TL1.From = Vector2.new(x - 1, y)      co.TL1.To = Vector2.new(x + cw + 1, y)      co.TL1.Visible = true
+            co.TL2.From = Vector2.new(x, y - 1)      co.TL2.To = Vector2.new(x, y + ch + 1)      co.TL2.Visible = true
             co.TR1.From = Vector2.new(x + sx + 1, y) co.TR1.To = Vector2.new(x + sx - cw - 1, y) co.TR1.Visible = true
             co.TR2.From = Vector2.new(x + sx, y - 1) co.TR2.To = Vector2.new(x + sx, y + ch + 1) co.TR2.Visible = true
             co.BL1.From = Vector2.new(x - 1, y + sy) co.BL1.To = Vector2.new(x + cw + 1, y + sy) co.BL1.Visible = true
-            co.BL2.From = Vector2.new(x, y + sy + 1) co.BL2.To = Vector2.new(x, y + sy - ch) co.BL2.Visible = true
+            co.BL2.From = Vector2.new(x, y + sy + 1) co.BL2.To = Vector2.new(x, y + sy - ch - 1) co.BL2.Visible = true
             co.BR1.From = Vector2.new(x + sx + 1, y + sy) co.BR1.To = Vector2.new(x + sx - cw - 1, y + sy) co.BR1.Visible = true
-            co.BR2.From = Vector2.new(x + sx, y + sy + 1) co.BR2.To = Vector2.new(x + sx, y + sy - ch) co.BR2.Visible = true
+            co.BR2.From = Vector2.new(x + sx, y + sy + 1) co.BR2.To = Vector2.new(x + sx, y + sy - ch - 1) co.BR2.Visible = true
 
             local c = data.Corner
             c.TL1.From = Vector2.new(x, y) c.TL1.To = Vector2.new(x + cw, y) c.TL1.Color = cfg.LineColor c.TL1.Thickness = cfg.Thickness c.TL1.Visible = true

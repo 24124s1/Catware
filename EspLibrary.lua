@@ -1,4 +1,4 @@
-print("3")
+print('4')
 
 local espModule = {}
 
@@ -10,7 +10,7 @@ espModule.Settings = {
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner", 
+        BoxType = "Corner", -- "Corner", "Full", or "3D"
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 80, 80),
@@ -45,7 +45,7 @@ espModule.Settings = {
     Teammate = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner", 
+        BoxType = "Corner", -- "Corner", "Full", or "3D"
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(0, 180, 255),
@@ -80,7 +80,7 @@ espModule.Settings = {
     AI = {
         Enabled = false,
         BoxEnabled = false,
-        BoxType = "Corner", 
+        BoxType = "Corner", -- "Corner", "Full", or "3D"
         Thickness = 1,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 200, 50),
@@ -176,6 +176,12 @@ local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
 local HAS_BOTS_ITEMS = PLACE_ID == 79783567666809
 local HAS_CUSTOM_CHARS = PLACE_ID == 138485390344924
+
+local BOX_3D_EDGES = {
+    {1,2}, {2,3}, {3,4}, {4,1},
+    {5,6}, {6,7}, {7,8}, {8,5},
+    {1,5}, {2,6}, {3,7}, {4,8}
+}
 
 local IsTeam
 pcall(function()
@@ -725,16 +731,53 @@ local function ProcessEntity(entity)
     local maxX, maxY = -math.huge, -math.huge
     local validParts = 0
 
-    for i = 1, #parts do
-        local part = character:FindFirstChild(parts[i])
-        if part and part:IsA("BasePart") then
-            local sp, vis = Camera:WorldToViewportPoint(part.Position)
-            if vis and sp.Z > 0 then
+    local is3D = cfg.BoxEnabled and cfg.BoxType == "3D"
+    local p = {}
+    local vis = {}
+
+    if is3D then
+        local bboxCf, bboxSize = character:GetBoundingBox()
+        local center = bboxCf.Position
+        local hrpCf = hrp.CFrame
+        local rot = hrpCf - hrpCf.Position
+        local orientedCf = CFrame.new(center) * rot
+        local sX, sY, sZ = bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2
+
+        local v = {
+            orientedCf * Vector3.new(sX, sY, sZ),
+            orientedCf * Vector3.new(-sX, sY, sZ),
+            orientedCf * Vector3.new(-sX, sY, -sZ),
+            orientedCf * Vector3.new(sX, sY, -sZ),
+            orientedCf * Vector3.new(sX, -sY, sZ),
+            orientedCf * Vector3.new(-sX, -sY, sZ),
+            orientedCf * Vector3.new(-sX, -sY, -sZ),
+            orientedCf * Vector3.new(sX, -sY, -sZ)
+        }
+
+        for i = 1, 8 do
+            local pos, on = Camera:WorldToViewportPoint(v[i])
+            p[i] = Vector2.new(pos.X, pos.Y)
+            vis[i] = on and pos.Z > 0
+            if vis[i] then
                 validParts = validParts + 1
-                if sp.X < minX then minX = sp.X end
-                if sp.Y < minY then minY = sp.Y end
-                if sp.X > maxX then maxX = sp.X end
-                if sp.Y > maxY then maxY = sp.Y end
+                if pos.X < minX then minX = pos.X end
+                if pos.Y < minY then minY = pos.Y end
+                if pos.X > maxX then maxX = pos.X end
+                if pos.Y > maxY then maxY = pos.Y end
+            end
+        end
+    else
+        for i = 1, #parts do
+            local part = character:FindFirstChild(parts[i])
+            if part and part:IsA("BasePart") then
+                local sp, visPt = Camera:WorldToViewportPoint(part.Position)
+                if visPt and sp.Z > 0 then
+                    validParts = validParts + 1
+                    if sp.X < minX then minX = sp.X end
+                    if sp.Y < minY then minY = sp.Y end
+                    if sp.X > maxX then maxX = sp.X end
+                    if sp.Y > maxY then maxY = sp.Y end
+                end
             end
         end
     end
@@ -851,41 +894,9 @@ local function ProcessEntity(entity)
             fo.Top.Visible = false fo.Bottom.Visible = false fo.Left.Visible = false fo.Right.Visible = false
             local f = data.Full
             f.Top.Visible = false f.Bottom.Visible = false f.Left.Visible = false f.Right.Visible = false
-            
-            local bboxCf, bboxSize = character:GetBoundingBox()
-            local center = bboxCf.Position
-            local hrpCf = hrp.CFrame
-            local rot = hrpCf - hrpCf.Position
-            local orientedCf = CFrame.new(center) * rot
-            local sX, sY, sZ = bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2
-            
-            local v = {
-                orientedCf * Vector3.new(sX, sY, sZ),   -- Top Front Right
-                orientedCf * Vector3.new(-sX, sY, sZ),  -- Top Front Left
-                orientedCf * Vector3.new(-sX, sY, -sZ), -- Top Back Left
-                orientedCf * Vector3.new(sX, sY, -sZ),  -- Top Back Right
-                orientedCf * Vector3.new(sX, -sY, sZ),  -- Bottom Front Right
-                orientedCf * Vector3.new(-sX, -sY, sZ), -- Bottom Front Left
-                orientedCf * Vector3.new(-sX, -sY, -sZ),-- Bottom Back Left
-                orientedCf * Vector3.new(sX, -sY, -sZ)  -- Bottom Back Right
-            }
-            
-            local p = {}
-            local vis = {}
-            for i = 1, 8 do
-                local pos, on = Camera:WorldToViewportPoint(v[i])
-                p[i] = Vector2.new(pos.X, pos.Y)
-                vis[i] = on and pos.Z > 0
-            end
-            
-            local edges = {
-                {1,2}, {2,3}, {3,4}, {4,1}, -- Top
-                {5,6}, {6,7}, {7,8}, {8,5}, -- Bottom
-                {1,5}, {2,6}, {3,7}, {4,8}  -- Verticals
-            }
-            
+
             for i = 1, 12 do
-                local e = edges[i]
+                local e = BOX_3D_EDGES[i]
                 local lineO = data.Entity3DBoxOutline["L"..i]
                 local line = data.Entity3DBox["L"..i]
                 if vis[e[1]] and vis[e[2]] then

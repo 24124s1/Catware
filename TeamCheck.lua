@@ -26,6 +26,11 @@ if game.PlaceId == 109020905733214 then
     end
 end
 
+local MM2Cache = {
+    Data = nil,
+    LastUpdate = 0
+}
+
 local function getMM2Data()
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     local extras = remotes and remotes:FindFirstChild("Extras")
@@ -40,8 +45,21 @@ local function getMM2Data()
     return nil
 end
 
+if game.PlaceId == 142823291 then
+    task.spawn(function()
+        while true do
+            local data = getMM2Data()
+            if data then
+                MM2Cache.Data = data
+                MM2Cache.LastUpdate = os.clock()
+            end
+            task.wait(10)
+        end
+    end)
+end
+
 local function getMM2Role(plr)
-    local data = getMM2Data()
+    local data = MM2Cache.Data or getMM2Data()
     if not data then return nil end
     local info = data[plr.Name]
     if type(info) == "table" then

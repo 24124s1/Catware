@@ -1,4 +1,5 @@
-print("2")
+print("3")
+
 local espModule = {}
 
 espModule.Settings = {
@@ -152,7 +153,8 @@ local HEALTH_SEGMENTS = 24
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
-local IS_TARGET_GAME = PLACE_ID == 79783567666809
+local HAS_BOTS_ITEMS = PLACE_ID == 79783567666809
+local HAS_CUSTOM_CHARS = PLACE_ID == 138485390344924
 
 local IsTeam
 pcall(function()
@@ -480,7 +482,7 @@ local typeList = {
 local bodyParts = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "Torso", "LeftHand", "RightHand", "LeftFoot", "RightFoot"}
 
 local function ProcessItem(item)
-    if not IS_TARGET_GAME then return end
+    if not HAS_BOTS_ITEMS then return end
     if not item:IsA("Model") then return end
     local cfg = espModule.Settings.Items
     if not cfg.Enabled then
@@ -679,7 +681,7 @@ local function ProcessEntity(entity)
     if not character then return end
     if isPlayer then
         local inRaid = entity:FindFirstChild("InRaid")
-        if not inRaid or not inRaid:IsA("BoolValue") or not inRaid.Value then
+        if inRaid and inRaid:IsA("BoolValue") and not inRaid.Value then
             local data = espModule._drawings[entity]
             if data then
                 HideESP(data)
@@ -1098,7 +1100,7 @@ local _cameraCacheTime = 0
 local function espLoop()
     local s = espModule.Settings
     local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
-    local anyItem = s.Items.Enabled and IS_TARGET_GAME
+    local anyItem = s.Items.Enabled and HAS_BOTS_ITEMS
     if not anyEntity and not anyItem then return end
     _espFrame = _espFrame + 1
     if tick() - _cameraCacheTime > 0.1 then
@@ -1109,19 +1111,29 @@ local function espLoop()
     if not Services.CurrentCamera then return end
 
     if anyEntity then
-        local players = Services.Players:GetPlayers()
-        for i = 1, #players do
-            local player = players[i]
-            if player ~= Services.LocalPlayer then
-                ProcessEntity(player)
-            end
-        end
-        if IS_TARGET_GAME then
+        if HAS_CUSTOM_CHARS then
             local bots = espModule._bots
             for i = 1, #bots do
                 local bot = bots[i]
                 if bot and bot.Parent then
                     ProcessEntity(bot)
+                end
+            end
+        else
+            local players = Services.Players:GetPlayers()
+            for i = 1, #players do
+                local player = players[i]
+                if player ~= Services.LocalPlayer then
+                    ProcessEntity(player)
+                end
+            end
+            if HAS_BOTS_ITEMS then
+                local bots = espModule._bots
+                for i = 1, #bots do
+                    local bot = bots[i]
+                    if bot and bot.Parent then
+                        ProcessEntity(bot)
+                    end
                 end
             end
         end
@@ -1146,7 +1158,7 @@ function espModule:Start()
     table.clear(self._bots)
     table.clear(self._containers)
 
-    if IS_TARGET_GAME then
+    if HAS_BOTS_ITEMS then
         local botsFolder = Services.WorkSpace:FindFirstChild("IngameBots")
         if botsFolder then
             for _, bot in ipairs(botsFolder:GetChildren()) do
@@ -1183,6 +1195,30 @@ function espModule:Start()
                 if idx then table.remove(self._containers, idx) end
                 RemoveItemESP(child)
             end)
+        end
+    end
+
+    if HAS_CUSTOM_CHARS then
+        local gameLogic = Services.WorkSpace:FindFirstChild("GameLogic")
+        if gameLogic then
+            local chars = gameLogic:FindFirstChild("Characters")
+            if chars then
+                for _, child in ipairs(chars:GetChildren()) do
+                    if child:IsA("Model") then
+                        self._bots[#self._bots + 1] = child
+                    end
+                end
+                self._connections.CharAdded = chars.ChildAdded:Connect(function(child)
+                    if child:IsA("Model") then
+                        self._bots[#self._bots + 1] = child
+                    end
+                end)
+                self._connections.CharRemoving = chars.ChildRemoved:Connect(function(child)
+                    local idx = table.find(self._bots, child)
+                    if idx then table.remove(self._bots, idx) end
+                    RemoveESP(child)
+                end)
+            end
         end
     end
 

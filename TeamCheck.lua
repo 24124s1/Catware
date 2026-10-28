@@ -5,6 +5,7 @@ local LocalPlayer = Players.LocalPlayer
 local TeamManager = {
     Members = {},
 }
+
 if game.PlaceId == 79783567666809 then
     local SquadRemotes = ReplicatedStorage:WaitForChild("SquadRemotes")
     SquadRemotes.SquadUpdate.OnClientEvent:Connect(function(data)
@@ -12,6 +13,17 @@ if game.PlaceId == 79783567666809 then
             TeamManager.Members = data.members
         end
     end)
+end
+
+local GameState = nil
+if game.PlaceId == 109020905733214 then
+    local classes = ReplicatedStorage:FindFirstChild("Classes")
+    local userInterface = classes and classes:FindFirstChild("UserInterface")
+    local reactApp = userInterface and userInterface:FindFirstChild("ReactApp")
+    local gameStateModule = reactApp and reactApp:FindFirstChild("GameState")
+    if gameStateModule then
+        GameState = require(gameStateModule)
+    end
 end
 
 local function getMM2Data()
@@ -39,6 +51,31 @@ local function getMM2Role(plr)
 end
 
 local IsTeam = function(plr)
+    if game.PlaceId == 109020905733214 then
+        local c = plr.Character
+        if not c then
+            return false
+        end
+        
+        local success, result = pcall(function()
+            local a = c:GetAttribute("BotUniqueId")
+            if a and GameState and GameState.isTeammate then
+                return GameState.isTeammate(a)
+            end
+
+            if plr then
+                return GameState and GameState.isTeammate and GameState.isTeammate(plr.UserId) or false
+            end
+
+            return false
+        end)
+
+        if success and result then
+            return true
+        end
+        return false
+    end
+
     if game.PlaceId == 112757576021097 then
         local myStates = LocalPlayer:FindFirstChild("PlayerStates")
         local plrStates = plr:FindFirstChild("PlayerStates")

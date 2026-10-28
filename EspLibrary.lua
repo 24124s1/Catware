@@ -1,4 +1,4 @@
-print("4")
+print("5")
 
 local espModule = {}
 
@@ -126,7 +126,6 @@ espModule._isRunning = false
 espModule._connections = {}
 espModule._bots = {}
 espModule._containers = {}
-espModule._players = {}
 espModule.Fonts = {}
 
 local cloneref = cloneref or function(...) return ... end
@@ -148,7 +147,6 @@ Services.CurrentCamera = Services.WorkSpace.CurrentCamera
 Services.LocalPlayer = Services.Players.LocalPlayer
 
 local PixelFont = nil
-local HEALTH_SEGMENTS = 24
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
@@ -173,18 +171,14 @@ local function getEspFont(fontName)
     if fontName and espModule.Fonts[fontName] then
         return espModule.Fonts[fontName]
     end
-    if PixelFont then
-        return PixelFont
-    end
+    if PixelFont then return PixelFont end
     return Drawing.Fonts.UI or Drawing.Fonts.System or Drawing.Fonts.Monospace
 end
 
 local function loadFont()
     if next(espModule.Fonts) then return end
     local FontFolder = "esp_fonts"
-    if not isfolder(FontFolder) then
-        pcall(makefolder, FontFolder)
-    end
+    if not isfolder(FontFolder) then pcall(makefolder, FontFolder) end
 
     local fontList = {
         {"Comfortaa", "Comfortaa-Regular.ttf"},
@@ -212,22 +206,14 @@ local function loadFont()
         local Path = FontFolder .. "/" .. FileName
         local data = nil
         pcall(function()
-            if isfile and isfile(Path) then
-                data = readfile(Path)
-            end
+            if isfile and isfile(Path) then data = readfile(Path) end
         end)
         if not data or #data < 100 then
             local url = baseUrl .. FileName:gsub(" ", "%%20")
-            local success, content = pcall(function()
-                return game:HttpGet(url)
-            end)
+            local success, content = pcall(function() return game:HttpGet(url) end)
             if success and content and #content > 100 then
                 data = content
-                pcall(function()
-                    if writefile then
-                        writefile(Path, content)
-                    end
-                end)
+                pcall(function() if writefile then writefile(Path, content) end end)
             end
         end
         if data and #data > 100 then
@@ -236,9 +222,7 @@ local function loadFont()
                 f.Data = data
                 return f
             end)
-            if success and font then
-                espModule.Fonts[Name] = font
-            end
+            if success and font then espModule.Fonts[Name] = font end
         end
     end
 
@@ -250,26 +234,14 @@ local function loadFont()
     end
 
     PixelFont = espModule.Fonts["ProggyTiny"] or espModule.Fonts["Smallest Pixel-7"] or espModule.Fonts["ProggyClean"]
-    if not PixelFont then
-        pcall(function()
-            PixelFont = Drawing.Fonts.UI
-        end)
-    end
-    if not PixelFont then
-        pcall(function()
-            PixelFont = Drawing.Fonts.System
-        end)
-    end
-    if not PixelFont then
-        PixelFont = Drawing.Fonts.Monospace
-    end
+    if not PixelFont then pcall(function() PixelFont = Drawing.Fonts.UI end) end
+    if not PixelFont then pcall(function() PixelFont = Drawing.Fonts.System end) end
+    if not PixelFont then PixelFont = Drawing.Fonts.Monospace end
 end
 
 local function Create(type, props)
     local obj = Drawing.new(type)
-    for k, v in pairs(props) do
-        obj[k] = v
-    end
+    for k, v in pairs(props) do obj[k] = v end
     return obj
 end
 
@@ -282,10 +254,6 @@ end
 
 local function CreateEntityESP(entity)
     if espModule._drawings[entity] then return end
-    local segs = table.create(HEALTH_SEGMENTS)
-    for i = 1, HEALTH_SEGMENTS do
-        segs[i] = Create("Square", {Filled = true, Visible = false, ZIndex = 4})
-    end
     espModule._drawings[entity] = {
         FullOutline = {
             Top = Create("Line", {Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
@@ -321,7 +289,7 @@ local function CreateEntityESP(entity)
         },
         HealthBGOutline = Create("Square", {Filled = false, Thickness = 1, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 2}),
         HealthBG = Create("Square", {Filled = true, Color = Color3.fromRGB(15, 15, 15), Visible = false, ZIndex = 3}),
-        HealthSegments = segs,
+        HealthFill = Create("Square", {Filled = true, Color = Color3.fromRGB(0, 255, 100), Visible = false, ZIndex = 4}),
         HealthText = Create("Text", {Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
         NameText = Create("Text", {Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
         DistanceText = Create("Text", {Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Drawing.Fonts.Monospace, Visible = false, ZIndex = 5}),
@@ -343,6 +311,7 @@ local function CreateEntityESP(entity)
 end
 
 local function HideESP(data)
+    if not data then return end
     local fo = data.FullOutline
     fo.Top.Visible = false
     fo.Bottom.Visible = false
@@ -373,35 +342,17 @@ local function HideESP(data)
     c.BR2.Visible = false
     data.HealthBG.Visible = false
     data.HealthBGOutline.Visible = false
-    for i = 1, HEALTH_SEGMENTS do
-        data.HealthSegments[i].Visible = false
-    end
+    data.HealthFill.Visible = false
     data.HealthText.Visible = false
     data.NameText.Visible = false
     data.DistanceText.Visible = false
     data.ToolText.Visible = false
     data.Tracer.Visible = false
     local sk = data.Skeleton
-    sk.HeadTorso.Outline.Visible = false
-    sk.HeadTorso.Line.Visible = false
-    sk.TorsoHip.Outline.Visible = false
-    sk.TorsoHip.Line.Visible = false
-    sk.HipL.Outline.Visible = false
-    sk.HipL.Line.Visible = false
-    sk.HipR.Outline.Visible = false
-    sk.HipR.Line.Visible = false
-    sk.LLeg.Outline.Visible = false
-    sk.LLeg.Line.Visible = false
-    sk.RLeg.Outline.Visible = false
-    sk.RLeg.Line.Visible = false
-    sk.LArm.Outline.Visible = false
-    sk.LArm.Line.Visible = false
-    sk.RArm.Outline.Visible = false
-    sk.RArm.Line.Visible = false
-    sk.LFore.Outline.Visible = false
-    sk.LFore.Line.Visible = false
-    sk.RFore.Outline.Visible = false
-    sk.RFore.Line.Visible = false
+    for _, bone in pairs(sk) do
+        bone.Outline.Visible = false
+        bone.Line.Visible = false
+    end
 end
 
 local function RemoveESP(entity)
@@ -413,9 +364,7 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Corner) do v:Remove() end
     data.HealthBG:Remove()
     data.HealthBGOutline:Remove()
-    for i = 1, HEALTH_SEGMENTS do
-        data.HealthSegments[i]:Remove()
-    end
+    data.HealthFill:Remove()
     data.HealthText:Remove()
     data.NameText:Remove()
     data.DistanceText:Remove()
@@ -478,23 +427,19 @@ local typeList = {
     "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
 }
 
-local bodyParts = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "Torso", "LeftHand", "RightHand", "LeftFoot", "RightFoot"}
+local bodyParts = {"HumanoidRootPart", "Head", "LeftFoot", "RightFoot", "LeftHand", "RightHand"}
 
 local function ProcessItem(item)
     if not HAS_BOTS_ITEMS then return end
     if not item:IsA("Model") then return end
     local cfg = espModule.Settings.Items
     if not cfg.Enabled then
-        local data = espModule._itemDrawings[item]
-        if data then
-            data.NameDistText.Visible = false
-            data.ContentsText.Visible = false
-            if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-        end
+        RemoveItemESP(item)
         return
     end
 
     local camera = Services.CurrentCamera
+    if not camera then return end
     local pivot = item:GetPivot()
     if not pivot then return end
 
@@ -537,34 +482,19 @@ local function ProcessItem(item)
     end
 
     if not itemType then
-        local data = espModule._itemDrawings[item]
-        if data then
-            data.NameDistText.Visible = false
-            data.ContentsText.Visible = false
-            if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-        end
+        RemoveItemESP(item)
         return
     end
 
     local settingsKey = itemTypeMap[itemType]
     if not settingsKey then
-        local data = espModule._itemDrawings[item]
-        if data then
-            data.NameDistText.Visible = false
-            data.ContentsText.Visible = false
-            if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-        end
+        RemoveItemESP(item)
         return
     end
 
     if isDead then
         if not cfg.Dead.Enabled then
-            local data = espModule._itemDrawings[item]
-            if data then
-                data.NameDistText.Visible = false
-                data.ContentsText.Visible = false
-                if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-            end
+            RemoveItemESP(item)
             return
         end
         settingsKey = "Dead"
@@ -572,12 +502,7 @@ local function ProcessItem(item)
 
     local itemCfg = cfg[settingsKey]
     if not itemCfg or not itemCfg.Enabled then
-        local data = espModule._itemDrawings[item]
-        if data then
-            data.NameDistText.Visible = false
-            data.ContentsText.Visible = false
-            if espModule._itemHighlights[item] then espModule._itemHighlights[item].Enabled = false end
-        end
+        RemoveItemESP(item)
         return
     end
 
@@ -592,9 +517,7 @@ local function ProcessItem(item)
     local flagsFont = getEspFont(espModule.Settings.FlagsFont)
 
     local nameDistStr = ""
-    if showNames then
-        nameDistStr = itemName
-    end
+    if showNames then nameDistStr = itemName end
     if showDist then
         local distM = math.floor(dist / 2.81 + 0.5)
         if showNames then
@@ -632,9 +555,7 @@ local function ProcessItem(item)
         end
         if #contents > 0 then
             local contentStr = table.concat(contents, " | ")
-            if #contentStr > 60 then
-                contentStr = string.sub(contentStr, 1, 57) .. "..."
-            end
+            if #contentStr > 60 then contentStr = string.sub(contentStr, 1, 57) .. "..." end
             data.ContentsText.Text = contentStr
             data.ContentsText.Size = textSize - 1
             data.ContentsText.Font = textFont
@@ -678,56 +599,50 @@ local function ProcessEntity(entity)
     else
         character = entity
     end
-    if not character then return end
+    if not character then
+        RemoveESP(entity)
+        return
+    end
     if isPlayer then
         local inRaid = entity:FindFirstChild("InRaid")
         if inRaid and inRaid:IsA("BoolValue") and not inRaid.Value then
-            local data = espModule._drawings[entity]
-            if data then
-                HideESP(data)
-                if espModule._highlights[entity] then 
-                    espModule._highlights[entity].Enabled = false 
-                end
-            end
+            RemoveESP(entity)
             return
         end
     end
-    CreateEntityESP(entity)
-    local data = espModule._drawings[entity]
-    if not data then return end
+
     local cfg = isPlayer and (IsTeam(entity) and espModule.Settings.Teammate or espModule.Settings.Enemy) or espModule.Settings.AI
     if not cfg.Enabled then
-        HideESP(data)
-        if espModule._highlights[entity] then 
-            espModule._highlights[entity].Enabled = false 
-        end
+        RemoveESP(entity)
         return
     end
+
     local hrp = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not (hrp and humanoid and humanoid.Health > 0) then
-        HideESP(data)
-        if espModule._highlights[entity] then 
-            espModule._highlights[entity].Enabled = false 
-        end
+        RemoveESP(entity)
         return
     end
+
     local Camera = Services.CurrentCamera
     if not Camera then return end
     local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
     if rawStuds > MAX_ENTITY_DIST then
-        HideESP(data)
-        if espModule._highlights[entity] then 
-            espModule._highlights[entity].Enabled = false 
-        end
-        return
-    end
-    local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-    if not onScreen or hrpPos.Z <= 0 then
-        HideESP(data)
+        HideESP(espModule._drawings[entity])
         if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
         return
     end
+
+    local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+    if not onScreen or hrpPos.Z <= 0 then
+        HideESP(espModule._drawings[entity])
+        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        return
+    end
+
+    CreateEntityESP(entity)
+    local data = espModule._drawings[entity]
+    if not data then return end
 
     local minX, minY = math.huge, math.huge
     local maxX, maxY = -math.huge, -math.huge
@@ -736,27 +651,13 @@ local function ProcessEntity(entity)
     for i = 1, #bodyParts do
         local part = character:FindFirstChild(bodyParts[i])
         if part and part:IsA("BasePart") then
-            local cf = part.CFrame
-            local s = part.Size * 0.5
-            local corners = {
-                cf * Vector3.new(-s.X, -s.Y, -s.Z),
-                cf * Vector3.new(-s.X, -s.Y,  s.Z),
-                cf * Vector3.new(-s.X,  s.Y, -s.Z),
-                cf * Vector3.new(-s.X,  s.Y,  s.Z),
-                cf * Vector3.new( s.X, -s.Y, -s.Z),
-                cf * Vector3.new( s.X, -s.Y,  s.Z),
-                cf * Vector3.new( s.X,  s.Y, -s.Z),
-                cf * Vector3.new( s.X,  s.Y,  s.Z),
-            }
-            for j = 1, 8 do
-                local sp = Camera:WorldToViewportPoint(corners[j])
-                if sp.Z > 0 then
-                    validParts = validParts + 1
-                    if sp.X < minX then minX = sp.X end
-                    if sp.Y < minY then minY = sp.Y end
-                    if sp.X > maxX then maxX = sp.X end
-                    if sp.Y > maxY then maxY = sp.Y end
-                end
+            local sp, vis = Camera:WorldToViewportPoint(part.Position)
+            if vis and sp.Z > 0 then
+                validParts = validParts + 1
+                if sp.X < minX then minX = sp.X end
+                if sp.Y < minY then minY = sp.Y end
+                if sp.X > maxX then maxX = sp.X end
+                if sp.Y > maxY then maxY = sp.Y end
             end
         end
     end
@@ -766,10 +667,11 @@ local function ProcessEntity(entity)
         return
     end
 
-    local x = math.floor(minX + 0.5)
-    local y = math.floor(minY + 0.5)
-    local sx = math.max(math.floor(maxX - minX + 0.5), 6)
-    local sy = math.max(math.floor(maxY - minY + 0.5), 6)
+    local pad = 4
+    local x = math.floor(minX - pad + 0.5)
+    local y = math.floor(minY - pad + 0.5)
+    local sx = math.max(math.floor(maxX - minX + pad * 2 + 0.5), 8)
+    local sy = math.max(math.floor(maxY - minY + pad * 2 + 0.5), 8)
     local meters = math.floor(rawStuds / 2.81 + 0.5)
     local textFont = getEspFont(espModule.Settings.TextFont)
     local flagsFont = getEspFont(espModule.Settings.FlagsFont)
@@ -778,15 +680,15 @@ local function ProcessEntity(entity)
     if cfg.BoxEnabled then
         if cfg.BoxType == "Full" then
             local co = data.CornerOutline
-            co.TL1.Visible, co.TL2.Visible = false, false
-            co.TR1.Visible, co.TR2.Visible = false, false
-            co.BL1.Visible, co.BL2.Visible = false, false
-            co.BR1.Visible, co.BR2.Visible = false, false
+            co.TL1.Visible = false co.TL2.Visible = false
+            co.TR1.Visible = false co.TR2.Visible = false
+            co.BL1.Visible = false co.BL2.Visible = false
+            co.BR1.Visible = false co.BR2.Visible = false
             local c = data.Corner
-            c.TL1.Visible, c.TL2.Visible = false, false
-            c.TR1.Visible, c.TR2.Visible = false, false
-            c.BL1.Visible, c.BL2.Visible = false, false
-            c.BR1.Visible, c.BR2.Visible = false, false
+            c.TL1.Visible = false c.TL2.Visible = false
+            c.TR1.Visible = false c.TR2.Visible = false
+            c.BL1.Visible = false c.BL2.Visible = false
+            c.BR1.Visible = false c.BR2.Visible = false
 
             local fo = data.FullOutline
             fo.Top.From = Vector2.new(x - 1, y)
@@ -840,80 +742,44 @@ local function ProcessEntity(entity)
             local ch = math.max(2, math.floor(sy * len + 0.5))
 
             local co = data.CornerOutline
-            co.TL1.From = Vector2.new(x - 1, y)
-            co.TL1.To = Vector2.new(x + cw + 1, y)
-            co.TL1.Visible = true
-            co.TL2.From = Vector2.new(x, y - 1)
-            co.TL2.To = Vector2.new(x, y + ch + 1)
-            co.TL2.Visible = true
-            co.TR1.From = Vector2.new(x + sx + 1, y)
-            co.TR1.To = Vector2.new(x + sx - cw - 1, y)
-            co.TR1.Visible = true
-            co.TR2.From = Vector2.new(x + sx, y - 1)
-            co.TR2.To = Vector2.new(x + sx, y + ch + 1)
-            co.TR2.Visible = true
-            co.BL1.From = Vector2.new(x - 1, y + sy)
-            co.BL1.To = Vector2.new(x + cw + 1, y + sy)
-            co.BL1.Visible = true
-            co.BL2.From = Vector2.new(x, y + sy + 1)
-            co.BL2.To = Vector2.new(x, y + sy - ch)
-            co.BL2.Visible = true
-            co.BR1.From = Vector2.new(x + sx + 1, y + sy)
-            co.BR1.To = Vector2.new(x + sx - cw - 1, y + sy)
-            co.BR1.Visible = true
-            co.BR2.From = Vector2.new(x + sx, y + sy + 1)
-            co.BR2.To = Vector2.new(x + sx, y + sy - ch)
-            co.BR2.Visible = true
+            co.TL1.From = Vector2.new(x - 1, y) co.TL1.To = Vector2.new(x + cw + 1, y) co.TL1.Visible = true
+            co.TL2.From = Vector2.new(x, y - 1) co.TL2.To = Vector2.new(x, y + ch + 1) co.TL2.Visible = true
+            co.TR1.From = Vector2.new(x + sx + 1, y) co.TR1.To = Vector2.new(x + sx - cw - 1, y) co.TR1.Visible = true
+            co.TR2.From = Vector2.new(x + sx, y - 1) co.TR2.To = Vector2.new(x + sx, y + ch + 1) co.TR2.Visible = true
+            co.BL1.From = Vector2.new(x - 1, y + sy) co.BL1.To = Vector2.new(x + cw + 1, y + sy) co.BL1.Visible = true
+            co.BL2.From = Vector2.new(x, y + sy + 1) co.BL2.To = Vector2.new(x, y + sy - ch) co.BL2.Visible = true
+            co.BR1.From = Vector2.new(x + sx + 1, y + sy) co.BR1.To = Vector2.new(x + sx - cw - 1, y + sy) co.BR1.Visible = true
+            co.BR2.From = Vector2.new(x + sx, y + sy + 1) co.BR2.To = Vector2.new(x + sx, y + sy - ch) co.BR2.Visible = true
 
             local c = data.Corner
-            c.TL1.From = Vector2.new(x, y)
-            c.TL1.To = Vector2.new(x + cw, y)
-            c.TL1.Color = cfg.LineColor
-            c.TL1.Thickness = cfg.Thickness
-            c.TL1.Visible = true
-            c.TL2.From = Vector2.new(x, y)
-            c.TL2.To = Vector2.new(x, y + ch)
-            c.TL2.Color = cfg.LineColor
-            c.TL2.Thickness = cfg.Thickness
-            c.TL2.Visible = true
-            c.TR1.From = Vector2.new(x + sx, y)
-            c.TR1.To = Vector2.new(x + sx - cw, y)
-            c.TR1.Color = cfg.LineColor
-            c.TR1.Thickness = cfg.Thickness
-            c.TR1.Visible = true
-            c.TR2.From = Vector2.new(x + sx, y)
-            c.TR2.To = Vector2.new(x + sx, y + ch)
-            c.TR2.Color = cfg.LineColor
-            c.TR2.Thickness = cfg.Thickness
-            c.TR2.Visible = true
-            c.BL1.From = Vector2.new(x, y + sy)
-            c.BL1.To = Vector2.new(x + cw, y + sy)
-            c.BL1.Color = cfg.LineColor
-            c.BL1.Thickness = cfg.Thickness
-            c.BL1.Visible = true
-            c.BL2.From = Vector2.new(x, y + sy)
-            c.BL2.To = Vector2.new(x, y + sy - ch)
-            c.BL2.Color = cfg.LineColor
-            c.BL2.Thickness = cfg.Thickness
-            c.BL2.Visible = true
-            c.BR1.From = Vector2.new(x + sx, y + sy)
-            c.BR1.To = Vector2.new(x + sx - cw, y + sy)
-            c.BR1.Color = cfg.LineColor
-            c.BR1.Thickness = cfg.Thickness
-            c.BR1.Visible = true
-            c.BR2.From = Vector2.new(x + sx, y + sy)
-            c.BR2.To = Vector2.new(x + sx, y + sy - ch)
-            c.BR2.Color = cfg.LineColor
-            c.BR2.Thickness = cfg.Thickness
-            c.BR2.Visible = true
+            c.TL1.From = Vector2.new(x, y) c.TL1.To = Vector2.new(x + cw, y) c.TL1.Color = cfg.LineColor c.TL1.Thickness = cfg.Thickness c.TL1.Visible = true
+            c.TL2.From = Vector2.new(x, y) c.TL2.To = Vector2.new(x, y + ch) c.TL2.Color = cfg.LineColor c.TL2.Thickness = cfg.Thickness c.TL2.Visible = true
+            c.TR1.From = Vector2.new(x + sx, y) c.TR1.To = Vector2.new(x + sx - cw, y) c.TR1.Color = cfg.LineColor c.TR1.Thickness = cfg.Thickness c.TR1.Visible = true
+            c.TR2.From = Vector2.new(x + sx, y) c.TR2.To = Vector2.new(x + sx, y + ch) c.TR2.Color = cfg.LineColor c.TR2.Thickness = cfg.Thickness c.TR2.Visible = true
+            c.BL1.From = Vector2.new(x, y + sy) c.BL1.To = Vector2.new(x + cw, y + sy) c.BL1.Color = cfg.LineColor c.BL1.Thickness = cfg.Thickness c.BL1.Visible = true
+            c.BL2.From = Vector2.new(x, y + sy) c.BL2.To = Vector2.new(x, y + sy - ch) c.BL2.Color = cfg.LineColor c.BL2.Thickness = cfg.Thickness c.BL2.Visible = true
+            c.BR1.From = Vector2.new(x + sx, y + sy) c.BR1.To = Vector2.new(x + sx - cw, y + sy) c.BR1.Color = cfg.LineColor c.BR1.Thickness = cfg.Thickness c.BR1.Visible = true
+            c.BR2.From = Vector2.new(x + sx, y + sy) c.BR2.To = Vector2.new(x + sx, y + sy - ch) c.BR2.Color = cfg.LineColor c.BR2.Thickness = cfg.Thickness c.BR2.Visible = true
         end
     else
-        HideESP(data)
+        local fo = data.FullOutline
+        fo.Top.Visible = false fo.Bottom.Visible = false fo.Left.Visible = false fo.Right.Visible = false
+        local f = data.Full
+        f.Top.Visible = false f.Bottom.Visible = false f.Left.Visible = false f.Right.Visible = false
+        local co = data.CornerOutline
+        co.TL1.Visible = false co.TL2.Visible = false co.TR1.Visible = false co.TR2.Visible = false
+        co.BL1.Visible = false co.BL2.Visible = false co.BR1.Visible = false co.BR2.Visible = false
+        local c = data.Corner
+        c.TL1.Visible = false c.TL2.Visible = false c.TR1.Visible = false c.TR2.Visible = false
+        c.BL1.Visible = false c.BL2.Visible = false c.BR1.Visible = false c.BR2.Visible = false
     end
 
     if cfg.HealthBar then
         local barX = x - 5
         local barW = 2
+        local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
+        local fillH = math.floor(sy * hp + 0.5)
+
         data.HealthBGOutline.Size = Vector2.new(barW + 2, sy + 2)
         data.HealthBGOutline.Position = Vector2.new(barX - 1, y - 1)
         data.HealthBGOutline.Visible = true
@@ -921,20 +787,10 @@ local function ProcessEntity(entity)
         data.HealthBG.Position = Vector2.new(barX, y)
         data.HealthBG.Visible = true
 
-        local segH = sy / HEALTH_SEGMENTS
-        local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-        local threshold = hp * HEALTH_SEGMENTS
-        for i = 1, HEALTH_SEGMENTS do
-            local seg = data.HealthSegments[i]
-            if i <= threshold then
-                seg.Size = Vector2.new(barW, segH + 0.6)
-                seg.Position = Vector2.new(barX, y + sy - (segH * i))
-                seg.Color = cfg.HealthBottom:Lerp(cfg.HealthTop, i / HEALTH_SEGMENTS)
-                seg.Visible = true
-            else
-                seg.Visible = false
-            end
-        end
+        data.HealthFill.Size = Vector2.new(barW, fillH)
+        data.HealthFill.Position = Vector2.new(barX, y + sy - fillH)
+        data.HealthFill.Color = cfg.HealthBottom:Lerp(cfg.HealthTop, hp)
+        data.HealthFill.Visible = true
 
         if cfg.HealthText then
             local hpVal = math.floor(humanoid.Health + 0.5)
@@ -942,10 +798,7 @@ local function ProcessEntity(entity)
             data.HealthText.Size = cfg.TextSize
             data.HealthText.Font = healthFont
             local tw = data.HealthText.TextBounds.X
-            local fillH = sy * hp
-            local minClamp = y - 2
-            local maxClamp = math.max(minClamp, y + sy - 10)
-            local ty = math.clamp(y + sy - fillH - 5, minClamp, maxClamp)
+            local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
             data.HealthText.Position = Vector2.new(barX - 3 - tw, ty)
             data.HealthText.Color = Color3.new(1, 1, 1)
             data.HealthText.Visible = true
@@ -955,9 +808,7 @@ local function ProcessEntity(entity)
     else
         data.HealthBG.Visible = false
         data.HealthBGOutline.Visible = false
-        for i = 1, HEALTH_SEGMENTS do
-            data.HealthSegments[i].Visible = false
-        end
+        data.HealthFill.Visible = false
         data.HealthText.Visible = false
     end
 
@@ -1053,26 +904,10 @@ local function ProcessEntity(entity)
         DrawBone(sk.RFore, "RightUpperArm", "RightLowerArm")
     else
         local sk = data.Skeleton
-        sk.HeadTorso.Outline.Visible = false
-        sk.HeadTorso.Line.Visible = false
-        sk.TorsoHip.Outline.Visible = false
-        sk.TorsoHip.Line.Visible = false
-        sk.HipL.Outline.Visible = false
-        sk.HipL.Line.Visible = false
-        sk.HipR.Outline.Visible = false
-        sk.HipR.Line.Visible = false
-        sk.LLeg.Outline.Visible = false
-        sk.LLeg.Line.Visible = false
-        sk.RLeg.Outline.Visible = false
-        sk.RLeg.Line.Visible = false
-        sk.LArm.Outline.Visible = false
-        sk.LArm.Line.Visible = false
-        sk.RArm.Outline.Visible = false
-        sk.RArm.Line.Visible = false
-        sk.LFore.Outline.Visible = false
-        sk.LFore.Line.Visible = false
-        sk.RFore.Outline.Visible = false
-        sk.RFore.Line.Visible = false
+        for _, bone in pairs(sk) do
+            bone.Outline.Visible = false
+            bone.Line.Visible = false
+        end
     end
 
     if cfg.Chams then
@@ -1104,15 +939,16 @@ local function espLoop()
     local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
     local anyItem = s.Items.Enabled and HAS_BOTS_ITEMS
     if not anyEntity and not anyItem then return end
+
     _espFrame = _espFrame + 1
-    if tick() - _cameraCacheTime > 0.1 then
+    if tick() - _cameraCacheTime > 0.15 then
         _cameraCache = Services.WorkSpace.CurrentCamera
         _cameraCacheTime = tick()
     end
     Services.CurrentCamera = _cameraCache
     if not Services.CurrentCamera then return end
 
-    if anyEntity then
+    if anyEntity and (_espFrame % 2 == 0) then
         if HAS_CUSTOM_CHARS then
             local bots = espModule._bots
             for i = 1, #bots do
@@ -1141,7 +977,7 @@ local function espLoop()
         end
     end
 
-    if anyItem and (_espFrame % 3 == 0) then
+    if anyItem and (_espFrame % 4 == 0) then
         local containers = espModule._containers
         for i = 1, #containers do
             local item = containers[i]

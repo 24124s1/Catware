@@ -28,30 +28,9 @@ local function getMM2Data()
     return nil
 end
 
-local lastPrint = 0
 local function getMM2Role(plr)
     local data = getMM2Data()
     if not data then return nil end
-
-    if tick() - lastPrint > 3 then
-        lastPrint = tick()
-        local murderer, sheriff, innocents = nil, nil, {}
-        for name, info in pairs(data) do
-            if type(info) == "table" and info.Role then
-                if info.Role == "Murderer" then
-                    murderer = name
-                elseif info.Role == "Sheriff" or info.Role == "Hero" then
-                    sheriff = name
-                else
-                    table.insert(innocents, name)
-                end
-            end
-        end
-        print("Murderer:", murderer or "None")
-        print("Sheriff:", sheriff or "None")
-        print("Innocents:", #innocents > 0 and table.concat(innocents, ", ") or "None")
-    end
-
     local info = data[plr.Name]
     if type(info) == "table" then
         return info.Role

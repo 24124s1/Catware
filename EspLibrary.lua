@@ -170,7 +170,7 @@ Services.LocalPlayer = Services.Players.LocalPlayer
 
 local PixelFont = nil
 local HEALTH_SEGMENTS = 24
-local BOXFILL_SEGMENTS = 264
+local BOXFILL_SEGMENTS = 256
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
@@ -727,7 +727,7 @@ local function ProcessEntity(entity)
     local flagsFont = getEspFont(espModule.Settings.FlagsFont)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
-     if cfg.BoxFill then
+    if cfg.BoxFill then
         if not espModule._boxFillAngles[entity] then
             espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
         end
@@ -737,6 +737,7 @@ local function ProcessEntity(entity)
     
         local angle = espModule._boxFillAngles[entity]
         local segH = sy / BOXFILL_SEGMENTS
+        local trans = math.clamp(cfg.BoxFillTransparency or 0.75, 0.4, 0.95)
     
         for i = 1, BOXFILL_SEGMENTS do
             local seg = data.BoxFillSegments[i]
@@ -745,10 +746,10 @@ local function ProcessEntity(entity)
             local wave = (math.sin(math.rad(angle + t * 360)) + 1) / 2
             local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, wave)
     
-            seg.Size = Vector2.new(sx + 1, segH + 1.2)
-            seg.Position = Vector2.new(x - 0.5, y + (i - 1) * segH - 0.5)
+            seg.Size = Vector2.new(sx + 2, segH + 1.5)
+            seg.Position = Vector2.new(x - 1, y + (i - 1) * segH - 0.75)
             seg.Color = col
-            seg.Transparency = cfg.BoxFillTransparency or 0.7
+            seg.Transparency = trans
             seg.Visible = true
         end
     else

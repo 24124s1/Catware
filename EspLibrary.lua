@@ -1,8 +1,11 @@
-print("3")
+print("4")
 
 local espModule = {}
 
 espModule.Settings = {
+    TextFont = "ProggyTiny",
+    FlagsFont = "ProggyTiny",
+    HealthFont = "ProggyTiny",
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
@@ -14,7 +17,6 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         TextSize = 12,
-        Font = "ProggyTiny",
         Skeleton = false,
         SkeletonThickness = 0.5,
         Chams = false,
@@ -43,7 +45,6 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         TextSize = 12,
-        Font = "ProggyTiny",
         Skeleton = false,
         SkeletonThickness = 0.5,
         Chams = false,
@@ -72,7 +73,6 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         TextSize = 12,
-        Font = "ProggyTiny",
         Skeleton = false,
         SkeletonThickness = 0.5,
         Chams = false,
@@ -94,7 +94,6 @@ espModule.Settings = {
         Enabled = false,
         MaxDistance = 200,
         TextSize = 12,
-        Font = "ProggyTiny",
         ShowNames = false,
         ShowDistance = false,
         ShowContents = false,
@@ -589,7 +588,8 @@ local function ProcessItem(item)
     local showNames = cfg.ShowNames
     local showDist = cfg.ShowDistance
     local showContents = cfg.ShowContents
-    local font = getEspFont(cfg.Font)
+    local textFont = getEspFont(espModule.Settings.TextFont)
+    local flagsFont = getEspFont(espModule.Settings.FlagsFont)
 
     local nameDistStr = ""
     if showNames then
@@ -607,7 +607,7 @@ local function ProcessItem(item)
     if nameDistStr ~= "" then
         data.NameDistText.Text = nameDistStr
         data.NameDistText.Size = textSize
-        data.NameDistText.Font = font
+        data.NameDistText.Font = showDist and flagsFont or textFont
         data.NameDistText.Color = color
         data.NameDistText.Position = Vector2.new(pos.X, pos.Y - 12)
         data.NameDistText.Visible = true
@@ -637,7 +637,7 @@ local function ProcessItem(item)
             end
             data.ContentsText.Text = contentStr
             data.ContentsText.Size = textSize - 1
-            data.ContentsText.Font = font
+            data.ContentsText.Font = textFont
             data.ContentsText.Color = color
             data.ContentsText.Position = Vector2.new(pos.X, pos.Y + 16)
             data.ContentsText.Visible = true
@@ -771,7 +771,9 @@ local function ProcessEntity(entity)
     local sx = math.max(math.floor(maxX - minX + 0.5), 6)
     local sy = math.max(math.floor(maxY - minY + 0.5), 6)
     local meters = math.floor(rawStuds / 2.81 + 0.5)
-    local font = getEspFont(cfg.Font)
+    local textFont = getEspFont(espModule.Settings.TextFont)
+    local flagsFont = getEspFont(espModule.Settings.FlagsFont)
+    local healthFont = getEspFont(espModule.Settings.HealthFont)
 
     if cfg.BoxEnabled then
         if cfg.BoxType == "Full" then
@@ -938,7 +940,7 @@ local function ProcessEntity(entity)
             local hpVal = math.floor(humanoid.Health + 0.5)
             data.HealthText.Text = tostring(hpVal)
             data.HealthText.Size = cfg.TextSize
-            data.HealthText.Font = font
+            data.HealthText.Font = healthFont
             local tw = data.HealthText.TextBounds.X
             local fillH = sy * hp
             local minClamp = y - 2
@@ -963,7 +965,7 @@ local function ProcessEntity(entity)
         local name = isPlayer and entity.DisplayName or character.Name
         data.NameText.Text = name
         data.NameText.Size = cfg.TextSize
-        data.NameText.Font = font
+        data.NameText.Font = textFont
         data.NameText.Color = cfg.TextColor
         data.NameText.Position = Vector2.new(x + sx * 0.5, y - 14)
         data.NameText.Visible = true
@@ -974,7 +976,7 @@ local function ProcessEntity(entity)
     if cfg.Distance then
         data.DistanceText.Text = "[" .. tostring(meters) .. "m]"
         data.DistanceText.Size = cfg.TextSize
-        data.DistanceText.Font = font
+        data.DistanceText.Font = flagsFont
         data.DistanceText.Color = cfg.TextColor
         data.DistanceText.Position = Vector2.new(x + sx + 4, y - 1)
         data.DistanceText.Visible = true
@@ -986,7 +988,7 @@ local function ProcessEntity(entity)
         local tool = character:FindFirstChildOfClass("Tool")
         data.ToolText.Text = tool and tool.Name or "None"
         data.ToolText.Size = cfg.TextSize
-        data.ToolText.Font = font
+        data.ToolText.Font = textFont
         data.ToolText.Color = cfg.TextColor
         data.ToolText.Position = Vector2.new(x + sx * 0.5, y + sy + 2)
         data.ToolText.Visible = true

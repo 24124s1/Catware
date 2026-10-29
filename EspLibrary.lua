@@ -1,4 +1,4 @@
-print("2")
+print('3')
 
 local espModule = {}
 
@@ -23,6 +23,8 @@ espModule.Settings = {
         Tool = false,
         HealthBar = false,
         HealthText = false,
+        ArmorBar = false,
+        ArmorColor = Color3.fromRGB(200, 200, 200),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 18,
@@ -56,6 +58,8 @@ espModule.Settings = {
         Tool = false,
         HealthBar = false,
         HealthText = false,
+        ArmorBar = false,
+        ArmorColor = Color3.fromRGB(200, 200, 200),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 18,
@@ -89,6 +93,8 @@ espModule.Settings = {
         Tool = false,
         HealthBar = false,
         HealthText = false,
+        ArmorBar = false,
+        ArmorColor = Color3.fromRGB(200, 200, 200),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 18,
@@ -443,6 +449,29 @@ local function CreateEntityESP(entity)
     healthGradient.Rotation = 90
     healthGradient.Parent = healthFill
 
+    local armorContainer = Instance.new("Frame")
+    armorContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    armorContainer.BorderSizePixel = 0
+    armorContainer.Visible = false
+    armorContainer.ZIndex = 2
+    armorContainer.Parent = espGui
+
+    local armorStroke = Instance.new("UIStroke")
+    armorStroke.Color = Color3.new(0, 0, 0)
+    armorStroke.Thickness = 1
+    armorStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    armorStroke.Parent = armorContainer
+
+    local armorFill = Instance.new("Frame")
+    armorFill.BackgroundColor3 = Color3.new(1, 1, 1)
+    armorFill.BorderSizePixel = 0
+    armorFill.AnchorPoint = Vector2.new(0, 0)
+    armorFill.Position = UDim2.fromScale(0, 0)
+    armorFill.Size = UDim2.fromScale(1, 1)
+    armorFill.Visible = false
+    armorFill.ZIndex = 3
+    armorFill.Parent = armorContainer
+
     espModule._drawings[entity] = {
         FullOutline = {
             Top = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
@@ -484,6 +513,8 @@ local function CreateEntityESP(entity)
         HealthContainer = healthContainer,
         HealthFill = healthFill,
         HealthGradient = healthGradient,
+        ArmorContainer = armorContainer,
+        ArmorFill = armorFill,
         HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.HealthFont), Visible = false, ZIndex = 5}),
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
@@ -527,6 +558,8 @@ local function HideESP(data)
     data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
     data.HealthFill.Visible = false
+    data.ArmorContainer.Visible = false
+    data.ArmorFill.Visible = false
     data.HealthText:Hide()
     data.NameText:Hide()
     data.DistanceText:Hide()
@@ -552,6 +585,7 @@ local function RemoveESP(entity)
     data.BoxFill:Destroy()
     data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
+    data.ArmorContainer:Destroy()
     data.HealthText:Destroy()
     data.NameText:Destroy()
     data.DistanceText:Destroy()
@@ -697,13 +731,18 @@ local function ProcessItem(item)
     end
 
     if nameDistStr ~= "" then
-        data.NameDistText.Frame.Text = nameDistStr
-        data.NameDistText.Frame.TextSize = textSize
-        data.NameDistText.Frame.FontFace = showDist and flagsFont or textFont
-        data.NameDistText.Frame.TextColor3 = color
-        local bounds = data.NameDistText.Frame.TextBounds
-        data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X - bounds.X / 2, pos.Y - 12)
-        data.NameDistText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
+        if data.LastNameDistStr ~= nameDistStr or data.LastNameDistFont ~= (showDist and flagsFont or textFont) or data.LastNameDistSize ~= textSize then
+            data.NameDistText.Frame.Text = nameDistStr
+            data.NameDistText.Frame.TextSize = textSize
+            data.NameDistText.Frame.FontFace = showDist and flagsFont or textFont
+            data.NameDistText.Frame.TextColor3 = color
+            data.NameDistBounds = data.NameDistText.Frame.TextBounds
+            data.LastNameDistStr = nameDistStr
+            data.LastNameDistFont = showDist and flagsFont or textFont
+            data.LastNameDistSize = textSize
+        end
+        data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X - data.NameDistBounds.X / 2, pos.Y - 12)
+        data.NameDistText.Frame.Size = UDim2.fromOffset(data.NameDistBounds.X, data.NameDistBounds.Y)
         data.NameDistText.Frame.Visible = true
     else
         data.NameDistText:Hide()
@@ -727,13 +766,19 @@ local function ProcessItem(item)
         if #contents > 0 then
             local contentStr = table.concat(contents, " | ")
             if #contentStr > 60 then contentStr = string.sub(contentStr, 1, 57) .. "..." end
-            data.ContentsText.Frame.Text = contentStr
-            data.ContentsText.Frame.TextSize = textSize - 1
-            data.ContentsText.Frame.FontFace = textFont
-            data.ContentsText.Frame.TextColor3 = color
-            local bounds = data.ContentsText.Frame.TextBounds
-            data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X - bounds.X / 2, pos.Y + 16)
-            data.ContentsText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
+            
+            if data.LastContentStr ~= contentStr or data.LastContentFont ~= textFont or data.LastContentSize ~= (textSize - 1) then
+                data.ContentsText.Frame.Text = contentStr
+                data.ContentsText.Frame.TextSize = textSize - 1
+                data.ContentsText.Frame.FontFace = textFont
+                data.ContentsText.Frame.TextColor3 = color
+                data.ContentsBounds = data.ContentsText.Frame.TextBounds
+                data.LastContentStr = contentStr
+                data.LastContentFont = textFont
+                data.LastContentSize = textSize - 1
+            end
+            data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X - data.ContentsBounds.X / 2, pos.Y + 16)
+            data.ContentsText.Frame.Size = UDim2.fromOffset(data.ContentsBounds.X, data.ContentsBounds.Y)
             data.ContentsText.Frame.Visible = true
         else
             data.ContentsText:Hide()
@@ -918,27 +963,25 @@ local function ProcessEntity(entity)
             c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
 
             local fo = data.FullOutline
-            fo.Top:Set(Vector2.new(x - 1, y), Vector2.new(x + sx + 1, y))
-            fo.Bottom:Set(Vector2.new(x - 1, y + sy), Vector2.new(x + sx + 1, y + sy))
-            fo.Left:Set(Vector2.new(x, y - 1), Vector2.new(x, y + sy + 1))
-            fo.Right:Set(Vector2.new(x + sx, y - 1), Vector2.new(x + sx, y + sy + 1))
+            fo.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
+            fo.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
+            fo.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
+            fo.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
 
             local f = data.Full
+            f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
+            f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
+            f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
+            f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
+
             f.Top.Frame.BackgroundColor3 = cfg.LineColor
             f.Top.Thickness = cfg.Thickness
-            f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
-            
             f.Bottom.Frame.BackgroundColor3 = cfg.LineColor
             f.Bottom.Thickness = cfg.Thickness
-            f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
-            
             f.Left.Frame.BackgroundColor3 = cfg.LineColor
             f.Left.Thickness = cfg.Thickness
-            f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
-            
             f.Right.Frame.BackgroundColor3 = cfg.LineColor
             f.Right.Thickness = cfg.Thickness
-            f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
             
         elseif cfg.BoxType == "3D" then
             local co = data.CornerOutline
@@ -960,9 +1003,9 @@ local function ProcessEntity(entity)
                 
                 if vis[e[1]] and vis[e[2]] then
                     lineO:Set(p[e[1]], p[e[2]])
+                    line:Set(p[e[1]], p[e[2]])
                     line.Frame.BackgroundColor3 = cfg.LineColor
                     line.Thickness = cfg.Thickness
-                    line:Set(p[e[1]], p[e[2]])
                 else
                     lineO:Hide()
                     line:Hide()
@@ -982,32 +1025,33 @@ local function ProcessEntity(entity)
             local ch = math.max(2, math.floor(sy * len + 0.5))
 
             local co = data.CornerOutline
-            co.TL1:Set(Vector2.new(x - 1, y), Vector2.new(x + cw + 1, y))
-            co.TL2:Set(Vector2.new(x, y - 1), Vector2.new(x, y + ch + 1))
-            co.TR1:Set(Vector2.new(x + sx + 1, y), Vector2.new(x + sx - cw - 1, y))
-            co.TR2:Set(Vector2.new(x + sx, y - 1), Vector2.new(x + sx, y + ch + 1))
-            co.BL1:Set(Vector2.new(x - 1, y + sy), Vector2.new(x + cw + 1, y + sy))
+            co.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw, y))
+            co.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch))
+            co.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw, y))
+            co.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch))
+            co.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw, y + sy))
             co.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch))
-            co.BR1:Set(Vector2.new(x + sx + 1, y + sy), Vector2.new(x + sx - cw - 1, y + sy))
+            co.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw, y + sy))
             co.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch))
 
             local c = data.Corner
-            c.TL1.Frame.BackgroundColor3 = cfg.LineColor c.TL1.Thickness = cfg.Thickness
             c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw, y))
-            c.TL2.Frame.BackgroundColor3 = cfg.LineColor c.TL2.Thickness = cfg.Thickness
             c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch))
-            c.TR1.Frame.BackgroundColor3 = cfg.LineColor c.TR1.Thickness = cfg.Thickness
             c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw, y))
-            c.TR2.Frame.BackgroundColor3 = cfg.LineColor c.TR2.Thickness = cfg.Thickness
             c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch))
-            c.BL1.Frame.BackgroundColor3 = cfg.LineColor c.BL1.Thickness = cfg.Thickness
             c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw, y + sy))
-            c.BL2.Frame.BackgroundColor3 = cfg.LineColor c.BL2.Thickness = cfg.Thickness
             c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch))
-            c.BR1.Frame.BackgroundColor3 = cfg.LineColor c.BR1.Thickness = cfg.Thickness
             c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw, y + sy))
-            c.BR2.Frame.BackgroundColor3 = cfg.LineColor c.BR2.Thickness = cfg.Thickness
             c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch))
+
+            c.TL1.Frame.BackgroundColor3 = cfg.LineColor c.TL1.Thickness = cfg.Thickness
+            c.TL2.Frame.BackgroundColor3 = cfg.LineColor c.TL2.Thickness = cfg.Thickness
+            c.TR1.Frame.BackgroundColor3 = cfg.LineColor c.TR1.Thickness = cfg.Thickness
+            c.TR2.Frame.BackgroundColor3 = cfg.LineColor c.TR2.Thickness = cfg.Thickness
+            c.BL1.Frame.BackgroundColor3 = cfg.LineColor c.BL1.Thickness = cfg.Thickness
+            c.BL2.Frame.BackgroundColor3 = cfg.LineColor c.BL2.Thickness = cfg.Thickness
+            c.BR1.Frame.BackgroundColor3 = cfg.LineColor c.BR1.Thickness = cfg.Thickness
+            c.BR2.Frame.BackgroundColor3 = cfg.LineColor c.BR2.Thickness = cfg.Thickness
         end
     else
         for _, line in pairs(data.Entity3DBoxOutline) do line:Hide() end
@@ -1068,14 +1112,20 @@ local function ProcessEntity(entity)
         if cfg.HealthText then
             local hpVal = math.floor(humanoid.Health + 0.5)
             local textStr = tostring(hpVal)
-            data.HealthText.Frame.Text = textStr
-            data.HealthText.Frame.TextSize = cfg.TextSize
-            data.HealthText.Frame.FontFace = healthFont
-            local tw = data.HealthText.Frame.TextBounds.X
+            if data.LastHealthStr ~= textStr or data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
+                data.HealthText.Frame.Text = textStr
+                data.HealthText.Frame.TextSize = cfg.TextSize
+                data.HealthText.Frame.FontFace = healthFont
+                data.HealthBounds = data.HealthText.Frame.TextBounds
+                data.LastHealthStr = textStr
+                data.LastHealthFont = healthFont
+                data.LastHealthSize = cfg.TextSize
+            end
+            local tw = data.HealthBounds.X
             local fillH = sy * hp
             local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
             data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3 - tw, ty)
-            data.HealthText.Frame.Size = UDim2.fromOffset(tw, data.HealthText.Frame.TextBounds.Y)
+            data.HealthText.Frame.Size = UDim2.fromOffset(tw, data.HealthBounds.Y)
             data.HealthText.Frame.TextColor3 = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
             data.HealthText.Frame.Visible = true
         else
@@ -1087,15 +1137,43 @@ local function ProcessEntity(entity)
         data.HealthText:Hide()
     end
 
+    if cfg.ArmorBar then
+        local armor = 0
+        local armorObj = character:FindFirstChild("Armor")
+        if armorObj and armorObj:IsA("NumberValue") then
+            armor = armorObj.Value
+        end
+
+        local barY = y + sy + 2
+        local barH = 2
+        
+        data.ArmorContainer.Position = UDim2.fromOffset(x, barY)
+        data.ArmorContainer.Size = UDim2.fromOffset(sx, barH)
+        data.ArmorContainer.Visible = true
+
+        local armRatio = math.clamp(armor / 100, 0, 1)
+        data.ArmorFill.Size = UDim2.fromScale(armRatio, 1)
+        data.ArmorFill.BackgroundColor3 = cfg.ArmorColor
+        data.ArmorFill.Visible = true
+    else
+        data.ArmorContainer.Visible = false
+        data.ArmorFill.Visible = false
+    end
+
     if cfg.Names then
         local name = isPlayer and entity.DisplayName or character.Name
-        data.NameText.Frame.Text = name
-        data.NameText.Frame.TextSize = cfg.TextSize
-        data.NameText.Frame.FontFace = textFont
+        if data.LastNameStr ~= name or data.LastNameFont ~= textFont or data.LastNameSize ~= cfg.TextSize then
+            data.NameText.Frame.Text = name
+            data.NameText.Frame.TextSize = cfg.TextSize
+            data.NameText.Frame.FontFace = textFont
+            data.NameBounds = data.NameText.Frame.TextBounds
+            data.LastNameStr = name
+            data.LastNameFont = textFont
+            data.LastNameSize = cfg.TextSize
+        end
         data.NameText.Frame.TextColor3 = cfg.NameColor
-        local bounds = data.NameText.Frame.TextBounds
-        data.NameText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (bounds.X / 2), y - 14)
-        data.NameText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
+        data.NameText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (data.NameBounds.X / 2), y - 14)
+        data.NameText.Frame.Size = UDim2.fromOffset(data.NameBounds.X, data.NameBounds.Y)
         data.NameText.Frame.Visible = true
     else
         data.NameText:Hide()
@@ -1103,13 +1181,18 @@ local function ProcessEntity(entity)
 
     if cfg.Distance then
         local textStr = "[" .. tostring(meters) .. "m]"
-        data.DistanceText.Frame.Text = textStr
-        data.DistanceText.Frame.TextSize = cfg.TextSize
-        data.DistanceText.Frame.FontFace = flagsFont
+        if data.LastDistStr ~= textStr or data.LastDistFont ~= flagsFont or data.LastDistSize ~= cfg.TextSize then
+            data.DistanceText.Frame.Text = textStr
+            data.DistanceText.Frame.TextSize = cfg.TextSize
+            data.DistanceText.Frame.FontFace = flagsFont
+            data.DistanceBounds = data.DistanceText.Frame.TextBounds
+            data.LastDistStr = textStr
+            data.LastDistFont = flagsFont
+            data.LastDistSize = cfg.TextSize
+        end
         data.DistanceText.Frame.TextColor3 = cfg.DistanceColor
-        local bounds = data.DistanceText.Frame.TextBounds
         data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
-        data.DistanceText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
+        data.DistanceText.Frame.Size = UDim2.fromOffset(data.DistanceBounds.X, data.DistanceBounds.Y)
         data.DistanceText.Frame.Visible = true
     else
         data.DistanceText:Hide()
@@ -1118,13 +1201,18 @@ local function ProcessEntity(entity)
     if cfg.Tool then
         local tool = character:FindFirstChildOfClass("Tool")
         local textStr = tool and tool.Name or "None"
-        data.ToolText.Frame.Text = textStr
-        data.ToolText.Frame.TextSize = cfg.TextSize
-        data.ToolText.Frame.FontFace = textFont
+        if data.LastToolStr ~= textStr or data.LastToolFont ~= textFont or data.LastToolSize ~= cfg.TextSize then
+            data.ToolText.Frame.Text = textStr
+            data.ToolText.Frame.TextSize = cfg.TextSize
+            data.ToolText.Frame.FontFace = textFont
+            data.ToolBounds = data.ToolText.Frame.TextBounds
+            data.LastToolStr = textStr
+            data.LastToolFont = textFont
+            data.LastToolSize = cfg.TextSize
+        end
         data.ToolText.Frame.TextColor3 = cfg.ToolColor
-        local bounds = data.ToolText.Frame.TextBounds
-        data.ToolText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (bounds.X / 2), y + sy + 2)
-        data.ToolText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
+        data.ToolText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (data.ToolBounds.X / 2), y + sy + 6)
+        data.ToolText.Frame.Size = UDim2.fromOffset(data.ToolBounds.X, data.ToolBounds.Y)
         data.ToolText.Frame.Visible = true
     else
         data.ToolText:Hide()

@@ -4,23 +4,25 @@ local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
 
 local GameNames = {
-    [79783567666809] = "DesertStorm [EXTRACTION]",
-    [109020905733214] = "STRAFE FPS",
-    [112757576021097] = "Defuse Division",
-    [138485390344924] = "Tactical Shooter",
+    [79783567666809] = "DesertStorm",
+    [109020905733214] = "StrafeFPS",
+    [112757576021097] = "DefuseDivision",
+    [138485390344924] = "TacticalShooterA",
     [87204735676240] = "Kontra",
-    [75959630651788] = "Unknown Game",
-    [124417592421329] = "Unknown Game",
-    [84449017742177] = "Chameleon!",
-    [115872975504419] = "Unknown Game",
-    [142823291] = "Murder Mystery 2"
+    [75959630651788] = "MatchTeamGame",
+    [124417592421329] = "MatchInMatchGame",
+    [84449017742177] = "Chameleon",
+    [115872975504419] = "SquadGame",
+    [142823291] = "MurderMystery2"
 }
+
+local currentGame = GameNames[game.PlaceId] or "Unknown"
 
 local TeamManager = {
     Members = {},
 }
 
-if game.PlaceId == 79783567666809 then
+if currentGame == "DesertStorm" then
     local SquadRemotes = ReplicatedStorage:WaitForChild("SquadRemotes")
     SquadRemotes.SquadUpdate.OnClientEvent:Connect(function(data)
         if data and data.members then
@@ -30,7 +32,7 @@ if game.PlaceId == 79783567666809 then
 end
 
 local GameState = nil
-if game.PlaceId == 109020905733214 then
+if currentGame == "StrafeFPS" then
     local classes = ReplicatedStorage:FindFirstChild("Classes")
     local userInterface = classes and classes:FindFirstChild("UserInterface")
     local reactApp = userInterface and userInterface:FindFirstChild("ReactApp")
@@ -59,7 +61,7 @@ local function getMM2Data()
     return nil
 end
 
-if game.PlaceId == 142823291 then
+if currentGame == "MurderMystery2" then
     task.spawn(function()
         while true do
             local data = getMM2Data()
@@ -83,7 +85,7 @@ local function getMM2Role(plr)
 end
 
 local IsTeam = function(plr)
-    if game.PlaceId == 109020905733214 then
+    if currentGame == "StrafeFPS" then
         local c = plr.Character
         if not c then
             return false
@@ -108,7 +110,7 @@ local IsTeam = function(plr)
         return false
     end
 
-    if game.PlaceId == 112757576021097 then
+    if currentGame == "DefuseDivision" then
         local myStates = LocalPlayer:FindFirstChild("PlayerStates")
         local plrStates = plr:FindFirstChild("PlayerStates")
         if myStates and plrStates and myStates:FindFirstChild("Team") and plrStates:FindFirstChild("Team") then
@@ -117,24 +119,24 @@ local IsTeam = function(plr)
         return false
     end
     
-    if game.PlaceId == 138485390344924 or game.PlaceId == 87204735676240 then
+    if currentGame == "TacticalShooterA" or currentGame == "Kontra" then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 
-    if game.PlaceId == 75959630651788 then
+    if currentGame == "MatchTeamGame" then
         return LocalPlayer:GetAttribute("MatchTeam") == plr:GetAttribute("MatchTeam")
     end
 
-    if game.PlaceId == 124417592421329 then
+    if currentGame == "MatchInMatchGame" then
         return (LocalPlayer:GetAttribute("_Team") == plr:GetAttribute("_Team")) and (LocalPlayer:GetAttribute("_InMatch") == plr:GetAttribute("_InMatch"))
     end
-    if game.PlaceId == 84449017742177 then
+    if currentGame == "Chameleon" then
         return LocalPlayer:FindFirstChild("RoundValues"):FindFirstChild("Role").Value == plr:FindFirstChild("RoundValues"):FindFirstChild("Role").Value
     end
-    if game.PlaceId == 115872975504419 then
+    if currentGame == "SquadGame" then
         return table.find(TeamManager.Members, plr.UserId) ~= nil
     end
-    if game.PlaceId == 142823291 then
+    if currentGame == "MurderMystery2" then
         local myRole = getMM2Role(LocalPlayer)
         local theirRole = getMM2Role(plr)
         if not myRole or not theirRole then

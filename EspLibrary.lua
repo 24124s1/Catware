@@ -1,4 +1,4 @@
-print("4")
+print("5")
 
 local espModule = {}
 
@@ -23,6 +23,9 @@ espModule.Settings = {
         Tool = false,
         HealthBar = false,
         HealthText = false,
+        HeadDot = false,
+        HeadDotColor = Color3.fromRGB(255, 255, 255),
+        HeadDotSize = 6,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
@@ -31,6 +34,8 @@ espModule.Settings = {
         ChamsOutlineTransparency = 0,
         Tracers = false,
         TracerThickness = 1,
+        TracerOutline = true,
+        TracerOutlineThickness = 3,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 80, 80),
         TextColor = Color3.fromRGB(255, 255, 255),
@@ -58,6 +63,9 @@ espModule.Settings = {
         Tool = false,
         HealthBar = false,
         HealthText = false,
+        HeadDot = false,
+        HeadDotColor = Color3.fromRGB(255, 255, 255),
+        HeadDotSize = 6,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
@@ -66,6 +74,8 @@ espModule.Settings = {
         ChamsOutlineTransparency = 0,
         Tracers = false,
         TracerThickness = 1,
+        TracerOutline = true,
+        TracerOutlineThickness = 3,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(0, 180, 255),
         TextColor = Color3.fromRGB(180, 230, 255),
@@ -93,6 +103,9 @@ espModule.Settings = {
         Tool = false,
         HealthBar = false,
         HealthText = false,
+        HeadDot = false,
+        HeadDotColor = Color3.fromRGB(255, 255, 255),
+        HeadDotSize = 6,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
@@ -101,6 +114,8 @@ espModule.Settings = {
         ChamsOutlineTransparency = 0,
         Tracers = false,
         TracerThickness = 1,
+        TracerOutline = true,
+        TracerOutlineThickness = 3,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 200, 50),
         TextColor = Color3.fromRGB(255, 255, 255),
@@ -165,6 +180,7 @@ local Services = {
     WorkSpace = GetService.Workspace,
     HttpService = GetService.HttpService,
     TextService = GetService.TextService,
+    UserInputService = GetService.UserInputService,
 }
 Services.CurrentCamera = Services.WorkSpace.CurrentCamera
 Services.LocalPlayer = Services.Players.LocalPlayer
@@ -322,6 +338,18 @@ local function CreateEntityESP(entity)
     local boxFillGradient = Instance.new("UIGradient")
     boxFillGradient.Parent = boxFill
 
+    local headDot = Instance.new("Frame")
+    headDot.BackgroundColor3 = Color3.new(1, 1, 1)
+    headDot.BorderSizePixel = 0
+    headDot.AnchorPoint = Vector2.new(0.5, 0.5)
+    headDot.Visible = false
+    headDot.ZIndex = 6
+    headDot.Parent = espGui
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(1, 0)
+    uiCorner.Parent = headDot
+
     local box3dOutline = {}
     local box3dInner = {}
     for i = 1, 12 do
@@ -393,6 +421,7 @@ local function CreateEntityESP(entity)
         Entity3DBox = box3dInner,
         BoxFill = boxFill,
         BoxFillGradient = boxFillGradient,
+        HeadDot = headDot,
         HealthContainer = healthContainer,
         HealthFill = healthFill,
         HealthGradient = healthGradient,
@@ -400,6 +429,7 @@ local function CreateEntityESP(entity)
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
         ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
+        TracerOutline = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Tracer = CreateLine({Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         Skeleton = {
             HeadTorso = MakeBone(),
@@ -433,12 +463,14 @@ local function HideESP(data)
     for _, line in pairs(data.Entity3DBox) do line:Hide() end
     
     data.BoxFill.Visible = false
+    data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
     data.HealthFill.Visible = false
     data.HealthText:Hide()
     data.NameText:Hide()
     data.DistanceText:Hide()
     data.ToolText:Hide()
+    data.TracerOutline:Hide()
     data.Tracer:Hide()
     local sk = data.Skeleton
     for _, bone in pairs(sk) do
@@ -457,11 +489,13 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Entity3DBoxOutline) do v:Destroy() end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
     data.BoxFill:Destroy()
+    data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
     data.HealthText:Destroy()
     data.NameText:Destroy()
     data.DistanceText:Destroy()
     data.ToolText:Destroy()
+    data.TracerOutline:Destroy()
     data.Tracer:Destroy()
     for _, bone in pairs(data.Skeleton) do
         bone.Outline:Destroy()
@@ -470,7 +504,9 @@ local function RemoveESP(entity)
     espModule._drawings[entity] = nil
     espModule._boxFillAngles[entity] = nil
     if espModule._highlights[entity] then
-        espModule._highlights[entity]:Destroy()
+        for _, ad in pairs(espModule._highlights[entity]) do
+            ad:Destroy()
+        end
         espModule._highlights[entity] = nil
     end
 end
@@ -726,14 +762,18 @@ local function ProcessEntity(entity)
     local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
     if rawStuds > MAX_ENTITY_DIST then
         HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then
+            for _, ad in pairs(espModule._highlights[entity]) do ad.Visible = false end
+        end
         return
     end
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if not onScreen or hrpPos.Z <= 0 then
         HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then
+            for _, ad in pairs(espModule._highlights[entity]) do ad.Visible = false end
+        end
         return
     end
 
@@ -948,6 +988,25 @@ local function ProcessEntity(entity)
         c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
     end
 
+    if cfg.HeadDot then
+        local headPart = character:FindFirstChild("Head")
+        if headPart then
+            local hpPos, hpOn = Camera:WorldToViewportPoint(headPart.Position)
+            if hpOn and hpPos.Z > 0 then
+                data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
+                data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
+                data.HeadDot.BackgroundColor3 = cfg.HeadDotColor
+                data.HeadDot.Visible = true
+            else
+                data.HeadDot.Visible = false
+            end
+        else
+            data.HeadDot.Visible = false
+        end
+    else
+        data.HeadDot.Visible = false
+    end
+
     if cfg.HealthBar then
         local barX = x - 5
         local barW = 2
@@ -1040,14 +1099,26 @@ local function ProcessEntity(entity)
             from = Vector2.new(viewport.X * 0.5, viewport.Y)
         elseif cfg.TracerOrigin == "Top" then
             from = Vector2.new(viewport.X * 0.5, 0)
+        elseif cfg.TracerOrigin == "Mouse" then
+            from = Services.UserInputService:GetMouseLocation()
         else
             from = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
         end
         local to = Vector2.new(x + sx * 0.5, y + sy)
+        
+        if cfg.TracerOutline then
+            data.TracerOutline.Frame.BackgroundColor3 = Color3.new(0, 0, 0)
+            data.TracerOutline.Thickness = cfg.TracerThickness + (cfg.TracerOutlineThickness or 2)
+            data.TracerOutline:Set(from, to)
+        else
+            data.TracerOutline:Hide()
+        end
+
         data.Tracer.Frame.BackgroundColor3 = cfg.TracerColor
         data.Tracer.Thickness = cfg.TracerThickness
         data.Tracer:Set(from, to)
     else
+        data.TracerOutline:Hide()
         data.Tracer:Hide()
     end
 
@@ -1106,23 +1177,45 @@ local function ProcessEntity(entity)
     end
 
     if cfg.Chams then
-        local hl = espModule._highlights[entity]
-        if not hl then
-            hl = Instance.new("Highlight")
-            hl.Name = "ESPHighlight"
-            hl.Parent = espGui
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            espModule._highlights[entity] = hl
+        local adornments = espModule._highlights[entity]
+        if not adornments then
+            adornments = {}
+            espModule._highlights[entity] = adornments
         end
-        hl.Adornee = character
-        hl.FillColor = cfg.ChamsFillColor
-        hl.OutlineColor = cfg.ChamsOutlineColor
-        hl.FillTransparency = cfg.ChamsFillTransparency
-        hl.OutlineTransparency = cfg.ChamsOutlineTransparency
-        hl.Enabled = true
+        
+        local activeParts = {}
+        for _, part in ipairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                activeParts[part] = true
+                local ad = adornments[part]
+                if not ad then
+                    ad = Instance.new("BoxHandleAdornment")
+                    ad.Name = "ESPChams"
+                    ad.Adornee = part
+                    ad.AlwaysOnTop = true
+                    ad.ZIndex = 10
+                    ad.Parent = Services.CoreGui
+                    adornments[part] = ad
+                end
+                ad.Size = part.Size
+                ad.Transparency = cfg.ChamsFillTransparency
+                ad.Color3 = cfg.ChamsFillColor
+                ad.Visible = true
+            end
+        end
+        
+        for part, ad in pairs(adornments) do
+            if not activeParts[part] then
+                ad:Destroy()
+                adornments[part] = nil
+            end
+        end
     else
         if espModule._highlights[entity] then
-            espModule._highlights[entity].Enabled = false
+            for _, ad in pairs(espModule._highlights[entity]) do
+                ad:Destroy()
+            end
+            espModule._highlights[entity] = nil
         end
     end
 end

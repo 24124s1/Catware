@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local espModule = {}
 
@@ -21,6 +21,10 @@ espModule.Settings = {
         Names = false,
         Distance = false,
         Tool = false,
+        Flags = false,
+        FlagWalking = Color3.fromRGB(255, 255, 255),
+        FlagJumping = Color3.fromRGB(0, 255, 0),
+        FlagSwimming = Color3.fromRGB(0, 255, 255),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -58,6 +62,10 @@ espModule.Settings = {
         Names = false,
         Distance = false,
         Tool = false,
+        Flags = false,
+        FlagWalking = Color3.fromRGB(255, 255, 255),
+        FlagJumping = Color3.fromRGB(0, 255, 0),
+        FlagSwimming = Color3.fromRGB(0, 255, 255),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -95,6 +103,10 @@ espModule.Settings = {
         Names = false,
         Distance = false,
         Tool = false,
+        Flags = false,
+        FlagWalking = Color3.fromRGB(255, 255, 255),
+        FlagJumping = Color3.fromRGB(0, 255, 0),
+        FlagSwimming = Color3.fromRGB(0, 255, 255),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -485,6 +497,37 @@ local function CreateEntityESP(entity)
     armorGradient.Rotation = 0
     armorGradient.Parent = armorFill
 
+    local flagsFrame = Instance.new("Frame")
+    flagsFrame.BackgroundTransparency = 1
+    flagsFrame.Visible = false
+    flagsFrame.ZIndex = 5
+    flagsFrame.Parent = espGui
+
+    local flagsLayout = Instance.new("UIListLayout")
+    flagsLayout.Parent = flagsFrame
+    flagsLayout.Padding = UDim.new(0, 0)
+    flagsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    flagsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+
+    local function createFlag(name, font)
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Text = name
+        lbl.TextSize = 10
+        lbl.TextColor3 = Color3.new(1, 1, 1)
+        lbl.TextStrokeTransparency = 0
+        lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+        lbl.FontFace = font
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.TextYAlignment = Enum.TextYAlignment.Top
+        lbl.AutomaticSize = Enum.AutomaticSize.XY
+        lbl.Size = UDim2.fromOffset(0, 0)
+        lbl.Visible = false
+        lbl.ZIndex = 5
+        lbl.Parent = flagsFrame
+        return { Frame = lbl }
+    end
+
     espModule._drawings[entity] = {
         FullOutline = {
             Top = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
@@ -529,6 +572,10 @@ local function CreateEntityESP(entity)
         ArmorContainer = armorContainer,
         ArmorFill = armorFill,
         ArmorGradient = armorGradient,
+        FlagsFrame = flagsFrame,
+        WalkFlag = createFlag("Walking", getEspFont(espModule.Settings.FlagsFont)),
+        JumpFlag = createFlag("Jumping", getEspFont(espModule.Settings.FlagsFont)),
+        SwimFlag = createFlag("Swimming", getEspFont(espModule.Settings.FlagsFont)),
         HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.HealthFont), Visible = false, ZIndex = 5}),
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
@@ -574,6 +621,7 @@ local function HideESP(data)
     data.HealthFill.Visible = false
     data.ArmorContainer.Visible = false
     data.ArmorFill.Visible = false
+    data.FlagsFrame.Visible = false
     data.HealthText:Hide()
     data.NameText:Hide()
     data.DistanceText:Hide()
@@ -600,6 +648,7 @@ local function RemoveESP(entity)
     data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
     data.ArmorContainer:Destroy()
+    data.FlagsFrame:Destroy()
     data.HealthText:Destroy()
     data.NameText:Destroy()
     data.DistanceText:Destroy()
@@ -1193,7 +1242,7 @@ local function ProcessEntity(entity)
             data.LastNameSize = cfg.TextSize
         end
         data.NameText.Frame.TextColor3 = cfg.NameColor
-        data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 14)
+        data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 4)
         data.NameText.Frame.AnchorPoint = Vector2.new(0.5, 1)
         data.NameText.Frame.TextXAlignment = Enum.TextXAlignment.Center
         data.NameText.Frame.TextYAlignment = Enum.TextYAlignment.Bottom
@@ -1245,6 +1294,52 @@ local function ProcessEntity(entity)
         data.ToolText.Frame.Visible = true
     else
         data.ToolText:Hide()
+    end
+
+    if cfg.Flags then
+        local walking = humanoid.MoveDirection.Magnitude > 0
+        local jumping = humanoid:GetState() == Enum.HumanoidStateType.Freefall or humanoid:GetState() == Enum.HumanoidStateType.Jumping
+        local swimming = humanoid:GetState() == Enum.HumanoidStateType.Swimming
+
+        local activeCount = 0
+        
+        if swimming then
+            data.SwimFlag.Frame.Visible = true
+            data.SwimFlag.Frame.TextColor3 = cfg.FlagSwimming
+            data.SwimFlag.Frame.LayoutOrder = activeCount
+            activeCount = activeCount + 1
+        else
+            data.SwimFlag.Frame.Visible = false
+        end
+
+        if jumping then
+            data.JumpFlag.Frame.Visible = true
+            data.JumpFlag.Frame.TextColor3 = cfg.FlagJumping
+            data.JumpFlag.Frame.LayoutOrder = activeCount
+            activeCount = activeCount + 1
+        else
+            data.JumpFlag.Frame.Visible = false
+        end
+
+        if walking and not jumping and not swimming then
+            data.WalkFlag.Frame.Visible = true
+            data.WalkFlag.Frame.TextColor3 = cfg.FlagWalking
+            data.WalkFlag.Frame.LayoutOrder = activeCount
+            activeCount = activeCount + 1
+        else
+            data.WalkFlag.Frame.Visible = false
+        end
+
+        if activeCount > 0 then
+            data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, y + 12)
+            data.FlagsFrame.Size = UDim2.fromOffset(0, 0)
+            data.FlagsFrame.AutomaticSize = Enum.AutomaticSize.XY
+            data.FlagsFrame.Visible = true
+        else
+            data.FlagsFrame.Visible = false
+        end
+    else
+        data.FlagsFrame.Visible = false
     end
 
     if cfg.Tracers then

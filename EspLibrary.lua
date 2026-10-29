@@ -1,4 +1,4 @@
-print('4')
+print('5')
 
 local espModule = {}
 
@@ -24,7 +24,9 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
-        ArmorColor = Color3.fromRGB(200, 200, 200),
+        ArmorHigh = Color3.fromRGB(0, 255, 0),
+        ArmorMid = Color3.fromRGB(255, 255, 0),
+        ArmorLow = Color3.fromRGB(255, 0, 0),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 18,
@@ -59,7 +61,9 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
-        ArmorColor = Color3.fromRGB(200, 200, 200),
+        ArmorHigh = Color3.fromRGB(0, 255, 0),
+        ArmorMid = Color3.fromRGB(255, 255, 0),
+        ArmorLow = Color3.fromRGB(255, 0, 0),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 18,
@@ -94,7 +98,9 @@ espModule.Settings = {
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
-        ArmorColor = Color3.fromRGB(200, 200, 200),
+        ArmorHigh = Color3.fromRGB(0, 255, 0),
+        ArmorMid = Color3.fromRGB(255, 255, 0),
+        ArmorLow = Color3.fromRGB(255, 0, 0),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 18,
@@ -372,8 +378,8 @@ end
 
 local function MakeBone()
     return {
-        Outline = CreateLine({Thickness = 1.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-        Line = CreateLine({Thickness = 0.5, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+        Outline = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
+        Line = CreateLine({Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
     }
 end
 
@@ -475,6 +481,10 @@ local function CreateEntityESP(entity)
     armorFill.ZIndex = 3
     armorFill.Parent = armorContainer
 
+    local armorGradient = Instance.new("UIGradient")
+    armorGradient.Rotation = 0
+    armorGradient.Parent = armorFill
+
     espModule._drawings[entity] = {
         FullOutline = {
             Top = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
@@ -518,12 +528,13 @@ local function CreateEntityESP(entity)
         HealthGradient = healthGradient,
         ArmorContainer = armorContainer,
         ArmorFill = armorFill,
+        ArmorGradient = armorGradient,
         HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.HealthFont), Visible = false, ZIndex = 5}),
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
         ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
-        TracerOutline = CreateLine({Thickness = 1.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
-        Tracer = CreateLine({Thickness = 0.5, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+        TracerOutline = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
+        Tracer = CreateLine({Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         Skeleton = {
             HeadTorso = MakeBone(),
             TorsoHip = MakeBone(),
@@ -1158,7 +1169,11 @@ local function ProcessEntity(entity)
 
         local armRatio = math.clamp(armor / 100, 0, 1)
         data.ArmorFill.Size = UDim2.fromScale(armRatio, 1)
-        data.ArmorFill.BackgroundColor3 = cfg.ArmorColor
+        data.ArmorGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, cfg.ArmorHigh),
+            ColorSequenceKeypoint.new(0.5, cfg.ArmorMid),
+            ColorSequenceKeypoint.new(1, cfg.ArmorLow)
+        })
         data.ArmorFill.Visible = true
     else
         data.ArmorContainer.Visible = false
@@ -1247,11 +1262,11 @@ local function ProcessEntity(entity)
         local to = Vector2.new(x + sx * 0.5, y + sy)
         
         data.TracerOutline.Frame.BackgroundColor3 = Color3.new(0, 0, 0)
-        data.TracerOutline.Thickness = 1.5
+        data.TracerOutline.Thickness = 3
         data.TracerOutline:Set(from, to)
 
         data.Tracer.Frame.BackgroundColor3 = cfg.TracerColor
-        data.Tracer.Thickness = 0.5
+        data.Tracer.Thickness = 1
         data.Tracer:Set(from, to)
     else
         data.TracerOutline:Hide()
@@ -1268,10 +1283,10 @@ local function ProcessEntity(entity)
                 if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
                     local a = Vector2.new(s1.X, s1.Y)
                     local b = Vector2.new(s2.X, s2.Y)
-                    bone.Outline.Thickness = 1.5
+                    bone.Outline.Thickness = 3
                     bone.Outline:Set(a, b)
                     bone.Line.Frame.BackgroundColor3 = cfg.SkeletonColor
-                    bone.Line.Thickness = 0.5
+                    bone.Line.Thickness = 1
                     bone.Line:Set(a, b)
                     return
                 end

@@ -148,7 +148,7 @@ local IsTeam = function(plr)
             return false
         end
     
-        return theirRole == "Murderer"
+        return theirRole ~= "Murderer"
     end
     return plr.Team == LocalPlayer.Team
 end

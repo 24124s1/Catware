@@ -1,4 +1,5 @@
-print("3")
+print("4")
+
 local espModule = {}
 
 espModule.Settings = {
@@ -177,7 +178,6 @@ espGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() espGui.Parent = gethui() end)
 if not espGui.Parent then espGui.Parent = Services.CoreGui end
 
-local BOXFILL_SEGMENTS = 256
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
@@ -263,33 +263,6 @@ local function CreateLine(props)
     return obj
 end
 
-local function CreateSquare(props)
-    local frame = Instance.new("Frame")
-    frame.BorderSizePixel = 0
-    frame.BackgroundColor3 = props.Color or Color3.new(1, 1, 1)
-    frame.BackgroundTransparency = props.Transparency or 0
-    frame.Visible = props.Visible or false
-    frame.ZIndex = props.ZIndex or 1
-    if props.Thickness and props.Filled == false then
-        frame.BorderSizePixel = props.Thickness
-        frame.BorderColor3 = props.Color or Color3.new(1, 1, 1)
-        frame.BackgroundTransparency = 1
-    end
-    frame.Parent = espGui
-    
-    local obj = { Frame = frame }
-    
-    function obj:Hide()
-        frame.Visible = false
-    end
-    
-    function obj:Destroy()
-        frame:Destroy()
-    end
-    
-    return obj
-end
-
 local function CreateText(props)
     local label = Instance.new("TextLabel")
     label.BackgroundTransparency = 1
@@ -338,11 +311,17 @@ end
 
 local function CreateEntityESP(entity)
     if espModule._drawings[entity] then return end
-    local fillSegs = table.create(BOXFILL_SEGMENTS)
-    for i = 1, BOXFILL_SEGMENTS do
-        fillSegs[i] = CreateSquare({Filled = true, Visible = false, ZIndex = 0})
-    end
     
+    local boxFill = Instance.new("Frame")
+    boxFill.BackgroundColor3 = Color3.new(1, 1, 1)
+    boxFill.BorderSizePixel = 0
+    boxFill.Visible = false
+    boxFill.ZIndex = 0
+    boxFill.Parent = espGui
+
+    local boxFillGradient = Instance.new("UIGradient")
+    boxFillGradient.Parent = boxFill
+
     local box3dOutline = {}
     local box3dInner = {}
     for i = 1, 12 do
@@ -412,7 +391,8 @@ local function CreateEntityESP(entity)
         },
         Entity3DBoxOutline = box3dOutline,
         Entity3DBox = box3dInner,
-        BoxFillSegments = fillSegs,
+        BoxFill = boxFill,
+        BoxFillGradient = boxFillGradient,
         HealthContainer = healthContainer,
         HealthFill = healthFill,
         HealthGradient = healthGradient,
@@ -452,9 +432,7 @@ local function HideESP(data)
     for _, line in pairs(data.Entity3DBoxOutline) do line:Hide() end
     for _, line in pairs(data.Entity3DBox) do line:Hide() end
     
-    for i = 1, BOXFILL_SEGMENTS do
-        data.BoxFillSegments[i]:Hide()
-    end
+    data.BoxFill.Visible = false
     data.HealthContainer.Visible = false
     data.HealthFill.Visible = false
     data.HealthText:Hide()
@@ -478,7 +456,7 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Corner) do v:Destroy() end
     for _, v in pairs(data.Entity3DBoxOutline) do v:Destroy() end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
-    for i = 1, BOXFILL_SEGMENTS do data.BoxFillSegments[i]:Destroy() end
+    data.BoxFill:Destroy()
     data.HealthContainer:Destroy()
     data.HealthText:Destroy()
     data.NameText:Destroy()
@@ -843,26 +821,14 @@ local function ProcessEntity(entity)
             espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
         end
 
-        local angle = espModule._boxFillAngles[entity]
-        local segH = sy / BOXFILL_SEGMENTS
-        local trans = math.clamp(cfg.BoxFillTransparency or 0.7, 0.3, 0.95)
-
-        for i = 1, BOXFILL_SEGMENTS do
-            local seg = data.BoxFillSegments[i].Frame
-            local t = (i - 1) / (BOXFILL_SEGMENTS - 1)
-            local wave = (math.sin(math.rad(angle + t * 360)) + 1) / 2
-            local col = cfg.BoxFillColor1:Lerp(cfg.BoxFillColor2, wave)
-
-            seg.Size = UDim2.fromOffset(sx + 1, segH + 1.1)
-            seg.Position = UDim2.fromOffset(x - 0.5, y + (i - 1) * segH - 0.5)
-            seg.BackgroundColor3 = col
-            seg.BackgroundTransparency = trans
-            seg.Visible = true
-        end
+        data.BoxFill.Position = UDim2.fromOffset(x, y)
+        data.BoxFill.Size = UDim2.fromOffset(sx, sy)
+        data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
+        data.BoxFillGradient.Transparency = NumberSequence.new(math.clamp(cfg.BoxFillTransparency, 0, 1))
+        data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
+        data.BoxFill.Visible = true
     else
-        for i = 1, BOXFILL_SEGMENTS do
-            data.BoxFillSegments[i]:Hide()
-        end
+        data.BoxFill.Visible = false
     end
 
     if cfg.BoxEnabled then

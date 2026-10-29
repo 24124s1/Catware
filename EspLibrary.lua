@@ -1154,7 +1154,7 @@ local function ProcessEntity(entity)
     end
 
     if cfg.ArmorBar then
-        local armor = 0
+        local armor = 100
         local armorObj = character:FindFirstChild("Armor")
         if armorObj and armorObj:IsA("NumberValue") then
             armor = armorObj.Value

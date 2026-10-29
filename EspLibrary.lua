@@ -1,4 +1,4 @@
-print('3')
+print('4')
 
 local espModule = {}
 
@@ -348,8 +348,11 @@ local function CreateText(props)
     label.TextStrokeTransparency = props.Outline and 0 or 1
     label.TextStrokeColor3 = props.OutlineColor or Color3.new(0, 0, 0)
     label.FontFace = props.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
-    label.TextXAlignment = props.Center and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
-    label.TextYAlignment = Enum.TextYAlignment.Top
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.AnchorPoint = Vector2.new(0.5, 0.5)
+    label.AutomaticSize = Enum.AutomaticSize.XY
+    label.Size = UDim2.fromOffset(0, 0)
     label.Visible = props.Visible or false
     label.ZIndex = props.ZIndex or 1
     label.Parent = espGui
@@ -731,18 +734,18 @@ local function ProcessItem(item)
     end
 
     if nameDistStr ~= "" then
-        if data.LastNameDistStr ~= nameDistStr or data.LastNameDistFont ~= (showDist and flagsFont or textFont) or data.LastNameDistSize ~= textSize then
+        if data.LastNameDistStr ~= nameDistStr then
             data.NameDistText.Frame.Text = nameDistStr
+            data.LastNameDistStr = nameDistStr
+        end
+        if data.LastNameDistFont ~= (showDist and flagsFont or textFont) or data.LastNameDistSize ~= textSize then
             data.NameDistText.Frame.TextSize = textSize
             data.NameDistText.Frame.FontFace = showDist and flagsFont or textFont
-            data.NameDistText.Frame.TextColor3 = color
-            data.NameDistBounds = data.NameDistText.Frame.TextBounds
-            data.LastNameDistStr = nameDistStr
             data.LastNameDistFont = showDist and flagsFont or textFont
             data.LastNameDistSize = textSize
         end
-        data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X - data.NameDistBounds.X / 2, pos.Y - 12)
-        data.NameDistText.Frame.Size = UDim2.fromOffset(data.NameDistBounds.X, data.NameDistBounds.Y)
+        data.NameDistText.Frame.TextColor3 = color
+        data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X, pos.Y - 12)
         data.NameDistText.Frame.Visible = true
     else
         data.NameDistText:Hide()
@@ -767,18 +770,18 @@ local function ProcessItem(item)
             local contentStr = table.concat(contents, " | ")
             if #contentStr > 60 then contentStr = string.sub(contentStr, 1, 57) .. "..." end
             
-            if data.LastContentStr ~= contentStr or data.LastContentFont ~= textFont or data.LastContentSize ~= (textSize - 1) then
+            if data.LastContentStr ~= contentStr then
                 data.ContentsText.Frame.Text = contentStr
+                data.LastContentStr = contentStr
+            end
+            if data.LastContentFont ~= textFont or data.LastContentSize ~= (textSize - 1) then
                 data.ContentsText.Frame.TextSize = textSize - 1
                 data.ContentsText.Frame.FontFace = textFont
-                data.ContentsText.Frame.TextColor3 = color
-                data.ContentsBounds = data.ContentsText.Frame.TextBounds
-                data.LastContentStr = contentStr
                 data.LastContentFont = textFont
                 data.LastContentSize = textSize - 1
             end
-            data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X - data.ContentsBounds.X / 2, pos.Y + 16)
-            data.ContentsText.Frame.Size = UDim2.fromOffset(data.ContentsBounds.X, data.ContentsBounds.Y)
+            data.ContentsText.Frame.TextColor3 = color
+            data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X, pos.Y + 16)
             data.ContentsText.Frame.Visible = true
         else
             data.ContentsText:Hide()
@@ -1112,20 +1115,22 @@ local function ProcessEntity(entity)
         if cfg.HealthText then
             local hpVal = math.floor(humanoid.Health + 0.5)
             local textStr = tostring(hpVal)
-            if data.LastHealthStr ~= textStr or data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
+            if data.LastHealthStr ~= textStr then
                 data.HealthText.Frame.Text = textStr
+                data.LastHealthStr = textStr
+            end
+            if data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
                 data.HealthText.Frame.TextSize = cfg.TextSize
                 data.HealthText.Frame.FontFace = healthFont
-                data.HealthBounds = data.HealthText.Frame.TextBounds
-                data.LastHealthStr = textStr
                 data.LastHealthFont = healthFont
                 data.LastHealthSize = cfg.TextSize
             end
-            local tw = data.HealthBounds.X
             local fillH = sy * hp
             local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
-            data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3 - tw, ty)
-            data.HealthText.Frame.Size = UDim2.fromOffset(tw, data.HealthBounds.Y)
+            data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3, ty)
+            data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
+            data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
+            data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
             data.HealthText.Frame.TextColor3 = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
             data.HealthText.Frame.Visible = true
         else
@@ -1162,18 +1167,21 @@ local function ProcessEntity(entity)
 
     if cfg.Names then
         local name = isPlayer and entity.DisplayName or character.Name
-        if data.LastNameStr ~= name or data.LastNameFont ~= textFont or data.LastNameSize ~= cfg.TextSize then
+        if data.LastNameStr ~= name then
             data.NameText.Frame.Text = name
+            data.LastNameStr = name
+        end
+        if data.LastNameFont ~= textFont or data.LastNameSize ~= cfg.TextSize then
             data.NameText.Frame.TextSize = cfg.TextSize
             data.NameText.Frame.FontFace = textFont
-            data.NameBounds = data.NameText.Frame.TextBounds
-            data.LastNameStr = name
             data.LastNameFont = textFont
             data.LastNameSize = cfg.TextSize
         end
         data.NameText.Frame.TextColor3 = cfg.NameColor
-        data.NameText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (data.NameBounds.X / 2), y - 14)
-        data.NameText.Frame.Size = UDim2.fromOffset(data.NameBounds.X, data.NameBounds.Y)
+        data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 14)
+        data.NameText.Frame.AnchorPoint = Vector2.new(0.5, 1)
+        data.NameText.Frame.TextXAlignment = Enum.TextXAlignment.Center
+        data.NameText.Frame.TextYAlignment = Enum.TextYAlignment.Bottom
         data.NameText.Frame.Visible = true
     else
         data.NameText:Hide()
@@ -1181,18 +1189,21 @@ local function ProcessEntity(entity)
 
     if cfg.Distance then
         local textStr = "[" .. tostring(meters) .. "m]"
-        if data.LastDistStr ~= textStr or data.LastDistFont ~= flagsFont or data.LastDistSize ~= cfg.TextSize then
+        if data.LastDistStr ~= textStr then
             data.DistanceText.Frame.Text = textStr
+            data.LastDistStr = textStr
+        end
+        if data.LastDistFont ~= flagsFont or data.LastDistSize ~= cfg.TextSize then
             data.DistanceText.Frame.TextSize = cfg.TextSize
             data.DistanceText.Frame.FontFace = flagsFont
-            data.DistanceBounds = data.DistanceText.Frame.TextBounds
-            data.LastDistStr = textStr
             data.LastDistFont = flagsFont
             data.LastDistSize = cfg.TextSize
         end
         data.DistanceText.Frame.TextColor3 = cfg.DistanceColor
         data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
-        data.DistanceText.Frame.Size = UDim2.fromOffset(data.DistanceBounds.X, data.DistanceBounds.Y)
+        data.DistanceText.Frame.AnchorPoint = Vector2.new(0, 0)
+        data.DistanceText.Frame.TextXAlignment = Enum.TextXAlignment.Left
+        data.DistanceText.Frame.TextYAlignment = Enum.TextYAlignment.Top
         data.DistanceText.Frame.Visible = true
     else
         data.DistanceText:Hide()
@@ -1201,18 +1212,21 @@ local function ProcessEntity(entity)
     if cfg.Tool then
         local tool = character:FindFirstChildOfClass("Tool")
         local textStr = tool and tool.Name or "None"
-        if data.LastToolStr ~= textStr or data.LastToolFont ~= textFont or data.LastToolSize ~= cfg.TextSize then
+        if data.LastToolStr ~= textStr then
             data.ToolText.Frame.Text = textStr
+            data.LastToolStr = textStr
+        end
+        if data.LastToolFont ~= textFont or data.LastToolSize ~= cfg.TextSize then
             data.ToolText.Frame.TextSize = cfg.TextSize
             data.ToolText.Frame.FontFace = textFont
-            data.ToolBounds = data.ToolText.Frame.TextBounds
-            data.LastToolStr = textStr
             data.LastToolFont = textFont
             data.LastToolSize = cfg.TextSize
         end
         data.ToolText.Frame.TextColor3 = cfg.ToolColor
-        data.ToolText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (data.ToolBounds.X / 2), y + sy + 6)
-        data.ToolText.Frame.Size = UDim2.fromOffset(data.ToolBounds.X, data.ToolBounds.Y)
+        data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + 6)
+        data.ToolText.Frame.AnchorPoint = Vector2.new(0.5, 0)
+        data.ToolText.Frame.TextXAlignment = Enum.TextXAlignment.Center
+        data.ToolText.Frame.TextYAlignment = Enum.TextYAlignment.Top
         data.ToolText.Frame.Visible = true
     else
         data.ToolText:Hide()

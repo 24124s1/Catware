@@ -2,6 +2,20 @@ getgenv().cloneref = cloneref or function(...) return ... end
 local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
+
+local GameNames = {
+    [79783567666809] = "DesertStorm [EXTRACTION]",
+    [109020905733214] = "STRAFE FPS",
+    [112757576021097] = "Defuse Division",
+    [138485390344924] = "Tactical Shooter",
+    [87204735676240] = "Kontra",
+    [75959630651788] = "Unknown Game",
+    [124417592421329] = "Unknown Game",
+    [84449017742177] = "Chameleon!",
+    [115872975504419] = "Unknown Game",
+    [142823291] = "Murder Mystery 2"
+}
+
 local TeamManager = {
     Members = {},
 }
@@ -133,4 +147,5 @@ local IsTeam = function(plr)
     end
     return plr.Team == LocalPlayer.Team
 end
+
 return IsTeam

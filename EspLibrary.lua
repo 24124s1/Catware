@@ -1,4 +1,4 @@
-print('5')
+print('1')
 
 local espModule = {}
 
@@ -1156,7 +1156,7 @@ local function ProcessEntity(entity)
     if cfg.ArmorBar then
         local armor = 100
         local armorObj = character:FindFirstChild("Armor")
-        if armorObj and armorObj:IsA("NumberValue") then
+        if armorObj and armorObj:IsA("NumberValue") and armorObj.Value > 0 then
             armor = armorObj.Value
         end
 

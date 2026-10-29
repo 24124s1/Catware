@@ -139,13 +139,16 @@ local IsTeam = function(plr)
     if currentGame == "MurderMystery2" then
         local myRole = getMM2Role(LocalPlayer)
         local theirRole = getMM2Role(plr)
+    
         if not myRole or not theirRole then
             return false
         end
+    
         if myRole == "Murderer" then
             return false
         end
-        return theirRole ~= "Murderer"
+    
+        return theirRole == "Murderer"
     end
     return plr.Team == LocalPlayer.Team
 end

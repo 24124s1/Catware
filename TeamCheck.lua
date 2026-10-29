@@ -14,6 +14,7 @@ local GameNames = {
     [84449017742177] = "Chameleon",
     [115872975504419] = "SquadGame",
     [142823291] = "MurderMystery2"
+    [17625359962] = "Rivals"
 }
 
 local currentGame = GameNames[game.PlaceId] or "Unknown"
@@ -135,6 +136,9 @@ local IsTeam = function(plr)
     end
     if currentGame == "SquadGame" then
         return table.find(TeamManager.Members, plr.UserId) ~= nil
+    end
+    if currentGame == "Rivals" then
+        return Localplayer:GetAttribute("TeamID") == plr:GetAttribute("TeamID")
     end
     if currentGame == "MurderMystery2" then
         local myRole = getMM2Role(LocalPlayer)

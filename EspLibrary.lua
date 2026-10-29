@@ -1,4 +1,4 @@
-print("1")
+print("2")
 
 local espModule = {}
 
@@ -26,12 +26,11 @@ espModule.Settings = {
         HealthText = false,
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 12,
+        HeadDotSize = 14,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsFillTransparency = 0.5,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -65,12 +64,11 @@ espModule.Settings = {
         HealthText = false,
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 12,
+        HeadDotSize = 14,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsFillTransparency = 0.5,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -104,12 +102,11 @@ espModule.Settings = {
         HealthText = false,
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 12,
+        HeadDotSize = 14,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsFillTransparency = 0.5,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -345,7 +342,7 @@ local function CreateEntityESP(entity)
     boxFillGradient.Parent = boxFill
 
     local headDot = Instance.new("Frame")
-    headDot.BackgroundColor3 = Color3.new(1, 1, 1)
+    headDot.BackgroundTransparency = 1
     headDot.BorderSizePixel = 0
     headDot.AnchorPoint = Vector2.new(0.5, 0.5)
     headDot.Visible = false
@@ -357,8 +354,8 @@ local function CreateEntityESP(entity)
     uiCorner.Parent = headDot
 
     local dotStroke = Instance.new("UIStroke")
-    dotStroke.Color = Color3.new(0, 0, 0)
-    dotStroke.Thickness = 1
+    dotStroke.Color = Color3.new(1, 1, 1)
+    dotStroke.Thickness = 2
     dotStroke.Parent = headDot
 
     local box3dOutline = {}
@@ -547,7 +544,9 @@ local function RemoveESP(entity)
     espModule._boxFillAngles[entity] = nil
     
     if espModule._highlights[entity] then
-        espModule._highlights[entity]:Destroy()
+        for _, ad in pairs(espModule._highlights[entity]) do
+            ad:Destroy()
+        end
         espModule._highlights[entity] = nil
     end
 end
@@ -789,14 +788,18 @@ local function ProcessEntity(entity)
     local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
     if rawStuds > MAX_ENTITY_DIST then
         HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then
+            for _, ad in pairs(espModule._highlights[entity]) do ad.Visible = false end
+        end
         return
     end
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if not onScreen or hrpPos.Z <= 0 then
         HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
+        if espModule._highlights[entity] then
+            for _, ad in pairs(espModule._highlights[entity]) do ad.Visible = false end
+        end
         return
     end
 
@@ -1098,7 +1101,11 @@ local function ProcessEntity(entity)
             if hpOn and hpPos.Z > 0 then
                 data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
                 data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
-                data.HeadDot.BackgroundColor3 = cfg.HeadDotColor
+                data.HeadDot.BackgroundTransparency = 1
+                local stroke = data.HeadDot:FindFirstChildOfClass("UIStroke")
+                if stroke then
+                    stroke.Color = cfg.HeadDotColor
+                end
                 data.HeadDot.Visible = true
             else
                 data.HeadDot.Visible = false
@@ -1276,23 +1283,45 @@ local function ProcessEntity(entity)
     end
 
     if cfg.Chams then
-        local hl = espModule._highlights[entity]
-        if not hl then
-            hl = Instance.new("Highlight")
-            hl.Name = "ESPChams"
-            hl.Parent = gethui() or Services.CoreGui
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            espModule._highlights[entity] = hl
+        local adornments = espModule._highlights[entity]
+        if not adornments then
+            adornments = {}
+            espModule._highlights[entity] = adornments
         end
-        hl.Adornee = character
-        hl.FillColor = cfg.ChamsFillColor
-        hl.OutlineColor = cfg.ChamsFillColor
-        hl.FillTransparency = cfg.ChamsFillTransparency
-        hl.OutlineTransparency = 0
-        hl.Enabled = true
+        
+        local activeParts = {}
+        for _, part in ipairs(character:GetChildren()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                activeParts[part] = true
+                local ad = adornments[part]
+                if not ad then
+                    ad = Instance.new("BoxHandleAdornment")
+                    ad.Name = "ESPChams"
+                    ad.Adornee = part
+                    ad.AlwaysOnTop = true
+                    ad.ZIndex = 10
+                    ad.Parent = Services.CoreGui
+                    adornments[part] = ad
+                end
+                ad.Size = part.Size
+                ad.Transparency = 0.5
+                ad.Color3 = cfg.ChamsFillColor
+                ad.Visible = true
+            end
+        end
+        
+        for part, ad in pairs(adornments) do
+            if not activeParts[part] then
+                ad:Destroy()
+                adornments[part] = nil
+            end
+        end
     else
         if espModule._highlights[entity] then
-            espModule._highlights[entity].Enabled = false
+            for _, ad in pairs(espModule._highlights[entity]) do
+                ad:Destroy()
+            end
+            espModule._highlights[entity] = nil
         end
     end
 end

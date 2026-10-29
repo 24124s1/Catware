@@ -1,5 +1,4 @@
-print('1')
-
+print("3")
 local espModule = {}
 
 espModule.Settings = {
@@ -178,7 +177,6 @@ espGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() espGui.Parent = gethui() end)
 if not espGui.Parent then espGui.Parent = Services.CoreGui end
 
-local HEALTH_SEGMENTS = 24
 local BOXFILL_SEGMENTS = 256
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
@@ -327,15 +325,6 @@ local function MakeBone()
     }
 end
 
-local function GetHealthColor(t, high, mid, low)
-    t = math.clamp(t, 0, 1)
-    if t >= 0.5 then
-        return mid:Lerp(high, (t - 0.5) * 2)
-    else
-        return low:Lerp(mid, t * 2)
-    end
-end
-
 local function getCharacterParts(character)
     local isR15 = character:FindFirstChild("UpperTorso") ~= nil
     local parts
@@ -349,10 +338,6 @@ end
 
 local function CreateEntityESP(entity)
     if espModule._drawings[entity] then return end
-    local healthSegs = table.create(HEALTH_SEGMENTS)
-    for i = 1, HEALTH_SEGMENTS do
-        healthSegs[i] = CreateSquare({Filled = true, Visible = false, ZIndex = 4})
-    end
     local fillSegs = table.create(BOXFILL_SEGMENTS)
     for i = 1, BOXFILL_SEGMENTS do
         fillSegs[i] = CreateSquare({Filled = true, Visible = false, ZIndex = 0})
@@ -364,6 +349,33 @@ local function CreateEntityESP(entity)
         box3dOutline["L"..i] = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1})
         box3dInner["L"..i] = CreateLine({Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
     end
+
+    local healthContainer = Instance.new("Frame")
+    healthContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    healthContainer.BorderSizePixel = 0
+    healthContainer.Visible = false
+    healthContainer.ZIndex = 2
+    healthContainer.Parent = espGui
+
+    local healthStroke = Instance.new("UIStroke")
+    healthStroke.Color = Color3.new(0, 0, 0)
+    healthStroke.Thickness = 1
+    healthStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    healthStroke.Parent = healthContainer
+
+    local healthFill = Instance.new("Frame")
+    healthFill.BackgroundColor3 = Color3.new(1, 1, 1)
+    healthFill.BorderSizePixel = 0
+    healthFill.AnchorPoint = Vector2.new(0, 1)
+    healthFill.Position = UDim2.fromScale(0, 1)
+    healthFill.Size = UDim2.fromScale(1, 1)
+    healthFill.Visible = false
+    healthFill.ZIndex = 3
+    healthFill.Parent = healthContainer
+
+    local healthGradient = Instance.new("UIGradient")
+    healthGradient.Rotation = 90
+    healthGradient.Parent = healthFill
 
     espModule._drawings[entity] = {
         FullOutline = {
@@ -401,9 +413,9 @@ local function CreateEntityESP(entity)
         Entity3DBoxOutline = box3dOutline,
         Entity3DBox = box3dInner,
         BoxFillSegments = fillSegs,
-        HealthBGOutline = CreateSquare({Filled = false, Thickness = 1, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 2}),
-        HealthBG = CreateSquare({Filled = true, Color = Color3.fromRGB(15, 15, 15), Visible = false, ZIndex = 3}),
-        HealthSegments = healthSegs,
+        HealthContainer = healthContainer,
+        HealthFill = healthFill,
+        HealthGradient = healthGradient,
         HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
@@ -443,11 +455,8 @@ local function HideESP(data)
     for i = 1, BOXFILL_SEGMENTS do
         data.BoxFillSegments[i]:Hide()
     end
-    data.HealthBG:Hide()
-    data.HealthBGOutline:Hide()
-    for i = 1, HEALTH_SEGMENTS do
-        data.HealthSegments[i]:Hide()
-    end
+    data.HealthContainer.Visible = false
+    data.HealthFill.Visible = false
     data.HealthText:Hide()
     data.NameText:Hide()
     data.DistanceText:Hide()
@@ -470,9 +479,7 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Entity3DBoxOutline) do v:Destroy() end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
     for i = 1, BOXFILL_SEGMENTS do data.BoxFillSegments[i]:Destroy() end
-    data.HealthBG:Destroy()
-    data.HealthBGOutline:Destroy()
-    for i = 1, HEALTH_SEGMENTS do data.HealthSegments[i]:Destroy() end
+    data.HealthContainer:Destroy()
     data.HealthText:Destroy()
     data.NameText:Destroy()
     data.DistanceText:Destroy()
@@ -978,28 +985,21 @@ local function ProcessEntity(entity)
     if cfg.HealthBar then
         local barX = x - 5
         local barW = 2
-        data.HealthBGOutline.Frame.Size = UDim2.fromOffset(barW + 2, sy + 2)
-        data.HealthBGOutline.Frame.Position = UDim2.fromOffset(barX - 1, y - 1)
-        data.HealthBGOutline.Frame.Visible = true
-        data.HealthBG.Frame.Size = UDim2.fromOffset(barW, sy)
-        data.HealthBG.Frame.Position = UDim2.fromOffset(barX, y)
-        data.HealthBG.Frame.Visible = true
+        
+        data.HealthContainer.Position = UDim2.fromOffset(barX, y)
+        data.HealthContainer.Size = UDim2.fromOffset(barW, sy)
+        data.HealthContainer.Visible = true
 
-        local segH = sy / HEALTH_SEGMENTS
         local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-        local threshold = hp * HEALTH_SEGMENTS
-        for i = 1, HEALTH_SEGMENTS do
-            local seg = data.HealthSegments[i].Frame
-            if i <= threshold then
-                local t = i / HEALTH_SEGMENTS
-                seg.Size = UDim2.fromOffset(barW, segH + 0.6)
-                seg.Position = UDim2.fromOffset(barX, y + sy - (segH * i))
-                seg.BackgroundColor3 = GetHealthColor(t, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
-                seg.Visible = true
-            else
-                seg.Visible = false
-            end
-        end
+        
+        data.HealthFill.Size = UDim2.fromScale(1, hp)
+        data.HealthFill.Visible = true
+        
+        data.HealthGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, cfg.HealthHigh),
+            ColorSequenceKeypoint.new(0.5, cfg.HealthMid),
+            ColorSequenceKeypoint.new(1, cfg.HealthLow)
+        })
 
         if cfg.HealthText then
             local hpVal = math.floor(humanoid.Health + 0.5)
@@ -1019,11 +1019,8 @@ local function ProcessEntity(entity)
             data.HealthText:Hide()
         end
     else
-        data.HealthBG:Hide()
-        data.HealthBGOutline:Hide()
-        for i = 1, HEALTH_SEGMENTS do
-            data.HealthSegments[i]:Hide()
-        end
+        data.HealthContainer.Visible = false
+        data.HealthFill.Visible = false
         data.HealthText:Hide()
     end
 

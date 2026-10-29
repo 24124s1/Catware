@@ -1,4 +1,6 @@
-getgenv().cloneref = cloneref or function(...) return ... end
+local cloneref = cloneref or function(...) return ... end
+getgenv().cloneref = cloneref
+
 local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
@@ -15,7 +17,7 @@ local GameNames = {
     [115872975504419] = "SquadGame",
     [142823291] = "MurderMystery2",
     [17625359962] = "Rivals",
-    [6035872082] = "Rivals",
+    [6035872082] = "Rivals"
 }
 
 local currentGame = GameNames[game.PlaceId] or "Unknown"
@@ -92,7 +94,7 @@ local IsTeam = function(plr)
         if not c then
             return false
         end
-        
+
         local success, result = pcall(function()
             local a = c:GetAttribute("BotUniqueId")
             if a and GameState and GameState.isTeammate then
@@ -120,7 +122,7 @@ local IsTeam = function(plr)
         end
         return false
     end
-    
+
     if currentGame == "TacticalShooterA" or currentGame == "Kontra" then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
@@ -132,29 +134,38 @@ local IsTeam = function(plr)
     if currentGame == "MatchInMatchGame" then
         return (LocalPlayer:GetAttribute("_Team") == plr:GetAttribute("_Team")) and (LocalPlayer:GetAttribute("_InMatch") == plr:GetAttribute("_InMatch"))
     end
+
     if currentGame == "Chameleon" then
         return LocalPlayer:FindFirstChild("RoundValues"):FindFirstChild("Role").Value == plr:FindFirstChild("RoundValues"):FindFirstChild("Role").Value
     end
+
     if currentGame == "SquadGame" then
         return table.find(TeamManager.Members, plr.UserId) ~= nil
     end
+
     if currentGame == "Rivals" then
-        return Localplayer:GetAttribute("TeamID") == plr:GetAttribute("TeamID")
+        if not plr then return false end
+        local myTeam = LocalPlayer:GetAttribute("TeamID")
+        local theirTeam = plr:GetAttribute("TeamID")
+        if myTeam == nil and theirTeam == nil then return false end
+        return myTeam == theirTeam
     end
+
     if currentGame == "MurderMystery2" then
         local myRole = getMM2Role(LocalPlayer)
         local theirRole = getMM2Role(plr)
-    
+
         if not myRole or not theirRole then
             return false
         end
-    
+
         if myRole == "Murderer" then
             return false
         end
-    
+
         return theirRole ~= "Murderer"
     end
+
     return plr.Team == LocalPlayer.Team
 end
 

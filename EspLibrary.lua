@@ -1,4 +1,4 @@
-print("1")
+print("2")
 
 local espModule = {}
 
@@ -186,10 +186,40 @@ local BOX_3D_EDGES = {
 
 local function loadFont()
     if next(espModule.Fonts) then return end
-    local FontFolder = "esp_fonts"
-    if not isfolder(FontFolder) then pcall(makefolder, FontFolder) end
+    
+    local function FontsRegister(Name, Weight, Style, Asset)
+        local success, result = pcall(function()
+            if not isfile(Asset.Id) then
+                writefile(Asset.Id, Asset.Font)
+            end
+            if isfile(Name .. ".font") then
+                delfile(Name .. ".font")
+            end
+            local Info = {
+                name = Name,
+                faces = {
+                    {
+                        name = "Normal",
+                        weight = Weight,
+                        style = Style,
+                        assetId = getcustomasset(Asset.Id),
+                    },
+                },
+            }
+            writefile(Name .. ".font", Services.HttpService:JSONEncode(Info))
+            return getcustomasset(Name .. ".font")
+        end)
+        if success and result then
+            return Font.new(result, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+        end
+        return nil
+    end
 
     local fontList = {
+        {"Tahoma", "Tahoma.ttf", "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/fs-tahoma-8px.ttf"},
+        {"Tahoma Bold", "tahoma_bold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/tahoma_bold.ttf"},
+        {"Tahoma Modern Bold", "Tahoma-Modern-Bold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Tahoma-Modern-Bold.ttf"},
+        {"Tahoma Modern", "Tahoma-Modern.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Tahoma-Modern.ttf"},
         {"Comfortaa", "Comfortaa-Regular.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Comfortaa-Regular.ttf"},
         {"HankenGrotesk", "HankenGrotesk-SemiBold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/HankenGrotesk-SemiBold.ttf"},
         {"Inter Medium", "Inter_28pt-Medium.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Inter_28pt-Medium.ttf"},
@@ -199,38 +229,32 @@ local function loadFont()
         {"ProggyClean", "ProggyClean.ttf", "https://github.com/i77lhm/storage/raw/main/fonts/ProggyClean.ttf"},
         {"ProggyTiny", "ProggyTiny.ttf", "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/ProggyTiny.ttf"},
         {"Rubik", "Rubik-Regular.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Rubik-Regular.ttf"},
-        {"Tahoma Modern Bold", "Tahoma-Modern-Bold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Tahoma-Modern-Bold.ttf"},
-        {"Tahoma Modern", "Tahoma-Modern.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Tahoma-Modern.ttf"},
         {"Verdana", "Verdana-Font.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Verdana-Font.ttf"},
         {"Tahoma 8px", "fs-tahoma-8px.ttf", "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/fs-tahoma-8px.ttf"},
         {"Open Sans PX", "open-sans-px.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/open-sans-px.ttf"},
         {"Smallest Pixel-7", "smallest_pixel-7.ttf", "https://raw.githubusercontent.com/sametexe001/luas/main/smallest_pixel-7.ttf"},
-        {"Tahoma Bold", "tahoma_bold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/tahoma_bold.ttf"},
     }
 
     for _, entry in ipairs(fontList) do
-        local Name, FileName, Url = entry[1], entry[2], entry[3]
-        local Path = FontFolder .. "/" .. FileName
-        local data = nil
-
+        local Name, Id, Url = entry[1], entry[2], entry[3]
+        local fontContent = nil
         pcall(function()
-            if isfile and isfile(Path) then data = readfile(Path) end
+            if isfile(Id) then fontContent = readfile(Id) end
         end)
-
-        if not data or #data < 100 then
-            local success, content = pcall(function() return game:HttpGet(Url) end)
-            if success and content and #content > 100 then
-                data = content
-                pcall(function() if writefile then writefile(Path, content) end end)
-            end
+        if not fontContent or #fontContent < 100 then
+            pcall(function()
+                local content = game:HttpGet(Url)
+                if content and #content > 100 then
+                    writefile(Id, content)
+                    fontContent = content
+                end
+            end)
         end
 
-        if data and #data > 100 then
-            local success, font = pcall(function()
-                return Font.new(Path, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-            end)
-            if success and font then
-                espModule.Fonts[Name] = font
+        if fontContent then
+            local f = FontsRegister(Name, 400, "Normal", {Id = Id, Font = fontContent})
+            if f then
+                espModule.Fonts[Name] = f
             end
         end
     end
@@ -750,13 +774,13 @@ local function ProcessEntity(entity)
         character = entity
     end
     if not character then
-        RemoveESP(entity)
+        HideESP(espModule._drawings[entity])
         return
     end
     if isPlayer then
         local inRaid = entity:FindFirstChild("InRaid")
         if inRaid and inRaid:IsA("BoolValue") and not inRaid.Value then
-            RemoveESP(entity)
+            HideESP(espModule._drawings[entity])
             return
         end
     end
@@ -770,7 +794,7 @@ local function ProcessEntity(entity)
     local hrp = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not (hrp and humanoid and humanoid.Health > 0) then
-        RemoveESP(entity)
+        HideESP(espModule._drawings[entity])
         return
     end
 

@@ -1,5 +1,3 @@
-print("1")
-
 local espModule = {}
 
 espModule.Settings = {
@@ -184,24 +182,65 @@ local BOX_3D_EDGES = {
     {1,5}, {2,6}, {3,7}, {4,8}
 }
 
-local FontMap = {
-    ["Comfortaa"] = Enum.Font.Gotham,
-    ["HankenGrotesk"] = Enum.Font.GothamMedium,
-    ["Inter Medium"] = Enum.Font.GothamMedium,
-    ["Inter SemiBold"] = Enum.Font.GothamSemibold,
-    ["Light Modern"] = Enum.Font.Gotham,
-    ["Minecraftia"] = Enum.Font.Code,
-    ["ProggyClean"] = Enum.Font.Code,
-    ["ProggyTiny"] = Enum.Font.Code,
-    ["Rubik"] = Enum.Font.Gotham,
-    ["Tahoma Modern Bold"] = Enum.Font.GothamBold,
-    ["Tahoma Modern"] = Enum.Font.Gotham,
-    ["Verdana"] = Enum.Font.Legacy,
-    ["Tahoma 8px"] = Enum.Font.Code,
-    ["Open Sans PX"] = Enum.Font.Gotham,
-    ["Smallest Pixel-7"] = Enum.Font.Code,
-    ["Tahoma Bold"] = Enum.Font.GothamBold,
-}
+local function loadFont()
+    if next(espModule.Fonts) then return end
+    local FontFolder = "esp_fonts"
+    if not isfolder(FontFolder) then pcall(makefolder, FontFolder) end
+
+    local fontList = {
+        {"Comfortaa", "Comfortaa-Regular.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Comfortaa-Regular.ttf"},
+        {"HankenGrotesk", "HankenGrotesk-SemiBold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/HankenGrotesk-SemiBold.ttf"},
+        {"Inter Medium", "Inter_28pt-Medium.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Inter_28pt-Medium.ttf"},
+        {"Inter SemiBold", "Inter_28pt-SemiBold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Inter_28pt-SemiBold.ttf"},
+        {"Light Modern", "Light Modern.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Light%20Modern.ttf"},
+        {"Minecraftia", "Minecraftia-Regular.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Minecraftia-Regular.ttf"},
+        {"ProggyClean", "ProggyClean.ttf", "https://github.com/i77lhm/storage/raw/main/fonts/ProggyClean.ttf"},
+        {"ProggyTiny", "ProggyTiny.ttf", "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/ProggyTiny.ttf"},
+        {"Rubik", "Rubik-Regular.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Rubik-Regular.ttf"},
+        {"Tahoma Modern Bold", "Tahoma-Modern-Bold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Tahoma-Modern-Bold.ttf"},
+        {"Tahoma Modern", "Tahoma-Modern.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Tahoma-Modern.ttf"},
+        {"Verdana", "Verdana-Font.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Verdana-Font.ttf"},
+        {"Tahoma 8px", "fs-tahoma-8px.ttf", "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/fs-tahoma-8px.ttf"},
+        {"Open Sans PX", "open-sans-px.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/open-sans-px.ttf"},
+        {"Smallest Pixel-7", "smallest_pixel-7.ttf", "https://raw.githubusercontent.com/sametexe001/luas/main/smallest_pixel-7.ttf"},
+        {"Tahoma Bold", "tahoma_bold.ttf", "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/tahoma_bold.ttf"},
+    }
+
+    for _, entry in ipairs(fontList) do
+        local Name, FileName, Url = entry[1], entry[2], entry[3]
+        local Path = FontFolder .. "/" .. FileName
+        local data = nil
+
+        pcall(function()
+            if isfile and isfile(Path) then data = readfile(Path) end
+        end)
+
+        if not data or #data < 100 then
+            local success, content = pcall(function() return game:HttpGet(Url) end)
+            if success and content and #content > 100 then
+                data = content
+                pcall(function() if writefile then writefile(Path, content) end end)
+            end
+        end
+
+        if data and #data > 100 then
+            local success, font = pcall(function()
+                local f = Font.new(Path, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+                return f
+            end)
+            if success and font then
+                espModule.Fonts[Name] = font
+            end
+        end
+    end
+
+    if not espModule.Fonts["Tahoma"] then
+        espModule.Fonts["Tahoma"] = espModule.Fonts["Tahoma Modern"] or espModule.Fonts["Tahoma 8px"]
+    end
+    if not espModule.Fonts["Consolas Bold"] then
+        espModule.Fonts["Consolas Bold"] = espModule.Fonts["ProggyClean"] or espModule.Fonts["Smallest Pixel-7"]
+    end
+end
 
 local IsTeam
 pcall(function()
@@ -218,7 +257,10 @@ if type(IsTeam) ~= "function" then
 end
 
 local function getEspFont(fontName)
-    return FontMap[fontName] or Enum.Font.Gotham
+    if fontName and espModule.Fonts[fontName] then
+        return espModule.Fonts[fontName]
+    end
+    return Font.new("rbxasset://fonts/families/GothamSSm.json")
 end
 
 local function GetHealthColor(t, high, mid, low)
@@ -274,7 +316,7 @@ local function CreateText(props)
     label.TextColor3 = props.Color or Color3.new(1, 1, 1)
     label.TextStrokeTransparency = props.Outline and 0 or 1
     label.TextStrokeColor3 = props.OutlineColor or Color3.new(0, 0, 0)
-    label.Font = props.Font or Enum.Font.Gotham
+    label.FontFace = props.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
     label.TextXAlignment = props.Center and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
     label.TextYAlignment = Enum.TextYAlignment.Top
     label.Visible = props.Visible or false
@@ -296,7 +338,7 @@ end
 
 local function MakeBone()
     return {
-        Outline = CreateLine({Thickness = 0.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
+        Outline = CreateLine({Thickness = 1.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Line = CreateLine({Thickness = 0.5, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
     }
 end
@@ -417,11 +459,11 @@ local function CreateEntityESP(entity)
         HealthContainer = healthContainer,
         HealthFill = healthFill,
         HealthGradient = healthGradient,
-        HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
-        NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
-        DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
-        ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
-        TracerOutline = CreateLine({Thickness = 0.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
+        HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.HealthFont), Visible = false, ZIndex = 5}),
+        NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
+        DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
+        ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
+        TracerOutline = CreateLine({Thickness = 1.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Tracer = CreateLine({Thickness = 0.5, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         Skeleton = {
             HeadTorso = MakeBone(),
@@ -502,8 +544,8 @@ end
 local function CreateItemESP(item)
     if espModule._itemDrawings[item] then return end
     espModule._itemDrawings[item] = {
-        NameDistText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
-        ContentsText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = Enum.Font.Code, Visible = false, ZIndex = 5}),
+        NameDistText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
+        ContentsText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
     }
 end
 
@@ -633,7 +675,7 @@ local function ProcessItem(item)
         local textBounds = Services.TextService:GetTextSize(nameDistStr, textSize, showDist and flagsFont or textFont, Vector2.new(1000, 1000))
         data.NameDistText.Frame.Text = nameDistStr
         data.NameDistText.Frame.TextSize = textSize
-        data.NameDistText.Frame.Font = showDist and flagsFont or textFont
+        data.NameDistText.Frame.FontFace = showDist and flagsFont or textFont
         data.NameDistText.Frame.TextColor3 = color
         data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X - textBounds.X / 2, pos.Y - 12)
         data.NameDistText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
@@ -663,7 +705,7 @@ local function ProcessItem(item)
             local textBounds = Services.TextService:GetTextSize(contentStr, textSize - 1, textFont, Vector2.new(1000, 1000))
             data.ContentsText.Frame.Text = contentStr
             data.ContentsText.Frame.TextSize = textSize - 1
-            data.ContentsText.Frame.Font = textFont
+            data.ContentsText.Frame.FontFace = textFont
             data.ContentsText.Frame.TextColor3 = color
             data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X - textBounds.X / 2, pos.Y + 16)
             data.ContentsText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
@@ -1004,7 +1046,7 @@ local function ProcessEntity(entity)
             local textBounds = Services.TextService:GetTextSize(textStr, cfg.TextSize, healthFont, Vector2.new(1000, 1000))
             data.HealthText.Frame.Text = textStr
             data.HealthText.Frame.TextSize = cfg.TextSize
-            data.HealthText.Frame.Font = healthFont
+            data.HealthText.Frame.FontFace = healthFont
             local tw = textBounds.X
             local fillH = sy * hp
             local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
@@ -1026,7 +1068,7 @@ local function ProcessEntity(entity)
         local textBounds = Services.TextService:GetTextSize(name, cfg.TextSize, textFont, Vector2.new(1000, 1000))
         data.NameText.Frame.Text = name
         data.NameText.Frame.TextSize = cfg.TextSize
-        data.NameText.Frame.Font = textFont
+        data.NameText.Frame.FontFace = textFont
         data.NameText.Frame.TextColor3 = cfg.NameColor
         data.NameText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (textBounds.X / 2), y - 14)
         data.NameText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
@@ -1040,7 +1082,7 @@ local function ProcessEntity(entity)
         local textBounds = Services.TextService:GetTextSize(textStr, cfg.TextSize, flagsFont, Vector2.new(1000, 1000))
         data.DistanceText.Frame.Text = textStr
         data.DistanceText.Frame.TextSize = cfg.TextSize
-        data.DistanceText.Frame.Font = flagsFont
+        data.DistanceText.Frame.FontFace = flagsFont
         data.DistanceText.Frame.TextColor3 = cfg.DistanceColor
         data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
         data.DistanceText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
@@ -1055,7 +1097,7 @@ local function ProcessEntity(entity)
         local textBounds = Services.TextService:GetTextSize(textStr, cfg.TextSize, textFont, Vector2.new(1000, 1000))
         data.ToolText.Frame.Text = textStr
         data.ToolText.Frame.TextSize = cfg.TextSize
-        data.ToolText.Frame.Font = textFont
+        data.ToolText.Frame.FontFace = textFont
         data.ToolText.Frame.TextColor3 = cfg.ToolColor
         data.ToolText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (textBounds.X / 2), y + sy + 2)
         data.ToolText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
@@ -1079,11 +1121,11 @@ local function ProcessEntity(entity)
         local to = Vector2.new(x + sx * 0.5, y + sy)
         
         data.TracerOutline.Frame.BackgroundColor3 = Color3.new(0, 0, 0)
-        data.TracerOutline.Thickness = 3
+        data.TracerOutline.Thickness = 1.5
         data.TracerOutline:Set(from, to)
 
         data.Tracer.Frame.BackgroundColor3 = cfg.TracerColor
-        data.Tracer.Thickness = 1
+        data.Tracer.Thickness = 0.5
         data.Tracer:Set(from, to)
     else
         data.TracerOutline:Hide()
@@ -1100,10 +1142,10 @@ local function ProcessEntity(entity)
                 if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
                     local a = Vector2.new(s1.X, s1.Y)
                     local b = Vector2.new(s2.X, s2.Y)
-                    bone.Outline.Thickness = 3
+                    bone.Outline.Thickness = 1.5
                     bone.Outline:Set(a, b)
                     bone.Line.Frame.BackgroundColor3 = cfg.SkeletonColor
-                    bone.Line.Thickness = 1
+                    bone.Line.Thickness = 0.5
                     bone.Line:Set(a, b)
                     return
                 end
@@ -1215,6 +1257,7 @@ end
 function espModule:Start()
     if self._isRunning then return end
     self._isRunning = true
+    loadFont()
 
     table.clear(self._bots)
     table.clear(self._containers)

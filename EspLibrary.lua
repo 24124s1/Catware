@@ -2,9 +2,9 @@ local espModule = {}
 
 espModule.Settings = {
     RefreshRate = 144,
-    TextFont = "ProggyTiny",
-    FlagsFont = "ProggyTiny",
-    HealthFont = "ProggyTiny",
+    TextFont = "Tahoma Modern Bold",
+    FlagsFont = "Tahoma Modern Bold",
+    HealthFont = "Tahoma Modern Bold",
     Enemy = {
         Enabled = false,
         BoxEnabled = false,

@@ -1,4 +1,4 @@
-print("6")
+print("1")
 
 local espModule = {}
 
@@ -26,14 +26,12 @@ espModule.Settings = {
         HealthText = false,
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 6,
+        HeadDotSize = 12,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsGlow = false,
         ChamsFillTransparency = 0.5,
-        ChamsOutlineTransparency = 0,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -46,7 +44,6 @@ espModule.Settings = {
         HealthLow = Color3.fromRGB(255, 40, 40),
         SkeletonColor = Color3.fromRGB(255, 80, 80),
         ChamsFillColor = Color3.fromRGB(255, 80, 80),
-        ChamsOutlineColor = Color3.fromRGB(255, 80, 80),
         TracerColor = Color3.fromRGB(255, 80, 80),
     },
     Teammate = {
@@ -68,14 +65,12 @@ espModule.Settings = {
         HealthText = false,
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 6,
+        HeadDotSize = 12,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsGlow = false,
-        ChamsFillTransparency = 0.1,
-        ChamsOutlineTransparency = 0,
+        ChamsFillTransparency = 0.5,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -88,7 +83,6 @@ espModule.Settings = {
         HealthLow = Color3.fromRGB(30, 80, 140),
         SkeletonColor = Color3.fromRGB(0, 180, 255),
         ChamsFillColor = Color3.fromRGB(0, 180, 255),
-        ChamsOutlineColor = Color3.fromRGB(0, 180, 255),
         TracerColor = Color3.fromRGB(0, 180, 255),
     },
     AI = {
@@ -110,14 +104,12 @@ espModule.Settings = {
         HealthText = false,
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 6,
+        HeadDotSize = 12,
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
         Chams = false,
-        ChamsGlow = false,
         ChamsFillTransparency = 0.5,
-        ChamsOutlineTransparency = 0,
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -130,7 +122,6 @@ espModule.Settings = {
         HealthLow = Color3.fromRGB(255, 40, 40),
         SkeletonColor = Color3.fromRGB(255, 200, 50),
         ChamsFillColor = Color3.fromRGB(255, 200, 50),
-        ChamsOutlineColor = Color3.fromRGB(255, 200, 50),
         TracerColor = Color3.fromRGB(255, 200, 50),
     },
     Items = {
@@ -163,7 +154,6 @@ espModule.Settings = {
 
 espModule._drawings = {}
 espModule._highlights = {}
-espModule._chamsGlow = {}
 espModule._itemDrawings = {}
 espModule._itemHighlights = {}
 espModule._isRunning = false
@@ -366,6 +356,11 @@ local function CreateEntityESP(entity)
     uiCorner.CornerRadius = UDim.new(1, 0)
     uiCorner.Parent = headDot
 
+    local dotStroke = Instance.new("UIStroke")
+    dotStroke.Color = Color3.new(0, 0, 0)
+    dotStroke.Thickness = 1
+    dotStroke.Parent = headDot
+
     local box3dOutline = {}
     local box3dInner = {}
     local boxGlow = {}
@@ -552,14 +547,8 @@ local function RemoveESP(entity)
     espModule._boxFillAngles[entity] = nil
     
     if espModule._highlights[entity] then
-        for _, ad in pairs(espModule._highlights[entity]) do
-            ad:Destroy()
-        end
+        espModule._highlights[entity]:Destroy()
         espModule._highlights[entity] = nil
-    end
-    if espModule._chamsGlow[entity] then
-        espModule._chamsGlow[entity]:Destroy()
-        espModule._chamsGlow[entity] = nil
     end
 end
 
@@ -800,20 +789,14 @@ local function ProcessEntity(entity)
     local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
     if rawStuds > MAX_ENTITY_DIST then
         HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then
-            for _, ad in pairs(espModule._highlights[entity]) do ad.Visible = false end
-        end
-        if espModule._chamsGlow[entity] then espModule._chamsGlow[entity].Enabled = false end
+        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
         return
     end
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if not onScreen or hrpPos.Z <= 0 then
         HideESP(espModule._drawings[entity])
-        if espModule._highlights[entity] then
-            for _, ad in pairs(espModule._highlights[entity]) do ad.Visible = false end
-        end
-        if espModule._chamsGlow[entity] then espModule._chamsGlow[entity].Enabled = false end
+        if espModule._highlights[entity] then espModule._highlights[entity].Enabled = false end
         return
     end
 
@@ -1293,70 +1276,23 @@ local function ProcessEntity(entity)
     end
 
     if cfg.Chams then
-        local adornments = espModule._highlights[entity]
-        if not adornments then
-            adornments = {}
-            espModule._highlights[entity] = adornments
+        local hl = espModule._highlights[entity]
+        if not hl then
+            hl = Instance.new("Highlight")
+            hl.Name = "ESPChams"
+            hl.Parent = gethui() or Services.CoreGui
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            espModule._highlights[entity] = hl
         end
-        
-        local activeParts = {}
-        for _, part in ipairs(character:GetChildren()) do
-            if part:IsA("BasePart") then
-                activeParts[part] = true
-                local ad = adornments[part]
-                if not ad then
-                    ad = Instance.new("SphereHandleAdornment")
-                    ad.Name = "ESPChams"
-                    ad.Adornee = part
-                    ad.AlwaysOnTop = true
-                    ad.ZIndex = 10
-                    ad.Parent = Services.CoreGui
-                    adornments[part] = ad
-                end
-                ad.Radius = math.max(part.Size.X, part.Size.Y, part.Size.Z) / 2
-                ad.Transparency = cfg.ChamsFillTransparency
-                ad.Color3 = cfg.ChamsFillColor
-                ad.Visible = true
-            end
-        end
-        
-        for part, ad in pairs(adornments) do
-            if not activeParts[part] then
-                ad:Destroy()
-                adornments[part] = nil
-            end
-        end
-
-        if cfg.ChamsGlow then
-            local glow = espModule._chamsGlow[entity]
-            if not glow then
-                glow = Instance.new("Highlight")
-                glow.Name = "ChamsGlow"
-                glow.Parent = espGui
-                glow.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                espModule._chamsGlow[entity] = glow
-            end
-            glow.Adornee = character
-            glow.FillColor = cfg.ChamsFillColor
-            glow.FillTransparency = 0.8
-            glow.OutlineColor = cfg.ChamsOutlineColor
-            glow.OutlineTransparency = cfg.ChamsOutlineTransparency
-            glow.Enabled = true
-        else
-            if espModule._chamsGlow[entity] then
-                espModule._chamsGlow[entity].Enabled = false
-            end
-        end
+        hl.Adornee = character
+        hl.FillColor = cfg.ChamsFillColor
+        hl.OutlineColor = cfg.ChamsFillColor
+        hl.FillTransparency = cfg.ChamsFillTransparency
+        hl.OutlineTransparency = 0
+        hl.Enabled = true
     else
         if espModule._highlights[entity] then
-            for _, ad in pairs(espModule._highlights[entity]) do
-                ad:Destroy()
-            end
-            espModule._highlights[entity] = nil
-        end
-        if espModule._chamsGlow[entity] then
-            espModule._chamsGlow[entity]:Destroy()
-            espModule._chamsGlow[entity] = nil
+            espModule._highlights[entity].Enabled = false
         end
     end
 end
@@ -1515,7 +1451,6 @@ function espModule:Stop()
     end
     self._drawings = {}
     self._highlights = {}
-    self._chamsGlow = {}
     for item in pairs(self._itemDrawings) do
         RemoveItemESP(item)
     end

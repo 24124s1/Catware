@@ -1,3 +1,5 @@
+print("1")
+
 local espModule = {}
 
 espModule.Settings = {
@@ -225,8 +227,7 @@ local function loadFont()
 
         if data and #data > 100 then
             local success, font = pcall(function()
-                local f = Font.new(Path, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-                return f
+                return Font.new(Path, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
             end)
             if success and font then
                 espModule.Fonts[Name] = font
@@ -672,13 +673,13 @@ local function ProcessItem(item)
     end
 
     if nameDistStr ~= "" then
-        local textBounds = Services.TextService:GetTextSize(nameDistStr, textSize, showDist and flagsFont or textFont, Vector2.new(1000, 1000))
         data.NameDistText.Frame.Text = nameDistStr
         data.NameDistText.Frame.TextSize = textSize
         data.NameDistText.Frame.FontFace = showDist and flagsFont or textFont
         data.NameDistText.Frame.TextColor3 = color
-        data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X - textBounds.X / 2, pos.Y - 12)
-        data.NameDistText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
+        local bounds = data.NameDistText.Frame.TextBounds
+        data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X - bounds.X / 2, pos.Y - 12)
+        data.NameDistText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
         data.NameDistText.Frame.Visible = true
     else
         data.NameDistText:Hide()
@@ -702,13 +703,13 @@ local function ProcessItem(item)
         if #contents > 0 then
             local contentStr = table.concat(contents, " | ")
             if #contentStr > 60 then contentStr = string.sub(contentStr, 1, 57) .. "..." end
-            local textBounds = Services.TextService:GetTextSize(contentStr, textSize - 1, textFont, Vector2.new(1000, 1000))
             data.ContentsText.Frame.Text = contentStr
             data.ContentsText.Frame.TextSize = textSize - 1
             data.ContentsText.Frame.FontFace = textFont
             data.ContentsText.Frame.TextColor3 = color
-            data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X - textBounds.X / 2, pos.Y + 16)
-            data.ContentsText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
+            local bounds = data.ContentsText.Frame.TextBounds
+            data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X - bounds.X / 2, pos.Y + 16)
+            data.ContentsText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
             data.ContentsText.Frame.Visible = true
         else
             data.ContentsText:Hide()
@@ -1043,15 +1044,14 @@ local function ProcessEntity(entity)
         if cfg.HealthText then
             local hpVal = math.floor(humanoid.Health + 0.5)
             local textStr = tostring(hpVal)
-            local textBounds = Services.TextService:GetTextSize(textStr, cfg.TextSize, healthFont, Vector2.new(1000, 1000))
             data.HealthText.Frame.Text = textStr
             data.HealthText.Frame.TextSize = cfg.TextSize
             data.HealthText.Frame.FontFace = healthFont
-            local tw = textBounds.X
+            local tw = data.HealthText.Frame.TextBounds.X
             local fillH = sy * hp
             local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
             data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3 - tw, ty)
-            data.HealthText.Frame.Size = UDim2.fromOffset(tw, textBounds.Y)
+            data.HealthText.Frame.Size = UDim2.fromOffset(tw, data.HealthText.Frame.TextBounds.Y)
             data.HealthText.Frame.TextColor3 = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
             data.HealthText.Frame.Visible = true
         else
@@ -1065,13 +1065,13 @@ local function ProcessEntity(entity)
 
     if cfg.Names then
         local name = isPlayer and entity.DisplayName or character.Name
-        local textBounds = Services.TextService:GetTextSize(name, cfg.TextSize, textFont, Vector2.new(1000, 1000))
         data.NameText.Frame.Text = name
         data.NameText.Frame.TextSize = cfg.TextSize
         data.NameText.Frame.FontFace = textFont
         data.NameText.Frame.TextColor3 = cfg.NameColor
-        data.NameText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (textBounds.X / 2), y - 14)
-        data.NameText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
+        local bounds = data.NameText.Frame.TextBounds
+        data.NameText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (bounds.X / 2), y - 14)
+        data.NameText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
         data.NameText.Frame.Visible = true
     else
         data.NameText:Hide()
@@ -1079,13 +1079,13 @@ local function ProcessEntity(entity)
 
     if cfg.Distance then
         local textStr = "[" .. tostring(meters) .. "m]"
-        local textBounds = Services.TextService:GetTextSize(textStr, cfg.TextSize, flagsFont, Vector2.new(1000, 1000))
         data.DistanceText.Frame.Text = textStr
         data.DistanceText.Frame.TextSize = cfg.TextSize
         data.DistanceText.Frame.FontFace = flagsFont
         data.DistanceText.Frame.TextColor3 = cfg.DistanceColor
+        local bounds = data.DistanceText.Frame.TextBounds
         data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
-        data.DistanceText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
+        data.DistanceText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
         data.DistanceText.Frame.Visible = true
     else
         data.DistanceText:Hide()
@@ -1094,13 +1094,13 @@ local function ProcessEntity(entity)
     if cfg.Tool then
         local tool = character:FindFirstChildOfClass("Tool")
         local textStr = tool and tool.Name or "None"
-        local textBounds = Services.TextService:GetTextSize(textStr, cfg.TextSize, textFont, Vector2.new(1000, 1000))
         data.ToolText.Frame.Text = textStr
         data.ToolText.Frame.TextSize = cfg.TextSize
         data.ToolText.Frame.FontFace = textFont
         data.ToolText.Frame.TextColor3 = cfg.ToolColor
-        data.ToolText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (textBounds.X / 2), y + sy + 2)
-        data.ToolText.Frame.Size = UDim2.fromOffset(textBounds.X, textBounds.Y)
+        local bounds = data.ToolText.Frame.TextBounds
+        data.ToolText.Frame.Position = UDim2.fromOffset((x + sx * 0.5) - (bounds.X / 2), y + sy + 2)
+        data.ToolText.Frame.Size = UDim2.fromOffset(bounds.X, bounds.Y)
         data.ToolText.Frame.Visible = true
     else
         data.ToolText:Hide()

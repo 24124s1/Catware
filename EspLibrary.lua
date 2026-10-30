@@ -1,4 +1,4 @@
-print('3')
+print('4')
 
 local espModule = {}
 
@@ -35,9 +35,12 @@ espModule.Settings = {
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 20,
+        HeadDotOutlineThickness = 1,
         TextSize = 12,
         Skeleton = false,
+        SkeletonThickness = 1,
         Tracers = false,
+        TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 80, 80),
         NameColor = Color3.fromRGB(255, 255, 255),
@@ -79,9 +82,12 @@ espModule.Settings = {
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 20,
+        HeadDotOutlineThickness = 1,
         TextSize = 12,
         Skeleton = false,
+        SkeletonThickness = 1,
         Tracers = false,
+        TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(0, 180, 255),
         NameColor = Color3.fromRGB(180, 230, 255),
@@ -123,9 +129,12 @@ espModule.Settings = {
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
         HeadDotSize = 20,
+        HeadDotOutlineThickness = 1,
         TextSize = 12,
         Skeleton = false,
+        SkeletonThickness = 1,
         Tracers = false,
+        TracerThickness = 1,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 200, 50),
         NameColor = Color3.fromRGB(255, 255, 255),
@@ -404,7 +413,7 @@ end
 
 local function MakeBone()
     return {
-        Outline = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
+        Outline = CreateLine({Thickness = 2, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Line = CreateLine({Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
     }
 end
@@ -447,13 +456,15 @@ local function CreateEntityESP(entity)
     uiCorner.Parent = headDot
 
     local dotStrokeOuter = Instance.new("UIStroke")
+    dotStrokeOuter.Name = "OuterStroke"
     dotStrokeOuter.Color = Color3.new(0, 0, 0)
-    dotStrokeOuter.Thickness = 3
+    dotStrokeOuter.Thickness = 2
     dotStrokeOuter.Parent = headDot
 
     local dotStrokeInner = Instance.new("UIStroke")
+    dotStrokeInner.Name = "InnerStroke"
     dotStrokeInner.Color = Color3.new(1, 1, 1)
-    dotStrokeInner.Thickness = 1.5
+    dotStrokeInner.Thickness = 1
     dotStrokeInner.Parent = headDot
 
     local box3dOutline = {}
@@ -604,7 +615,7 @@ local function CreateEntityESP(entity)
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
         ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
-        TracerOutline = CreateLine({Thickness = 3, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
+        TracerOutline = CreateLine({Thickness = 2, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Tracer = CreateLine({Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         Skeleton = {
             HeadTorso = MakeBone(),
@@ -1179,10 +1190,14 @@ local function ProcessEntity(entity)
                 data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
                 data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
                 
-                for _, v in ipairs(data.HeadDot:GetChildren()) do
-                    if v:IsA("UIStroke") and v.Thickness == 1.5 then
-                        v.Color = cfg.HeadDotColor
-                    end
+                local outer = data.HeadDot:FindFirstChild("OuterStroke")
+                if outer then
+                    outer.Thickness = cfg.HeadDotOutlineThickness
+                end
+                local inner = data.HeadDot:FindFirstChild("InnerStroke")
+                if inner then
+                    inner.Color = cfg.HeadDotColor
+                    inner.Thickness = math.max(0.5, cfg.HeadDotOutlineThickness - 0.5)
                 end
                 
                 data.HeadDot.Visible = true
@@ -1412,11 +1427,11 @@ local function ProcessEntity(entity)
         local to = Vector2.new(x + sx * 0.5, y + sy)
         
         data.TracerOutline.Frame.BackgroundColor3 = Color3.new(0, 0, 0)
-        data.TracerOutline.Thickness = 3
+        data.TracerOutline.Thickness = cfg.TracerThickness + 1
         data.TracerOutline:Set(from, to)
 
         data.Tracer.Frame.BackgroundColor3 = cfg.TracerColor
-        data.Tracer.Thickness = 1
+        data.Tracer.Thickness = cfg.TracerThickness
         data.Tracer:Set(from, to)
     else
         data.TracerOutline:Hide()
@@ -1433,10 +1448,10 @@ local function ProcessEntity(entity)
                 if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
                     local a = Vector2.new(s1.X, s1.Y)
                     local b = Vector2.new(s2.X, s2.Y)
-                    bone.Outline.Thickness = 3
+                    bone.Outline.Thickness = cfg.SkeletonThickness + 1
                     bone.Outline:Set(a, b)
                     bone.Line.Frame.BackgroundColor3 = cfg.SkeletonColor
-                    bone.Line.Thickness = 1
+                    bone.Line.Thickness = cfg.SkeletonThickness
                     bone.Line:Set(a, b)
                     return
                 end

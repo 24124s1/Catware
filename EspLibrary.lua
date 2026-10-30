@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local espModule = {}
 
@@ -7,6 +7,7 @@ espModule.Settings = {
     TextFont = "Tahoma Modern Bold",
     FlagsFont = "Tahoma Modern Bold",
     HealthFont = "Tahoma Modern Bold",
+    TextGradientAnimated = true,
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
@@ -433,7 +434,8 @@ local function CreateEntityESP(entity)
     boxFillGradient.Parent = boxFill
 
     local headDot = Instance.new("Frame")
-    headDot.BackgroundTransparency = 1
+    headDot.BackgroundColor3 = Color3.new(1, 1, 1)
+    headDot.BackgroundTransparency = 0
     headDot.BorderSizePixel = 0
     headDot.AnchorPoint = Vector2.new(0.5, 0.5)
     headDot.Visible = false
@@ -444,15 +446,10 @@ local function CreateEntityESP(entity)
     uiCorner.CornerRadius = UDim.new(1, 0)
     uiCorner.Parent = headDot
 
-    local dotStrokeOuter = Instance.new("UIStroke")
-    dotStrokeOuter.Color = Color3.new(0, 0, 0)
-    dotStrokeOuter.Thickness = 3
-    dotStrokeOuter.Parent = headDot
-
-    local dotStrokeInner = Instance.new("UIStroke")
-    dotStrokeInner.Color = Color3.new(1, 1, 1)
-    dotStrokeInner.Thickness = 1.5
-    dotStrokeInner.Parent = headDot
+    local dotStroke = Instance.new("UIStroke")
+    dotStroke.Color = Color3.new(0, 0, 0)
+    dotStroke.Thickness = 2
+    dotStroke.Parent = headDot
 
     local box3dOutline = {}
     local box3dInner = {}
@@ -894,6 +891,22 @@ local function ProcessItem(item)
     end
 end
 
+local function ApplyGradient(textObj, color1, color2)
+    local grad = textObj.Frame:FindFirstChild("TextGradient")
+    if grad then
+        if grad:GetAttribute("C1") ~= color1 or grad:GetAttribute("C2") ~= color2 then
+            grad.Color = ColorSequence.new(color1, color2)
+            grad:SetAttribute("C1", color1)
+            grad:SetAttribute("C2", color2)
+        end
+        if espModule.Settings.TextGradientAnimated then
+            grad.Rotation = (tick() * 100) % 360
+        else
+            grad.Rotation = 0
+        end
+    end
+end
+
 local function ProcessEntity(entity)
     if entity == Services.LocalPlayer then return end
     local character, isPlayer
@@ -1160,14 +1173,7 @@ local function ProcessEntity(entity)
             if hpOn and hpPos.Z > 0 then
                 data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
                 data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
-                
-                local strokes = data.HeadDot:GetChildren()
-                for _, stroke in ipairs(strokes) do
-                    if stroke:IsA("UIStroke") and stroke.Thickness == 1.5 then
-                        stroke.Color = cfg.HeadDotColor
-                    end
-                end
-                
+                data.HeadDot.BackgroundColor3 = cfg.HeadDotColor
                 data.HeadDot.Visible = true
             else
                 data.HeadDot.Visible = false
@@ -1273,10 +1279,7 @@ local function ProcessEntity(entity)
             data.LastNameSize = cfg.TextSize
         end
         
-        local nameGrad = data.NameText.Frame:FindFirstChild("TextGradient")
-        if nameGrad then
-            nameGrad.Color = ColorSequence.new(cfg.NameColor, cfg.NameColor2)
-        end
+        ApplyGradient(data.NameText, cfg.NameColor, cfg.NameColor2)
         
         data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 4)
         data.NameText.Frame.AnchorPoint = Vector2.new(0.5, 1)
@@ -1300,10 +1303,7 @@ local function ProcessEntity(entity)
             data.LastDistSize = cfg.TextSize
         end
         
-        local distGrad = data.DistanceText.Frame:FindFirstChild("TextGradient")
-        if distGrad then
-            distGrad.Color = ColorSequence.new(cfg.DistanceColor, cfg.DistanceColor2)
-        end
+        ApplyGradient(data.DistanceText, cfg.DistanceColor, cfg.DistanceColor2)
         
         data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
         data.DistanceText.Frame.AnchorPoint = Vector2.new(0, 0)
@@ -1328,10 +1328,7 @@ local function ProcessEntity(entity)
             data.LastToolSize = cfg.TextSize
         end
         
-        local toolGrad = data.ToolText.Frame:FindFirstChild("TextGradient")
-        if toolGrad then
-            toolGrad.Color = ColorSequence.new(cfg.ToolColor, cfg.ToolColor2)
-        end
+        ApplyGradient(data.ToolText, cfg.ToolColor, cfg.ToolColor2)
         
         local toolOffset = cfg.ArmorBar and 6 or 2
         data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + toolOffset)
@@ -1352,8 +1349,7 @@ local function ProcessEntity(entity)
         
         if swimming then
             data.SwimFlag.Frame.Visible = true
-            local grad = data.SwimFlag.Frame:FindFirstChild("TextGradient")
-            if grad then grad.Color = ColorSequence.new(cfg.FlagSwimming, cfg.FlagSwimming) end
+            ApplyGradient(data.SwimFlag, cfg.FlagSwimming, cfg.FlagSwimming)
             data.SwimFlag.Frame.LayoutOrder = activeCount
             activeCount = activeCount + 1
         else
@@ -1362,8 +1358,7 @@ local function ProcessEntity(entity)
 
         if jumping then
             data.JumpFlag.Frame.Visible = true
-            local grad = data.JumpFlag.Frame:FindFirstChild("TextGradient")
-            if grad then grad.Color = ColorSequence.new(cfg.FlagJumping, cfg.FlagJumping) end
+            ApplyGradient(data.JumpFlag, cfg.FlagJumping, cfg.FlagJumping)
             data.JumpFlag.Frame.LayoutOrder = activeCount
             activeCount = activeCount + 1
         else
@@ -1372,8 +1367,7 @@ local function ProcessEntity(entity)
 
         if walking and not jumping and not swimming then
             data.WalkFlag.Frame.Visible = true
-            local grad = data.WalkFlag.Frame:FindFirstChild("TextGradient")
-            if grad then grad.Color = ColorSequence.new(cfg.FlagWalking, cfg.FlagWalking) end
+            ApplyGradient(data.WalkFlag, cfg.FlagWalking, cfg.FlagWalking)
             data.WalkFlag.Frame.LayoutOrder = activeCount
             activeCount = activeCount + 1
         else

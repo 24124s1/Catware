@@ -1,4 +1,4 @@
-print('3')
+print('4')
 
 local espModule = {}
 
@@ -416,6 +416,17 @@ local function MakeBone()
         Outline = CreateLine({Thickness = 1.5, Color = Color3.new(0, 0, 0), Visible = false, ZIndex = 1}),
         Line = CreateLine({Thickness = 0.5, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
     }
+end
+
+local function getCharacterParts(character)
+    local isR15 = character:FindFirstChild("UpperTorso") ~= nil
+    local parts
+    if isR15 then
+        parts = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "LeftHand", "RightHand", "LeftFoot", "RightFoot"}
+    else
+        parts = {"HumanoidRootPart", "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+    end
+    return parts, isR15
 end
 
 local function CreateEntityESP(entity)
@@ -961,41 +972,58 @@ local function ProcessEntity(entity)
     local data = espModule._drawings[entity]
     if not data then return end
 
-    local success, bboxCf, bboxSize = pcall(function()
-        return character:GetBoundingBox()
-    end)
-    if not success or not bboxCf or not bboxSize then
-        HideESP(data)
-        return
-    end
-
-    local corners = {
-        bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
-        bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2)
-    }
-
+    local parts, isR15 = getCharacterParts(character)
+    
     local minX, minY = math.huge, math.huge
     local maxX, maxY = -math.huge, -math.huge
     local validParts = 0
     local p = {}
     local vis = {}
 
-    for i = 1, 8 do
-        local pos, on = Camera:WorldToViewportPoint(corners[i])
-        p[i] = Vector2.new(pos.X, pos.Y)
-        vis[i] = on and pos.Z > 0
-        if vis[i] then
-            validParts = validParts + 1
-            if pos.X < minX then minX = pos.X end
-            if pos.Y < minY then minY = pos.Y end
-            if pos.X > maxX then maxX = pos.X end
-            if pos.Y > maxY then maxY = pos.Y end
+    local is3D = cfg.BoxEnabled and cfg.BoxType == "3D"
+    local corners = {}
+    
+    if is3D then
+        local success, bboxCf, bboxSize = pcall(function()
+            return character:GetBoundingBox()
+        end)
+        if success and bboxCf and bboxSize then
+            corners = {
+                bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
+                bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
+                bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
+                bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
+                bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
+                bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
+                bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
+                bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2)
+            }
+            for i = 1, 8 do
+                local pos, on = Camera:WorldToViewportPoint(corners[i])
+                p[i] = Vector2.new(pos.X, pos.Y)
+                vis[i] = on and pos.Z > 0
+                if vis[i] then
+                    validParts = validParts + 1
+                    if pos.X < minX then minX = pos.X end
+                    if pos.Y < minY then minY = pos.Y end
+                    if pos.X > maxX then maxX = pos.X end
+                    if pos.Y > maxY then maxY = pos.Y end
+                end
+            end
+        end
+    else
+        for i = 1, #parts do
+            local part = character:FindFirstChild(parts[i])
+            if part and part:IsA("BasePart") then
+                local sp, visPt = Camera:WorldToViewportPoint(part.Position)
+                if visPt and sp.Z > 0 then
+                    validParts = validParts + 1
+                    if sp.X < minX then minX = sp.X end
+                    if sp.Y < minY then minY = sp.Y end
+                    if sp.X > maxX then maxX = sp.X end
+                    if sp.Y > maxY then maxY = sp.Y end
+                end
+            end
         end
     end
 

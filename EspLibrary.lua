@@ -1,4 +1,4 @@
-print('2')
+print('3')
 
 local espModule = {}
 
@@ -435,7 +435,7 @@ local function CreateEntityESP(entity)
 
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
-    headDot.BackgroundTransparency = 0
+    headDot.BackgroundTransparency = 1
     headDot.BorderSizePixel = 0
     headDot.AnchorPoint = Vector2.new(0.5, 0.5)
     headDot.Visible = false
@@ -446,10 +446,15 @@ local function CreateEntityESP(entity)
     uiCorner.CornerRadius = UDim.new(1, 0)
     uiCorner.Parent = headDot
 
-    local dotStroke = Instance.new("UIStroke")
-    dotStroke.Color = Color3.new(0, 0, 0)
-    dotStroke.Thickness = 2
-    dotStroke.Parent = headDot
+    local dotStrokeOuter = Instance.new("UIStroke")
+    dotStrokeOuter.Color = Color3.new(0, 0, 0)
+    dotStrokeOuter.Thickness = 3
+    dotStrokeOuter.Parent = headDot
+
+    local dotStrokeInner = Instance.new("UIStroke")
+    dotStrokeInner.Color = Color3.new(1, 1, 1)
+    dotStrokeInner.Thickness = 1.5
+    dotStrokeInner.Parent = headDot
 
     local box3dOutline = {}
     local box3dInner = {}
@@ -1173,7 +1178,13 @@ local function ProcessEntity(entity)
             if hpOn and hpPos.Z > 0 then
                 data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
                 data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
-                data.HeadDot.BackgroundColor3 = cfg.HeadDotColor
+                
+                for _, v in ipairs(data.HeadDot:GetChildren()) do
+                    if v:IsA("UIStroke") and v.Thickness == 1.5 then
+                        v.Color = cfg.HeadDotColor
+                    end
+                end
+                
                 data.HeadDot.Visible = true
             else
                 data.HeadDot.Visible = false

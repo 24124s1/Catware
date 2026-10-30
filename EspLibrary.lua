@@ -1,4 +1,4 @@
-print('2')
+print('3')
 
 local espModule = {}
 
@@ -446,7 +446,7 @@ local function CreateEntityESP(entity)
 
     local dotStroke = Instance.new("UIStroke")
     dotStroke.Name = "DotStroke"
-    dotStroke.Color = Color3.new(1, 1, 1)
+    dotStroke.Color = Color3.new(0, 0, 0)
     dotStroke.Thickness = 1
     dotStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     dotStroke.Parent = headDot
@@ -916,10 +916,12 @@ local function ProcessEntity(entity)
     else
         character = entity
     end
-    if not character then
+    
+    if not character or not character:IsA("Model") then
         HideESP(espModule._drawings[entity])
         return
     end
+    
     if isPlayer then
         local inRaid = entity:FindFirstChild("InRaid")
         if inRaid and inRaid:IsA("BoolValue") and not inRaid.Value then
@@ -959,9 +961,14 @@ local function ProcessEntity(entity)
     local data = espModule._drawings[entity]
     if not data then return end
 
-    local parts, isR15 = getCharacterParts(character)
-    
-    local bboxCf, bboxSize = character:GetBoundingBox()
+    local success, bboxCf, bboxSize = pcall(function()
+        return character:GetBoundingBox()
+    end)
+    if not success or not bboxCf or not bboxSize then
+        HideESP(data)
+        return
+    end
+
     local corners = {
         bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
         bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
@@ -1324,8 +1331,13 @@ local function ProcessEntity(entity)
 
     if cfg.Flags then
         local walking = humanoid.MoveDirection.Magnitude > 0
-        local jumping = humanoid:GetState() == Enum.HumanoidStateType.Freefall or humanoid:GetState() == Enum.HumanoidStateType.Jumping
-        local swimming = humanoid:GetState() == Enum.HumanoidStateType.Swimming
+        local jumping = false
+        local swimming = false
+        pcall(function()
+            local state = humanoid:GetState()
+            jumping = state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping
+            swimming = state == Enum.HumanoidStateType.Swimming
+        end)
 
         local activeCount = 0
         

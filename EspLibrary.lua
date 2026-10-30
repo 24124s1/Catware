@@ -1,4 +1,4 @@
-print('2')
+print('1')
 
 local espModule = {}
 
@@ -33,15 +33,18 @@ espModule.Settings = {
         ArmorLow = Color3.fromRGB(255, 0, 0),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 18,
+        HeadDotSize = 20,
         TextSize = 12,
         Skeleton = false,
         Tracers = false,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 80, 80),
         NameColor = Color3.fromRGB(255, 255, 255),
+        NameColor2 = Color3.fromRGB(200, 200, 200),
         DistanceColor = Color3.fromRGB(255, 255, 255),
+        DistanceColor2 = Color3.fromRGB(200, 200, 200),
         ToolColor = Color3.fromRGB(255, 255, 255),
+        ToolColor2 = Color3.fromRGB(200, 200, 200),
         HealthHigh = Color3.fromRGB(0, 255, 100),
         HealthMid = Color3.fromRGB(255, 255, 0),
         HealthLow = Color3.fromRGB(255, 40, 40),
@@ -74,15 +77,18 @@ espModule.Settings = {
         ArmorLow = Color3.fromRGB(255, 0, 0),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 18,
+        HeadDotSize = 20,
         TextSize = 12,
         Skeleton = false,
         Tracers = false,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(0, 180, 255),
         NameColor = Color3.fromRGB(180, 230, 255),
+        NameColor2 = Color3.fromRGB(100, 150, 200),
         DistanceColor = Color3.fromRGB(180, 230, 255),
+        DistanceColor2 = Color3.fromRGB(100, 150, 200),
         ToolColor = Color3.fromRGB(180, 230, 255),
+        ToolColor2 = Color3.fromRGB(100, 150, 200),
         HealthHigh = Color3.fromRGB(0, 200, 255),
         HealthMid = Color3.fromRGB(100, 200, 255),
         HealthLow = Color3.fromRGB(30, 80, 140),
@@ -115,15 +121,18 @@ espModule.Settings = {
         ArmorLow = Color3.fromRGB(255, 0, 0),
         HeadDot = false,
         HeadDotColor = Color3.fromRGB(255, 255, 255),
-        HeadDotSize = 18,
+        HeadDotSize = 20,
         TextSize = 12,
         Skeleton = false,
         Tracers = false,
         TracerOrigin = "Bottom",
         LineColor = Color3.fromRGB(255, 200, 50),
         NameColor = Color3.fromRGB(255, 255, 255),
+        NameColor2 = Color3.fromRGB(200, 200, 200),
         DistanceColor = Color3.fromRGB(255, 255, 255),
+        DistanceColor2 = Color3.fromRGB(200, 200, 200),
         ToolColor = Color3.fromRGB(255, 255, 255),
+        ToolColor2 = Color3.fromRGB(200, 200, 200),
         HealthHigh = Color3.fromRGB(0, 255, 100),
         HealthMid = Color3.fromRGB(255, 255, 0),
         HealthLow = Color3.fromRGB(255, 40, 40),
@@ -374,6 +383,10 @@ local function CreateText(props)
     label.Visible = props.Visible or false
     label.ZIndex = props.ZIndex or 1
     label.Parent = espGui
+
+    local uiGradient = Instance.new("UIGradient")
+    uiGradient.Name = "TextGradient"
+    uiGradient.Parent = label
     
     local obj = { Frame = label }
     
@@ -431,10 +444,15 @@ local function CreateEntityESP(entity)
     uiCorner.CornerRadius = UDim.new(1, 0)
     uiCorner.Parent = headDot
 
-    local dotStroke = Instance.new("UIStroke")
-    dotStroke.Color = Color3.new(1, 1, 1)
-    dotStroke.Thickness = 1
-    dotStroke.Parent = headDot
+    local dotStrokeOuter = Instance.new("UIStroke")
+    dotStrokeOuter.Color = Color3.new(0, 0, 0)
+    dotStrokeOuter.Thickness = 3
+    dotStrokeOuter.Parent = headDot
+
+    local dotStrokeInner = Instance.new("UIStroke")
+    dotStrokeInner.Color = Color3.new(1, 1, 1)
+    dotStrokeInner.Thickness = 1.5
+    dotStrokeInner.Parent = headDot
 
     local box3dOutline = {}
     local box3dInner = {}
@@ -525,6 +543,10 @@ local function CreateEntityESP(entity)
         lbl.Visible = false
         lbl.ZIndex = 5
         lbl.Parent = flagsFrame
+
+        local uiGradient = Instance.new("UIGradient")
+        uiGradient.Name = "TextGradient"
+        uiGradient.Parent = lbl
         return { Frame = lbl }
     end
 
@@ -1138,10 +1160,14 @@ local function ProcessEntity(entity)
             if hpOn and hpPos.Z > 0 then
                 data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
                 data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
-                local stroke = data.HeadDot:FindFirstChildOfClass("UIStroke")
-                if stroke then
-                    stroke.Color = cfg.HeadDotColor
+                
+                local strokes = data.HeadDot:GetChildren()
+                for _, stroke in ipairs(strokes) do
+                    if stroke:IsA("UIStroke") and stroke.Thickness == 1.5 then
+                        stroke.Color = cfg.HeadDotColor
+                    end
                 end
+                
                 data.HeadDot.Visible = true
             else
                 data.HeadDot.Visible = false
@@ -1191,7 +1217,12 @@ local function ProcessEntity(entity)
             data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
             data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
             data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-            data.HealthText.Frame.TextColor3 = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
+            
+            local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
+            local grad = data.HealthText.Frame:FindFirstChild("TextGradient")
+            if grad then
+                grad.Color = ColorSequence.new(hCol, hCol)
+            end
             data.HealthText.Frame.Visible = true
         else
             data.HealthText:Hide()
@@ -1241,7 +1272,12 @@ local function ProcessEntity(entity)
             data.LastNameFont = textFont
             data.LastNameSize = cfg.TextSize
         end
-        data.NameText.Frame.TextColor3 = cfg.NameColor
+        
+        local nameGrad = data.NameText.Frame:FindFirstChild("TextGradient")
+        if nameGrad then
+            nameGrad.Color = ColorSequence.new(cfg.NameColor, cfg.NameColor2)
+        end
+        
         data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 4)
         data.NameText.Frame.AnchorPoint = Vector2.new(0.5, 1)
         data.NameText.Frame.TextXAlignment = Enum.TextXAlignment.Center
@@ -1263,7 +1299,12 @@ local function ProcessEntity(entity)
             data.LastDistFont = flagsFont
             data.LastDistSize = cfg.TextSize
         end
-        data.DistanceText.Frame.TextColor3 = cfg.DistanceColor
+        
+        local distGrad = data.DistanceText.Frame:FindFirstChild("TextGradient")
+        if distGrad then
+            distGrad.Color = ColorSequence.new(cfg.DistanceColor, cfg.DistanceColor2)
+        end
+        
         data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
         data.DistanceText.Frame.AnchorPoint = Vector2.new(0, 0)
         data.DistanceText.Frame.TextXAlignment = Enum.TextXAlignment.Left
@@ -1286,8 +1327,14 @@ local function ProcessEntity(entity)
             data.LastToolFont = textFont
             data.LastToolSize = cfg.TextSize
         end
-        data.ToolText.Frame.TextColor3 = cfg.ToolColor
-        data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + 6)
+        
+        local toolGrad = data.ToolText.Frame:FindFirstChild("TextGradient")
+        if toolGrad then
+            toolGrad.Color = ColorSequence.new(cfg.ToolColor, cfg.ToolColor2)
+        end
+        
+        local toolOffset = cfg.ArmorBar and 6 or 2
+        data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + toolOffset)
         data.ToolText.Frame.AnchorPoint = Vector2.new(0.5, 0)
         data.ToolText.Frame.TextXAlignment = Enum.TextXAlignment.Center
         data.ToolText.Frame.TextYAlignment = Enum.TextYAlignment.Top
@@ -1305,7 +1352,8 @@ local function ProcessEntity(entity)
         
         if swimming then
             data.SwimFlag.Frame.Visible = true
-            data.SwimFlag.Frame.TextColor3 = cfg.FlagSwimming
+            local grad = data.SwimFlag.Frame:FindFirstChild("TextGradient")
+            if grad then grad.Color = ColorSequence.new(cfg.FlagSwimming, cfg.FlagSwimming) end
             data.SwimFlag.Frame.LayoutOrder = activeCount
             activeCount = activeCount + 1
         else
@@ -1314,7 +1362,8 @@ local function ProcessEntity(entity)
 
         if jumping then
             data.JumpFlag.Frame.Visible = true
-            data.JumpFlag.Frame.TextColor3 = cfg.FlagJumping
+            local grad = data.JumpFlag.Frame:FindFirstChild("TextGradient")
+            if grad then grad.Color = ColorSequence.new(cfg.FlagJumping, cfg.FlagJumping) end
             data.JumpFlag.Frame.LayoutOrder = activeCount
             activeCount = activeCount + 1
         else
@@ -1323,7 +1372,8 @@ local function ProcessEntity(entity)
 
         if walking and not jumping and not swimming then
             data.WalkFlag.Frame.Visible = true
-            data.WalkFlag.Frame.TextColor3 = cfg.FlagWalking
+            local grad = data.WalkFlag.Frame:FindFirstChild("TextGradient")
+            if grad then grad.Color = ColorSequence.new(cfg.FlagWalking, cfg.FlagWalking) end
             data.WalkFlag.Frame.LayoutOrder = activeCount
             activeCount = activeCount + 1
         else

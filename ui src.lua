@@ -1,6 +1,6 @@
-print('3')
+	print('4')
 
-local uis = cloneref(game:GetService("UserInputService"))
+	local uis = cloneref(game:GetService("UserInputService"))
 	local players = cloneref(game:GetService("Players"))
 	local ws = cloneref(game:GetService("Workspace"))
 	local http_service = cloneref(game:GetService("HttpService"))
@@ -671,21 +671,6 @@ local uis = cloneref(game:GetService("UserInputService"))
 					library:draggify(items.main_holder)
 					library:make_resizable(items.main_holder)
 
-					if cfg.background then
-						items.bg_image = library:create("ImageLabel", {
-							Parent = items.main_holder,
-							Name = "",
-							BackgroundTransparency = 1,
-							Image = cfg.background,
-							Size = dim2(1, 0, 1, 0),
-							Position = dim2(0, 0, 0, 0),
-							BorderSizePixel = 0,
-							ZIndex = 0,
-							ScaleType = Enum.ScaleType.Crop,
-							ImageTransparency = cfg.bg_transparency,
-						})
-					end
-
 					local Close = library:create( "TextButton" , {
 						Parent = items.main_holder;
 						FontFace = library.font;
@@ -737,6 +722,22 @@ local uis = cloneref(game:GetService("UserInputService"))
 						BorderSizePixel = 0,
 						BackgroundColor3 = rgb(255, 255, 255)
 					})
+
+					if cfg.background then
+						items.window_holder.BackgroundTransparency = 1
+						library:create("ImageLabel", {
+							Parent = items.window_holder,
+							Name = "",
+							BackgroundTransparency = 1,
+							Image = cfg.background,
+							Size = dim2(1, 0, 1, 0),
+							Position = dim2(0, 0, 0, 0),
+							BorderSizePixel = 0,
+							ZIndex = 0,
+							ScaleType = Enum.ScaleType.Crop,
+							ImageTransparency = cfg.bg_transparency,
+						})
+					end
 								
 					items.UIGradient = library:create("UIGradient", {
 						Parent = items.window_holder,
@@ -812,6 +813,22 @@ local uis = cloneref(game:GetService("UserInputService"))
 						BorderSizePixel = 0,
 						BackgroundColor3 = rgb(255, 255, 255)
 					})
+
+					if cfg.background then
+						items.holder.BackgroundTransparency = 1
+						items.bg_image = library:create("ImageLabel", {
+							Parent = items.holder,
+							Name = "",
+							BackgroundTransparency = 1,
+							Image = cfg.background,
+							Size = dim2(1, 0, 1, 0),
+							Position = dim2(0, 0, 0, 0),
+							BorderSizePixel = 0,
+							ZIndex = 0,
+							ScaleType = Enum.ScaleType.Crop,
+							ImageTransparency = cfg.bg_transparency,
+						})
+					end
 					
 					items.UIGradient = library:create("UIGradient", {
 						Parent = items.holder,

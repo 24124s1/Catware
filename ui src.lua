@@ -11460,5 +11460,3 @@ function library:dropdown(options)
 		end 
 
 return library, themes;
-
-print('1')

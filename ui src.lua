@@ -5669,15 +5669,14 @@
 		background = {
 			source = nil,
 			asset = nil,
-			transparency = 0.35,
+			transparency = 0.6,
 			tint = Color3.fromRGB(255, 255, 255),
-			scale = "Crop",
-			section_transparency = 0.5,
-			mode = "Overlay",
+			scale = "Fit",
+			mode = "Wallpaper",
 			overlay_size = 0.5,
 			aspect = 500 / 700,
 		};
-		section_frames = {};
+		bg_bases = {};
 		overlay_images = {};
 	}
 
@@ -6279,20 +6278,49 @@
 				end
 			end
 
-			-- sections are opaque and fill the whole column, so let the image through (wallpaper mode only)
-			for i = #library.section_frames, 1, -1 do
-				local frame = library.section_frames[i]
-
-				if not frame or not frame.Parent then
-					remove(library.section_frames, i)
-				else
-					frame.BackgroundTransparency = (bg.asset and bg.mode == "Wallpaper") and bg.section_transparency or 0
-				end
-			end
 		end
 
+		-- every section (opaque frames stacked on top of the wallpaper) gets its own clipped copy of the
+		-- wallpaper, lined up with the window, so the image shows through the sections as one picture
 		function library:register_section_background(frame)
-			insert(library.section_frames, frame)
+			local gui = frame:FindFirstAncestorOfClass("ScreenGui")
+			local base = gui and library.bg_bases[gui]
+
+			if not base then
+				return
+			end
+
+			local clip = library:create("Frame", {
+				Parent = frame,
+				Name = "background_clip",
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				ClipsDescendants = true,
+				Size = dim2(1, 0, 1, 0),
+				ZIndex = 1,
+			})
+
+			local img = library:create("ImageLabel", {
+				Parent = clip,
+				Name = "background_slice",
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				ZIndex = 1,
+				Visible = false,
+				Image = "",
+			})
+
+			local function place()
+				img.Position = dim_offset(base.AbsolutePosition.X - clip.AbsolutePosition.X, base.AbsolutePosition.Y - clip.AbsolutePosition.Y)
+				img.Size = dim_offset(base.AbsoluteSize.X, base.AbsoluteSize.Y)
+			end
+
+			library:connection(clip:GetPropertyChangedSignal("AbsolutePosition"), place)
+			library:connection(base:GetPropertyChangedSignal("AbsolutePosition"), place)
+			library:connection(base:GetPropertyChangedSignal("AbsoluteSize"), place)
+			place()
+
+			insert(library.background_images, img)
 			library:refresh_backgrounds()
 		end
 
@@ -6362,7 +6390,7 @@
 		-- library:set_background("wallpaper.png")                   file in <directory>/images (or full path)
 		-- library:set_background("1234567890")                      roblox asset id
 		-- library:set_background("")  /  library:clear_background()  remove it
-		-- options: {mode = "Overlay"|"Wallpaper", overlay_size = 0.1..1, aspect = w/h, transparency = 0..1, section_transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
+		-- options: {mode = "Overlay"|"Wallpaper", overlay_size = 0.1..1, aspect = w/h, transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
 		-- pass nil as source to only change options. May yield (downloads), so call it from a thread.
 		function library:set_background(source, options)
 			local bg = library.background
@@ -6374,10 +6402,6 @@
 
 			if options.tint ~= nil then
 				bg.tint = options.tint
-			end
-
-			if options.section_transparency ~= nil then
-				bg.section_transparency = clamp(options.section_transparency, 0, 1)
 			end
 
 			if options.mode == "Overlay" or options.mode == "Wallpaper" then
@@ -6696,7 +6720,6 @@
 						PaddingLeft = dim(0, 5)
 					})
 
-					items.bg_image = library:register_background(items.holder, 5)
 					
 					items.glow = library:create("ImageLabel", {
 						Parent = items.main_holder,
@@ -7463,9 +7486,9 @@
 
 				library.section_holder = background
 
-				-- the content area covers the panel's own layer, so draw the image here instead
-				library:remove_background(main_window.items.bg_image)
+				-- wallpaper for the main window: this is the base every section copies its slice from
 				main_window.items.bg_image = library:register_background(background, 4)
+				library.bg_bases[main_window.items.sgui] = main_window.items.bg_image
 				main_window.items.bg_overlay = library:register_overlay(main_window.items.main_holder)
 
 				library:create("UIPadding", {
@@ -7555,7 +7578,7 @@
 				:colorpicker({name = "Glow", color = themes.preset.glow, callback = function(color, alpha)
 					library:update_theme("glow", color)
 				end, flag = "Glow"})
-				section:slider({name = "Blur Size", flag = "Blur Size", min = 0, max = 56, default = 15, interval = 1, callback = function(int)
+				section:slider({name = "Blur Size", flag = "Blur Size", min = 0, max = 56, default = 0, interval = 1, callback = function(int)
 					if window.opened then 
 						blur.Size = int
 					end
@@ -7671,7 +7694,7 @@
 
 				local bg_panel = library:panel({
 					name = "Background", 
-					size = dim2(0, 394, 0, 340),
+					size = dim2(0, 394, 0, 300),
 					position = dim2(0, style.items.main_holder.AbsolutePosition.X, 0, style.items.main_holder.AbsolutePosition.Y + style.items.main_holder.AbsoluteSize.Y + 2),
 					image = "rbxassetid://115194686863276",
 				})
@@ -7709,19 +7732,16 @@
 				bg_section:button({name = "Clear", callback = function()
 					bg_box.set("")
 				end})
-				bg_section:dropdown({name = "Mode", flag = "bg_image_mode", items = {"Overlay", "Wallpaper"}, default = "Overlay", callback = function(mode)
+				bg_section:dropdown({name = "Mode", flag = "bg_image_mode", items = {"Wallpaper", "Overlay"}, default = "Wallpaper", callback = function(mode)
 					library:set_background(nil, {mode = mode})
 				end})
 				bg_section:slider({name = "Overlay Size", flag = "bg_overlay_size", min = 10, max = 100, default = 50, interval = 1, suffix = "%", callback = function(int)
 					library:set_background(nil, {overlay_size = int / 100})
 				end})
-				bg_section:slider({name = "Image Opacity", flag = "bg_image_opacity", min = 0, max = 100, default = 65, interval = 1, suffix = "%", callback = function(int)
+				bg_section:slider({name = "Image Opacity", flag = "bg_image_opacity", min = 0, max = 100, default = 40, interval = 1, suffix = "%", callback = function(int)
 					library:set_background(nil, {transparency = 1 - (int / 100)})
 				end})
-				bg_section:slider({name = "Section Opacity", flag = "bg_section_opacity", min = 0, max = 100, default = 50, interval = 1, suffix = "%", callback = function(int)
-					library:set_background(nil, {section_transparency = 1 - (int / 100)})
-				end})
-				bg_section:dropdown({name = "Scale Mode", flag = "bg_image_scale", items = {"Crop", "Fit", "Stretch", "Tile"}, default = "Crop", callback = function(mode)
+				bg_section:dropdown({name = "Scale Mode", flag = "bg_image_scale", items = {"Fit", "Crop", "Stretch", "Tile"}, default = "Fit", callback = function(mode)
 					library:set_background(nil, {scale = mode})
 				end})
 				bg_section:label({name = "Image Tint"})
@@ -11556,4 +11576,4 @@ function library:dropdown(options)
 			return setmetatable(cfg, library)
 		end 
 
-return library, themes;
+return library, themes; 

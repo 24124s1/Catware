@@ -5673,8 +5673,12 @@
 			tint = Color3.fromRGB(255, 255, 255),
 			scale = "Crop",
 			section_transparency = 0.5,
+			mode = "Overlay",
+			overlay_size = 0.5,
+			aspect = 500 / 700,
 		};
 		section_frames = {};
+		overlay_images = {};
 	}
 
 	local flags = library.flags
@@ -6247,7 +6251,7 @@
 					remove(library.background_images, i)
 				else
 					img.Image = bg.asset or ""
-					img.Visible = bg.asset ~= nil
+					img.Visible = bg.asset ~= nil and bg.mode == "Wallpaper"
 					img.ImageTransparency = bg.transparency
 					img.ImageColor3 = bg.tint
 					img.ScaleType = bg_scale_types[bg.scale] or Enum.ScaleType.Crop
@@ -6255,14 +6259,34 @@
 				end
 			end
 
-			-- sections are opaque and fill the whole column, so let the image through
+			-- overlay layers (character art style image in the window corner)
+			for i = #library.overlay_images, 1, -1 do
+				local img = library.overlay_images[i]
+
+				if not img or not img.Parent then
+					remove(library.overlay_images, i)
+				else
+					img.Image = bg.asset or ""
+					img.Visible = bg.asset ~= nil and bg.mode == "Overlay"
+					img.ImageTransparency = bg.transparency
+					img.ImageColor3 = bg.tint
+					img.Size = dim2(bg.overlay_size, 0, bg.overlay_size, 0)
+
+					local ratio = img:FindFirstChildOfClass("UIAspectRatioConstraint")
+					if ratio then
+						ratio.AspectRatio = bg.aspect
+					end
+				end
+			end
+
+			-- sections are opaque and fill the whole column, so let the image through (wallpaper mode only)
 			for i = #library.section_frames, 1, -1 do
 				local frame = library.section_frames[i]
 
 				if not frame or not frame.Parent then
 					remove(library.section_frames, i)
 				else
-					frame.BackgroundTransparency = bg.asset and bg.section_transparency or 0
+					frame.BackgroundTransparency = (bg.asset and bg.mode == "Wallpaper") and bg.section_transparency or 0
 				end
 			end
 		end
@@ -6284,12 +6308,41 @@
 				BorderSizePixel = 0,
 				Position = dim2(0, -inset, 0, -inset),
 				Size = dim2(1, inset * 2, 1, inset * 2),
-				ZIndex = 0,
+				ZIndex = 1,
 				Visible = false,
 				Image = "",
 			})
 
 			insert(library.background_images, img)
+			library:refresh_backgrounds()
+
+			return img
+		end
+
+		-- image pinned to the bottom right of `parent`, keeps its aspect ratio, never blocks clicks
+		function library:register_overlay(parent)
+			local img = library:create("ImageLabel", {
+				Parent = parent,
+				Name = "background_overlay",
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Active = false,
+				AnchorPoint = vec2(1, 1),
+				Position = dim2(1, -6, 1, -6),
+				Size = dim2(0.5, 0, 0.5, 0),
+				ZIndex = 50,
+				Visible = false,
+				Image = "",
+				ScaleType = Enum.ScaleType.Fit,
+			})
+
+			library:create("UIAspectRatioConstraint", {
+				Parent = img,
+				AspectRatio = library.background.aspect,
+				AspectType = Enum.AspectType.FitWithinMaxSize,
+			})
+
+			insert(library.overlay_images, img)
 			library:refresh_backgrounds()
 
 			return img
@@ -6309,7 +6362,7 @@
 		-- library:set_background("wallpaper.png")                   file in <directory>/images (or full path)
 		-- library:set_background("1234567890")                      roblox asset id
 		-- library:set_background("")  /  library:clear_background()  remove it
-		-- options: {transparency = 0..1, section_transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
+		-- options: {mode = "Overlay"|"Wallpaper", overlay_size = 0.1..1, aspect = w/h, transparency = 0..1, section_transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
 		-- pass nil as source to only change options. May yield (downloads), so call it from a thread.
 		function library:set_background(source, options)
 			local bg = library.background
@@ -6325,6 +6378,18 @@
 
 			if options.section_transparency ~= nil then
 				bg.section_transparency = clamp(options.section_transparency, 0, 1)
+			end
+
+			if options.mode == "Overlay" or options.mode == "Wallpaper" then
+				bg.mode = options.mode
+			end
+
+			if options.overlay_size ~= nil then
+				bg.overlay_size = clamp(options.overlay_size, 0.1, 1)
+			end
+
+			if options.aspect ~= nil and options.aspect > 0 then
+				bg.aspect = options.aspect
 			end
 
 			if options.scale ~= nil and bg_scale_types[options.scale] then
@@ -7401,6 +7466,7 @@
 				-- the content area covers the panel's own layer, so draw the image here instead
 				library:remove_background(main_window.items.bg_image)
 				main_window.items.bg_image = library:register_background(background, 4)
+				main_window.items.bg_overlay = library:register_overlay(main_window.items.main_holder)
 
 				library:create("UIPadding", {
 					Parent = background,
@@ -7605,7 +7671,7 @@
 
 				local bg_panel = library:panel({
 					name = "Background", 
-					size = dim2(0, 394, 0, 270),
+					size = dim2(0, 394, 0, 340),
 					position = dim2(0, style.items.main_holder.AbsolutePosition.X, 0, style.items.main_holder.AbsolutePosition.Y + style.items.main_holder.AbsoluteSize.Y + 2),
 					image = "rbxassetid://115194686863276",
 				})
@@ -7643,6 +7709,12 @@
 				bg_section:button({name = "Clear", callback = function()
 					bg_box.set("")
 				end})
+				bg_section:dropdown({name = "Mode", flag = "bg_image_mode", items = {"Overlay", "Wallpaper"}, default = "Overlay", callback = function(mode)
+					library:set_background(nil, {mode = mode})
+				end})
+				bg_section:slider({name = "Overlay Size", flag = "bg_overlay_size", min = 10, max = 100, default = 50, interval = 1, suffix = "%", callback = function(int)
+					library:set_background(nil, {overlay_size = int / 100})
+				end})
 				bg_section:slider({name = "Image Opacity", flag = "bg_image_opacity", min = 0, max = 100, default = 65, interval = 1, suffix = "%", callback = function(int)
 					library:set_background(nil, {transparency = 1 - (int / 100)})
 				end})
@@ -7667,7 +7739,14 @@
 					library:set_background(nil, {
 						transparency = properties and properties.background_transparency,
 						scale = properties and properties.background_scale,
+						mode = properties and properties.background_mode,
+						overlay_size = properties and properties.background_size,
 					})
+
+					if properties and properties.background_mode and library.config_flags["bg_image_mode"] then
+						library.config_flags["bg_image_mode"](properties.background_mode)
+					end
+
 					bg_box.set(default_bg)
 				end
 

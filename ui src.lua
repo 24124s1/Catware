@@ -7690,7 +7690,6 @@
 				local credits_section = credits_column:section({name = "Credits :)"})
 
 				credits_section:label({name = "Devs : Cookie & 090"})
-				credits_section:label({name = "Tester : War"})
 
 				local bg_panel = library:panel({
 					name = "Background", 
@@ -7713,7 +7712,6 @@
 						return
 					end
 
-					-- the textbox fires on every keystroke, so wait until typing stops
 					task.delay(0.75, function()
 						if token == bg_token then
 							library:set_background(source)
@@ -7749,10 +7747,9 @@
 					library:set_background(nil, {tint = color})
 				end})
 
-				-- library:window({background = "https://.../img.png"}) overrides this, background = false disables it
 				local default_bg = properties and properties.background
 				if default_bg == nil then
-					default_bg = "https://raw.githubusercontent.com/24124s1/Catware/main/Images/bg_img.png"
+					default_bg = "https://raw.githubusercontent.com/24124s1/Catware/main/Images/bg_img2.png"
 				end
 
 				if default_bg then

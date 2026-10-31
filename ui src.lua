@@ -5664,6 +5664,15 @@
 		drawings = {};
 
 		display_orders = 0; 
+
+		background_images = {};
+		background = {
+			source = nil,
+			asset = nil,
+			transparency = 0.35,
+			tint = Color3.fromRGB(255, 255, 255),
+			scale = "Crop",
+		};
 	}
 
 	local flags = library.flags
@@ -6112,6 +6121,208 @@
 			return ins 
 		end
 
+		-- ==================== custom background image ====================
+		local bg_scale_types = {
+			Crop = Enum.ScaleType.Crop,
+			Fit = Enum.ScaleType.Fit,
+			Stretch = Enum.ScaleType.Stretch,
+			Tile = Enum.ScaleType.Tile,
+		}
+
+		local function bg_hash(str)
+			local h = 5381
+			for i = 1, #str do
+				h = (h * 33 + string.byte(str, i)) % 4294967296
+			end
+			return string.format("%08x", h)
+		end
+
+		local function bg_notify(text)
+			pcall(function()
+				library:notification({text = text, time = 4})
+			end)
+		end
+
+		-- turns a url / file name / asset id into something ImageLabel.Image accepts
+		-- returns asset, error
+		function library:resolve_image(source)
+			if source == nil then
+				return nil, "no source"
+			end
+
+			source = tostring(source):match("^%s*(.-)%s*$")
+
+			if source == "" then
+				return nil, "empty source"
+			end
+
+			-- already a roblox asset
+			if source:match("^rbxassetid://") or source:match("^rbxasset://") or source:match("^https?://www%.roblox%.com/asset") then
+				return source
+			end
+
+			-- bare asset id
+			if source:match("^%d+$") then
+				return "rbxassetid://" .. source
+			end
+
+			-- remote image (png / jpg) - downloaded once and cached in <directory>/images
+			if source:match("^https?://") then
+				local path = library.directory .. "/images/bg_" .. bg_hash(source)
+				local found
+
+				for _, ext in next, {".png", ".jpg"} do
+					if isfile(path .. ext) then
+						found = path .. ext
+						break
+					end
+				end
+
+				if not found then
+					local ok, data = pcall(function()
+						return game:HttpGet(source)
+					end)
+
+					if not ok or type(data) ~= "string" or #data < 8 then
+						return nil, "could not download image"
+					end
+
+					local ext
+					if data:sub(1, 4) == "\137PNG" then
+						ext = ".png"
+					elseif data:sub(1, 3) == "\255\216\255" then
+						ext = ".jpg"
+					else
+						return nil, "unsupported image type (use PNG or JPG)"
+					end
+
+					found = path .. ext
+					writefile(found, data)
+				end
+
+				local ok, asset = pcall(getcustomasset, found)
+				if ok and asset then
+					return asset
+				end
+
+				return nil, "getcustomasset failed"
+			end
+
+			-- local file: exact path, or a file dropped in <directory>/images
+			for _, candidate in next, {source, library.directory .. "/images/" .. source} do
+				if isfile(candidate) then
+					local ok, asset = pcall(getcustomasset, candidate)
+					if ok and asset then
+						return asset
+					end
+					return nil, "getcustomasset failed"
+				end
+			end
+
+			return nil, "file not found: " .. source
+		end
+
+		-- pushes the current background settings to every registered image layer
+		function library:refresh_backgrounds()
+			local bg = library.background
+
+			for i = #library.background_images, 1, -1 do
+				local img = library.background_images[i]
+
+				if not img or not img.Parent then
+					remove(library.background_images, i)
+				else
+					img.Image = bg.asset or ""
+					img.Visible = bg.asset ~= nil
+					img.ImageTransparency = bg.transparency
+					img.ImageColor3 = bg.tint
+					img.ScaleType = bg_scale_types[bg.scale] or Enum.ScaleType.Crop
+					img.TileSize = dim2(0, 256, 0, 256)
+				end
+			end
+		end
+
+		-- creates an image layer behind everything inside `parent`
+		-- inset = the parent's UIPadding, so the image still reaches the edges
+		function library:register_background(parent, inset)
+			inset = inset or 0
+
+			local img = library:create("ImageLabel", {
+				Parent = parent,
+				Name = "background_image",
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Position = dim2(0, -inset, 0, -inset),
+				Size = dim2(1, inset * 2, 1, inset * 2),
+				ZIndex = 0,
+				Visible = false,
+				Image = "",
+			})
+
+			insert(library.background_images, img)
+			library:refresh_backgrounds()
+
+			return img
+		end
+
+		function library:remove_background(img)
+			local i = find(library.background_images, img)
+			if i then
+				remove(library.background_images, i)
+			end
+			if img then
+				img:Destroy()
+			end
+		end
+
+		-- library:set_background("https://i.imgur.com/xxxx.png")   url (png/jpg)
+		-- library:set_background("wallpaper.png")                   file in <directory>/images (or full path)
+		-- library:set_background("1234567890")                      roblox asset id
+		-- library:set_background("")  /  library:clear_background()  remove it
+		-- options: {transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
+		-- pass nil as source to only change options. May yield (downloads), so call it from a thread.
+		function library:set_background(source, options)
+			local bg = library.background
+			options = options or {}
+
+			if options.transparency ~= nil then
+				bg.transparency = clamp(options.transparency, 0, 1)
+			end
+
+			if options.tint ~= nil then
+				bg.tint = options.tint
+			end
+
+			if options.scale ~= nil and bg_scale_types[options.scale] then
+				bg.scale = options.scale
+			end
+
+			if source ~= nil then
+				if tostring(source):match("^%s*$") then
+					bg.source = nil
+					bg.asset = nil
+				else
+					local asset, err = library:resolve_image(source)
+
+					if not asset then
+						bg_notify("Background: " .. tostring(err))
+						return false, err
+					end
+
+					bg.source = source
+					bg.asset = asset
+				end
+			end
+
+			library:refresh_backgrounds()
+			return true
+		end
+
+		function library:clear_background()
+			return library:set_background("")
+		end
+		-- =================================================================
+
 		local tooltip_sgui = library:create("ScreenGui", {
 			Enabled = true,
 			Parent = gethui(),
@@ -6385,6 +6596,8 @@
 						PaddingRight = dim(0, 5),
 						PaddingLeft = dim(0, 5)
 					})
+
+					items.bg_image = library:register_background(items.holder, 5)
 					
 					items.glow = library:create("ImageLabel", {
 						Parent = items.main_holder,
@@ -6837,7 +7050,7 @@
 					BorderColor3 = rgb(0, 0, 0),
 					AnchorPoint = vec2(0.5, 0),
 					Position = dim2(0.5, 0, 0, 20),
-					Size = dim2(0, 157, 0, 39),
+					Size = dim2(0, 162, 0, 39),
 					BorderSizePixel = 0,
 					BackgroundColor3 = themes.preset.outline
 				}); 
@@ -7149,6 +7362,10 @@
 
 				library.section_holder = background
 
+				-- the content area covers the panel's own layer, so draw the image here instead
+				library:remove_background(main_window.items.bg_image)
+				main_window.items.bg_image = library:register_background(background, 4)
+
 				library:create("UIPadding", {
 					Parent = background,
 					PaddingTop = dim(0, 4),
@@ -7349,6 +7566,71 @@
 
 				credits_section:label({name = "Devs : Cookie & 090"})
 				credits_section:label({name = "Tester : War"})
+
+				local bg_panel = library:panel({
+					name = "Background", 
+					size = dim2(0, 394, 0, 230),
+					position = dim2(0, style.items.main_holder.AbsolutePosition.X, 0, style.items.main_holder.AbsolutePosition.Y + style.items.main_holder.AbsoluteSize.Y + 2),
+					image = "rbxassetid://115194686863276",
+				})
+
+				local bg_items = bg_panel.items
+				local bg_column = setmetatable(bg_items, library):column()
+				local bg_section = bg_column:section({name = "Custom Background"})
+
+				local bg_token = 0
+				local function apply_background(source)
+					bg_token = bg_token + 1
+					local token = bg_token
+
+					if source == nil or source:match("^%s*$") then
+						library:set_background("")
+						return
+					end
+
+					-- the textbox fires on every keystroke, so wait until typing stops
+					task.delay(0.75, function()
+						if token == bg_token then
+							library:set_background(source)
+						end
+					end)
+				end
+
+				bg_section:label({name = "URL / file in " .. library.directory .. "/images / asset id"})
+				local bg_box = bg_section:textbox({flag = "bg_image_source", callback = apply_background})
+				bg_section:button_holder({})
+				bg_section:button({name = "Apply", callback = function()
+					task.spawn(function()
+						library:set_background(flags["bg_image_source"] or "")
+					end)
+				end})
+				bg_section:button({name = "Clear", callback = function()
+					bg_box.set("")
+				end})
+				bg_section:slider({name = "Image Opacity", flag = "bg_image_opacity", min = 0, max = 100, default = 65, interval = 1, suffix = "%", callback = function(int)
+					library:set_background(nil, {transparency = 1 - (int / 100)})
+				end})
+				bg_section:dropdown({name = "Scale Mode", flag = "bg_image_scale", items = {"Crop", "Fit", "Stretch", "Tile"}, default = "Crop", callback = function(mode)
+					library:set_background(nil, {scale = mode})
+				end})
+				bg_section:label({name = "Image Tint"})
+				:colorpicker({name = "Tint", color = rgb(255, 255, 255), flag = "bg_image_tint", callback = function(color)
+					library:set_background(nil, {tint = color})
+				end})
+
+				-- optional: library:window({background = "https://.../img.png"})
+				if properties and properties.background then
+					task.spawn(function()
+						library:set_background(properties.background, {
+							transparency = properties.background_transparency,
+							scale = properties.background_scale,
+						})
+					end)
+				end
+
+				window.set_background = function(source, options)
+					return library:set_background(source, options)
+				end
 			return setmetatable(window, library)
 		end
 
@@ -11149,4 +11431,4 @@ function library:dropdown(options)
 			return setmetatable(cfg, library)
 		end 
 
-return library, themes; 
+return library, themes;

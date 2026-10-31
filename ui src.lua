@@ -817,28 +817,44 @@
 						PaddingLeft = dim(0, 5)
 					})
 
-					-- Background Image Support
 					if cfg.background_image then
-						items.bg_image = library:create("ImageLabel", {
-							Parent = items.holder,
-							Name = "BackgroundImage",
-							Size = dim2(1, 0, 1, 0),
-							Position = dim2(0, 0, 0, 0),
-							BackgroundTransparency = 1,
-							Image = cfg.background_image,
-							ImageTransparency = cfg.background_image_transparency,
-							ScaleType = Enum.ScaleType.Crop,
-							ZIndex = 0,
-							BorderSizePixel = 0,
-						})
-						-- Dim the gradient so image shows through more clearly
-						items.UIGradient.Transparency = numseq{
-							numkey(0, 0.4),
-							numkey(1, 0.4)
-						}
-						items.holder.BackgroundTransparency = 0.3
-					end
+					    -- Make the holder fully transparent so the image can show
+					    items.holder.BackgroundTransparency = 1
 					
+					    -- Background image (bottom layer)
+					    items.bg_image = library:create("ImageLabel", {
+					        Parent = items.holder,
+					        Name = "BackgroundImage",
+					        Size = dim2(1, 0, 1, 0),
+					        Position = dim2(0, 0, 0, 0),
+					        BackgroundTransparency = 1,
+					        Image = cfg.background_image,
+					        ImageTransparency = cfg.background_image_transparency or 0.4,
+					        ScaleType = Enum.ScaleType.Crop,
+					        ZIndex = 0,
+					        BorderSizePixel = 0,
+					    })
+					
+					    -- Dark overlay so text stays readable
+					    items.bg_overlay = library:create("Frame", {
+					        Parent = items.holder,
+					        Name = "BackgroundOverlay",
+					        Size = dim2(1, 0, 1, 0),
+					        Position = dim2(0, 0, 0, 0),
+					        BackgroundColor3 = rgb(15, 15, 20),
+					        BackgroundTransparency = 0.45, -- lower = darker, higher = more image
+					        ZIndex = 1,
+					        BorderSizePixel = 0,
+					    })
+					
+					    -- Soften the original gradient
+					    if items.UIGradient then
+					        items.UIGradient.Transparency = numseq{
+					            numkey(0, 0.6),
+					            numkey(1, 0.6)
+					        }
+					    end
+					end
 					items.glow = library:create("ImageLabel", {
 						Parent = items.main_holder,
 						Name = "",

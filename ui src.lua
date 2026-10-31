@@ -216,7 +216,7 @@
 -- 		makefolder(library.directory .. path)
 -- 	end 
 
--- 	writefile("ffff.ttf", game:HttpGet("https://github.com/weasely111/beta/raw/refs/heads/main/fs-tahoma-8px.ttf"))
+-- 	writefile("ffff.ttf", game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/Minecraftia-Regular.ttf"))
 
 -- 	local tahoma = {
 -- 		name = "SmallestPixel7",
@@ -5787,7 +5787,7 @@
 		makefolder(library.directory .. path)
 	end 
 
-	writefile("ffff.ttf", game:HttpGet("https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Minecraftia-Regular.ttf"))
+	writefile("ffff.ttf", game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/Minecraftia-Regular.ttf"))
 
 	local tahoma = {
 		name = "SmallestPixel7",

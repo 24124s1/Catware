@@ -1,4 +1,4 @@
-print('2')
+print('3')
 
 local uis = cloneref(game:GetService("UserInputService"))
 	local players = cloneref(game:GetService("Players"))
@@ -1523,9 +1523,11 @@ local uis = cloneref(game:GetService("UserInputService"))
 
 				local main_window = library:panel({
 					name = properties and properties.name or "Catware.top | ", 
-					size = dim2(0, 604, 0, 628),
+					size = properties and properties.size or dim2(0, 604, 0, 628),
 					position = dim2(0, (camera.ViewportSize.X / 2) - 302 - 96, 0, (camera.ViewportSize.Y / 2) - 421 - 12),
 					image = "rbxassetid://98823308062942",
+					background = properties and (properties.background or properties.bg) or nil,
+					bg_transparency = properties and properties.bg_transparency or 0.4,
 				})
 
 				local items = main_window.items

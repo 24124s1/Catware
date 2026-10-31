@@ -1,12 +1,10 @@
-print('4')
-
 local espModule = {}
 
 espModule.Settings = {
     RefreshRate = 144,
-    TextFont = "Tahoma Modern Bold",
-    FlagsFont = "Tahoma Modern Bold",
-    HealthFont = "Tahoma Modern Bold",
+    TextFont = "Gojiberry Quibble",
+    FlagsFont = "Gojiberry Quibble",
+    HealthFont = "Gojiberry Quibble",
     TextGradientAnimated = true,
     Enemy = {
         Enabled = false,

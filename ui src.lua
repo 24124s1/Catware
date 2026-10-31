@@ -63,7 +63,7 @@
 -- 	local concat = table.concat
 
 -- 	local library = {
--- 		directory = "Vagrant.cc",
+-- 		directory = "Catware",
 -- 		folders = {
 -- 			"/fonts",
 -- 			"/configs",
@@ -1503,7 +1503,7 @@
 -- 				})
 
 -- 				local main_window = library:panel({
--- 					name = properties and properties.name or "Vagrant.cc | ", 
+-- 					name = properties and properties.name or "Catware | ", 
 -- 					size = dim2(0, 604, 0, 628),
 -- 					position = dim2(0, (camera.ViewportSize.X / 2) - 302 - 96, 0, (camera.ViewportSize.Y / 2) - 421 - 12),
 -- 					image = "rbxassetid://98823308062942",
@@ -1606,11 +1606,11 @@
 -- 					image = "rbxassetid://115194686863276",
 -- 				})
 
--- 				local watermark = library:watermark({default = os.date('Vagrant.cc |  - %b %d %Y - %H:%M:%S')})  
+-- 				local watermark = library:watermark({default = os.date('Catware |  - %b %d %Y - %H:%M:%S')})  
 
 -- 				task.spawn(function()
 -- 					while task.wait(1) do 
--- 						watermark.change_text(os.date('Vagrant.cc - Beta - %b %d %Y - %H:%M:%S'))
+-- 						watermark.change_text(os.date('Catware - Beta - %b %d %Y - %H:%M:%S'))
 -- 					end 
 -- 				end) 
 
@@ -5635,7 +5635,7 @@
 	local concat = table.concat
 
 	local library = {
-		directory = "Vagrant.cc",
+		directory = "Catware",
 		folders = {
 			"/fonts",
 			"/configs",
@@ -5794,8 +5794,14 @@
 		
 	library.__index = library
 
+	if not isfolder(library.directory) then 
+		makefolder(library.directory)
+	end 
+
 	for _, path in next, library.folders do 
-		makefolder(library.directory .. path)
+		if not isfolder(library.directory .. path) then 
+			makefolder(library.directory .. path)
+		end 
 	end 
 
 	writefile("ffff.ttf", game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/Minecraftia-Regular.ttf"))
@@ -6166,6 +6172,12 @@
 			-- bare asset id
 			if source:match("^%d+$") then
 				return "rbxassetid://" .. source
+			end
+
+			-- github "blob" page links -> raw file links
+			local gh_user, gh_repo, gh_rest = source:match("^https?://github%.com/([^/]+)/([^/]+)/blob/(.+)$")
+			if gh_user then
+				source = "https://raw.githubusercontent.com/" .. gh_user .. "/" .. gh_repo .. "/" .. gh_rest:gsub("%?.*$", "")
 			end
 
 			-- remote image (png / jpg) - downloaded once and cached in <directory>/images
@@ -7308,10 +7320,12 @@
 					PaddingLeft = dim(0, 5)
 				})
 
+				local window_size = properties and properties.size or dim2(0, 604, 0, 628)
+
 				local main_window = library:panel({
 					name = properties and properties.name or "Catware.top | ", 
-					size = dim2(0, 604, 0, 628),
-					position = dim2(0, (camera.ViewportSize.X / 2) - 302 - 96, 0, (camera.ViewportSize.Y / 2) - 421 - 12),
+					size = window_size,
+					position = dim2(0, (camera.ViewportSize.X / 2) - (window_size.X.Offset / 2) - 96, 0, max(5, (camera.ViewportSize.Y / 2) - (window_size.Y.Offset / 2) - 12)),
 					image = "rbxassetid://98823308062942",
 				})
 
@@ -7643,14 +7657,18 @@
 					library:set_background(nil, {tint = color})
 				end})
 
-				-- optional: library:window({background = "https://.../img.png"})
-				if properties and properties.background then
-					task.spawn(function()
-						library:set_background(properties.background, {
-							transparency = properties.background_transparency,
-							scale = properties.background_scale,
-						})
-					end)
+				-- library:window({background = "https://.../img.png"}) overrides this, background = false disables it
+				local default_bg = properties and properties.background
+				if default_bg == nil then
+					default_bg = "https://raw.githubusercontent.com/24124s1/Catware/main/Images/bg_img.png"
+				end
+
+				if default_bg then
+					library:set_background(nil, {
+						transparency = properties and properties.background_transparency,
+						scale = properties and properties.background_scale,
+					})
+					bg_box.set(default_bg)
 				end
 
 				window.set_background = function(source, options)

@@ -5672,7 +5672,9 @@
 			transparency = 0.35,
 			tint = Color3.fromRGB(255, 255, 255),
 			scale = "Crop",
+			section_transparency = 0.5,
 		};
+		section_frames = {};
 	}
 
 	local flags = library.flags
@@ -6240,6 +6242,22 @@
 					img.TileSize = dim2(0, 256, 0, 256)
 				end
 			end
+
+			-- sections are opaque and fill the whole column, so let the image through
+			for i = #library.section_frames, 1, -1 do
+				local frame = library.section_frames[i]
+
+				if not frame or not frame.Parent then
+					remove(library.section_frames, i)
+				else
+					frame.BackgroundTransparency = bg.asset and bg.section_transparency or 0
+				end
+			end
+		end
+
+		function library:register_section_background(frame)
+			insert(library.section_frames, frame)
+			library:refresh_backgrounds()
 		end
 
 		-- creates an image layer behind everything inside `parent`
@@ -6279,7 +6297,7 @@
 		-- library:set_background("wallpaper.png")                   file in <directory>/images (or full path)
 		-- library:set_background("1234567890")                      roblox asset id
 		-- library:set_background("")  /  library:clear_background()  remove it
-		-- options: {transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
+		-- options: {transparency = 0..1, section_transparency = 0..1, tint = Color3, scale = "Crop"|"Fit"|"Stretch"|"Tile"}
 		-- pass nil as source to only change options. May yield (downloads), so call it from a thread.
 		function library:set_background(source, options)
 			local bg = library.background
@@ -6291,6 +6309,10 @@
 
 			if options.tint ~= nil then
 				bg.tint = options.tint
+			end
+
+			if options.section_transparency ~= nil then
+				bg.section_transparency = clamp(options.section_transparency, 0, 1)
 			end
 
 			if options.scale ~= nil and bg_scale_types[options.scale] then
@@ -7569,7 +7591,7 @@
 
 				local bg_panel = library:panel({
 					name = "Background", 
-					size = dim2(0, 394, 0, 230),
+					size = dim2(0, 394, 0, 270),
 					position = dim2(0, style.items.main_holder.AbsolutePosition.X, 0, style.items.main_holder.AbsolutePosition.Y + style.items.main_holder.AbsoluteSize.Y + 2),
 					image = "rbxassetid://115194686863276",
 				})
@@ -7609,6 +7631,9 @@
 				end})
 				bg_section:slider({name = "Image Opacity", flag = "bg_image_opacity", min = 0, max = 100, default = 65, interval = 1, suffix = "%", callback = function(int)
 					library:set_background(nil, {transparency = 1 - (int / 100)})
+				end})
+				bg_section:slider({name = "Section Opacity", flag = "bg_section_opacity", min = 0, max = 100, default = 50, interval = 1, suffix = "%", callback = function(int)
+					library:set_background(nil, {section_transparency = 1 - (int / 100)})
 				end})
 				bg_section:dropdown({name = "Scale Mode", flag = "bg_image_scale", items = {"Crop", "Fit", "Stretch", "Tile"}, default = "Crop", callback = function(mode)
 					library:set_background(nil, {scale = mode})
@@ -8477,6 +8502,7 @@
 				ZIndex = 1,
 				BackgroundColor3 = rgb(255, 255, 255)
 			})
+			library:register_section_background(__background)
 			
 			local accent = library:create("Frame", {
 				Parent = __background,
@@ -8688,6 +8714,8 @@
 				BorderSizePixel = 0,
 				BackgroundColor3 = rgb(255, 255, 255)
 			})
+
+			library:register_section_background(background)
 
 			local text = library:create("TextLabel", {
 				Parent = background,
@@ -11432,3 +11460,5 @@ function library:dropdown(options)
 		end 
 
 return library, themes;
+
+print('1')

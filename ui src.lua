@@ -1,6 +1,6 @@
-	print('1')
+print('2')
 
-	local uis = cloneref(game:GetService("UserInputService"))
+local uis = cloneref(game:GetService("UserInputService"))
 	local players = cloneref(game:GetService("Players"))
 	local ws = cloneref(game:GetService("Workspace"))
 	local http_service = cloneref(game:GetService("HttpService"))
@@ -14,6 +14,7 @@
 	local sound_service = cloneref(game:GetService("SoundService"))
 	local starter_gui = cloneref(game:GetService("StarterGui"))
 	local rs = cloneref(game:GetService("ReplicatedStorage"))
+	local MarketplaceService = cloneref(game:GetService("MarketplaceService"))
 
 	local vec2 = Vector2.new
 	local vec3 = Vector3.new
@@ -101,16 +102,15 @@
 
 	local themes = {
 		preset = {
-			["outline"] = hex("#0A0A0A"),
-			["inline"] = hex("#2D2D2D"),
-			["accent"] = hex("#FC6BFF"),
-			["high_contrast"] = hex("#141414"),
-			["low_contrast"] = hex("#1E1E1E"),
+			["outline"] = hex("#000000"),
+			["inline"] = hex("#181818"),
+			["accent"] = hex("#A171FF"),
+			["high_contrast"] = hex("#0F0F0F"),
+			["low_contrast"] = hex("#0F0F0F"),
 			["text"] = hex("#B4B4B4"),
 			["text_outline"] = rgb(0, 0, 0),
-			["glow"] = hex("#FC6BFF"),
+			["glow"] = hex("#A171FF"),
 		},
-
 		utility = {
 			["outline"] = {
 				["BackgroundColor3"] = {}, 	
@@ -218,7 +218,7 @@
 		makefolder(library.directory .. path)
 	end 
 
-	writefile("ffff.ttf", game:HttpGet("https://github.com/weasely111/beta/raw/refs/heads/main/fs-tahoma-8px.ttf"))
+	writefile("ffff.ttf", game:HttpGet("https://raw.githubusercontent.com/i77lhm/storage/main/fonts/Minecraftia-Regular.ttf"))
 
 	local tahoma = {
 		name = "SmallestPixel7",
@@ -644,8 +644,8 @@
 
 				image = options.image or "rbxassetid://79856374238119",
 				open = options.open or true,
-				background_image = options.background_image or options.bg_image or nil,
-				background_image_transparency = options.background_image_transparency or options.bg_transparency or 0.5,
+				background = options.background or options.bg or nil,
+				bg_transparency = options.bg_transparency or 0.4,
 
 				items = {},
 			}
@@ -670,6 +670,21 @@
 					})
 					library:draggify(items.main_holder)
 					library:make_resizable(items.main_holder)
+
+					if cfg.background then
+						items.bg_image = library:create("ImageLabel", {
+							Parent = items.main_holder,
+							Name = "",
+							BackgroundTransparency = 1,
+							Image = cfg.background,
+							Size = dim2(1, 0, 1, 0),
+							Position = dim2(0, 0, 0, 0),
+							BorderSizePixel = 0,
+							ZIndex = 0,
+							ScaleType = Enum.ScaleType.Crop,
+							ImageTransparency = cfg.bg_transparency,
+						})
+					end
 
 					local Close = library:create( "TextButton" , {
 						Parent = items.main_holder;
@@ -818,45 +833,7 @@
 						PaddingRight = dim(0, 5),
 						PaddingLeft = dim(0, 5)
 					})
-
-					if cfg.background_image then
-					    -- Make the holder fully transparent so the image can show
-					    items.holder.BackgroundTransparency = 1
 					
-					    -- Background image (bottom layer)
-					    items.bg_image = library:create("ImageLabel", {
-					        Parent = items.holder,
-					        Name = "BackgroundImage",
-					        Size = dim2(1, 0, 1, 0),
-					        Position = dim2(0, 0, 0, 0),
-					        BackgroundTransparency = 1,
-					        Image = cfg.background_image,
-					        ImageTransparency = cfg.background_image_transparency or 0.4,
-					        ScaleType = Enum.ScaleType.Crop,
-					        ZIndex = 0,
-					        BorderSizePixel = 0,
-					    })
-					
-					    -- Dark overlay so text stays readable
-					    items.bg_overlay = library:create("Frame", {
-					        Parent = items.holder,
-					        Name = "BackgroundOverlay",
-					        Size = dim2(1, 0, 1, 0),
-					        Position = dim2(0, 0, 0, 0),
-					        BackgroundColor3 = rgb(15, 15, 20),
-					        BackgroundTransparency = 0.45, -- lower = darker, higher = more image
-					        ZIndex = 1,
-					        BorderSizePixel = 0,
-					    })
-					
-					    -- Soften the original gradient
-					    if items.UIGradient then
-					        items.UIGradient.Transparency = numseq{
-					            numkey(0, 0.6),
-					            numkey(1, 0.6)
-					        }
-					    end
-					end
 					items.glow = library:create("ImageLabel", {
 						Parent = items.main_holder,
 						Name = "",
@@ -948,37 +925,6 @@
 			items.button.MouseButton1Click:Connect(function()
 				items.sgui.Enabled = not items.sgui.Enabled
 			end)
-
-			function cfg.set_background_image(image, transparency)
-				transparency = transparency or cfg.background_image_transparency or 0.5
-				if items.bg_image then
-					if image then
-						items.bg_image.Image = image
-						items.bg_image.ImageTransparency = transparency
-						items.bg_image.Visible = true
-					else
-						items.bg_image.Visible = false
-					end
-				elseif image then
-					items.bg_image = library:create("ImageLabel", {
-						Parent = items.holder,
-						Name = "BackgroundImage",
-						Size = dim2(1, 0, 1, 0),
-						Position = dim2(0, 0, 0, 0),
-						BackgroundTransparency = 1,
-						Image = image,
-						ImageTransparency = transparency,
-						ScaleType = Enum.ScaleType.Crop,
-						ZIndex = 0,
-						BorderSizePixel = 0,
-					})
-					items.UIGradient.Transparency = numseq{
-						numkey(0, 0.4),
-						numkey(1, 0.4)
-					}
-					items.holder.BackgroundTransparency = 0.3
-				end
-			end
 			
 			return setmetatable(cfg, library)
 		end 
@@ -1576,7 +1522,7 @@
 				})
 
 				local main_window = library:panel({
-					name = properties and properties.name or "Vagrant.cc | ", 
+					name = properties and properties.name or "Catware.top | ", 
 					size = dim2(0, 604, 0, 628),
 					position = dim2(0, (camera.ViewportSize.X / 2) - 302 - 96, 0, (camera.ViewportSize.Y / 2) - 421 - 12),
 					image = "rbxassetid://98823308062942",
@@ -1679,13 +1625,18 @@
 					image = "rbxassetid://115194686863276",
 				})
 
-				local watermark = library:watermark({default = os.date('Vagrant.cc |  - %b %d %Y - %H:%M:%S')})  
+				local gameName = "Unknown Game"
+				pcall(function()
+    				gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name
+				end)
+
+				local watermark = library:watermark({default = string.format("Catware.top | Premium | %s", gameName)})  
 
 				task.spawn(function()
-					while task.wait(1) do 
-						watermark.change_text(os.date('Vagrant.cc - Beta - %b %d %Y - %H:%M:%S'))
-					end 
-				end) 
+    				while task.wait(1) do 
+        				watermark.change_text(string.format("Catware.top | Premium | %s", gameName))
+    				end 
+				end)
 
 				local items = style.items
 
@@ -3619,11 +3570,15 @@ function library:colorpicker(options)
 			section:button_holder({})
 			section:button({name = "Copy", callback = function()
 				library.copied_flag = flags[cfg.flag]
-				library.is_rainbow = cfg.flag .. "_RAINBOW_FLAG"
+				library.is_rainbow = flags[cfg.flag .. "_RAINBOW_FLAG"]
 			end})
 			section:button({name = "Paste", callback = function()
-				RainbowToggle.set(library.is_rainbow)
-				cfg.set(library.copied_flag.Color, library.copied_flag.Transparency)
+				if library.is_rainbow ~= nil then
+					RainbowToggle.set(library.is_rainbow)
+				end
+				if library.copied_flag then
+					cfg.set(library.copied_flag.Color, library.copied_flag.Transparency)
+				end
 			end})
 
 			local main_holder_inline = library:create("Frame", {
@@ -5298,7 +5253,11 @@ function library:dropdown(options)
 			function cfg.set(text) 
 				TextLabel.Text = text 
 			end 
-						
+					
+			function cfg.delete() 
+				dropdown:Destroy()
+			end 
+
 			return setmetatable(cfg, library)   
 		end 
 

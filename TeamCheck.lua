@@ -11,8 +11,8 @@ local GameNames = {
     [112757576021097] = "DefuseDivision",
     [138485390344924] = "TacticalShooterA",
     [87204735676240] = "Kontra",
-    [75959630651788] = "MatchTeamGame",
-    [124417592421329] = "MatchInMatchGame",
+    [75959630651788] = "PORTALS",
+    [74508332293360] = "Rifle Duels",
     [84449017742177] = "Chameleon",
     [115872975504419] = "SquadGame",
     [142823291] = "MurderMystery2",
@@ -127,11 +127,11 @@ local IsTeam = function(plr)
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 
-    if currentGame == "MatchTeamGame" then
+    if currentGame == "PORTALS" then
         return LocalPlayer:GetAttribute("MatchTeam") == plr:GetAttribute("MatchTeam")
     end
 
-    if currentGame == "MatchInMatchGame" then
+    if currentGame == "Rifle Duels" then
         return (LocalPlayer:GetAttribute("_Team") == plr:GetAttribute("_Team")) and (LocalPlayer:GetAttribute("_InMatch") == plr:GetAttribute("_InMatch"))
     end
 

@@ -170,3 +170,6 @@ local IsTeam = function(plr)
 end
 
 return IsTeam
+
+print("At least if your going to put a key system on my open source remove the team check loadstring 😂")
+print("You can find the open source to the silent aim at https://rscripts.net/@090")

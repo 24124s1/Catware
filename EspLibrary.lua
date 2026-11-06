@@ -11,6 +11,7 @@ espModule.Settings = {
         BoxEnabled = false,
         BoxType = "Corner",
         Thickness = 1,
+        BoxGlow = false,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 80, 80),
         BoxFillColor2 = Color3.fromRGB(255, 40, 40),
@@ -58,6 +59,7 @@ espModule.Settings = {
         BoxEnabled = false,
         BoxType = "Corner",
         Thickness = 1,
+        BoxGlow = false,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(0, 180, 255),
         BoxFillColor2 = Color3.fromRGB(0, 100, 200),
@@ -105,6 +107,7 @@ espModule.Settings = {
         BoxEnabled = false,
         BoxType = "Corner",
         Thickness = 1,
+        BoxGlow = false,
         BoxFill = false,
         BoxFillColor1 = Color3.fromRGB(255, 200, 50),
         BoxFillColor2 = Color3.fromRGB(255, 150, 0),
@@ -340,21 +343,29 @@ local function GetHealthColor(t, high, mid, low)
 end
 
 local function CreateLine(props)
+    local glowFrame = nil
+    if props.UseGlow then
+        glowFrame = Instance.new("Frame")
+        glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        glowFrame.BorderSizePixel = 0
+        glowFrame.BackgroundColor3 = props.Color or Color3.new(1, 1, 1)
+        glowFrame.BackgroundTransparency = 0.6
+        glowFrame.Visible = false
+        glowFrame.ZIndex = (props.ZIndex or 2) - 1
+        glowFrame.Parent = espGui
+
+        local uiCorner = Instance.new("UICorner")
+        uiCorner.CornerRadius = UDim.new(1, 0)
+        uiCorner.Parent = glowFrame
+    end
+
     local frame = Instance.new("Frame")
     frame.AnchorPoint = Vector2.new(0.5, 0.5)
     frame.BorderSizePixel = 0
     frame.BackgroundColor3 = props.Color or Color3.new(1, 1, 1)
     frame.Visible = props.Visible or false
-    frame.ZIndex = props.ZIndex or 1
+    frame.ZIndex = props.ZIndex or 2
     frame.Parent = espGui
-
-    local glow = Instance.new("UIStroke")
-    glow.Name = "LineGlow"
-    glow.Color = props.Color or Color3.new(1, 1, 1)
-    glow.Thickness = props.GlowThickness or 4
-    glow.Transparency = 0.5
-    glow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    glow.Parent = frame
 
     local stroke = Instance.new("UIStroke")
     stroke.Name = "LineOutline"
@@ -365,31 +376,41 @@ local function CreateLine(props)
 
     local obj = {
         Frame = frame,
+        GlowFrame = glowFrame,
         Stroke = stroke,
-        Glow = glow,
         Thickness = props.Thickness or 1,
         OutlineThickness = props.OutlineThickness or 1,
         Color = props.Color or Color3.new(1, 1, 1),
+        GlowEnabled = false
     }
 
     function obj:Set(from, to)
         if not from or not to then
             frame.Visible = false
+            if self.GlowFrame then self.GlowFrame.Visible = false end
             return
         end
         local dist = (to - from).Magnitude
         local center = from:Lerp(to, 0.5)
         local angle = math.deg(math.atan2(to.Y - from.Y, to.X - from.X))
+        
         frame.Position = UDim2.fromOffset(center.X, center.Y)
-        frame.Size = UDim2.fromOffset(dist + self.Thickness, self.Thickness)
+        frame.Size = UDim2.fromOffset(dist + (self.Thickness * 2), self.Thickness)
         frame.Rotation = angle
         frame.Visible = true
+
+        if self.GlowFrame then
+            self.GlowFrame.Position = UDim2.fromOffset(center.X, center.Y)
+            self.GlowFrame.Size = UDim2.fromOffset(dist + (self.Thickness * 4), self.Thickness * 4)
+            self.GlowFrame.Rotation = angle
+            self.GlowFrame.Visible = self.GlowEnabled
+        end
     end
 
     function obj:SetColor(color)
         self.Color = color
         frame.BackgroundColor3 = color
-        glow.Color = color
+        if self.GlowFrame then self.GlowFrame.BackgroundColor3 = color end
     end
 
     function obj:SetThickness(t)
@@ -401,12 +422,21 @@ local function CreateLine(props)
         stroke.Thickness = t
     end
 
+    function obj:SetGlow(visible)
+        self.GlowEnabled = visible
+        if self.GlowFrame then
+            self.GlowFrame.Visible = visible and frame.Visible
+        end
+    end
+
     function obj:Hide()
         frame.Visible = false
+        if self.GlowFrame then self.GlowFrame.Visible = false end
     end
 
     function obj:Destroy()
         frame:Destroy()
+        if self.GlowFrame then self.GlowFrame:Destroy() end
     end
 
     return obj
@@ -448,7 +478,7 @@ local function CreateText(props)
 end
 
 local function MakeBone()
-    return CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+    return CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = false})
 end
 
 local function getCharacterParts(character)
@@ -495,28 +525,9 @@ local function CreateEntityESP(entity)
     dotStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     dotStroke.Parent = headDot
 
-    local fullBox = Instance.new("Frame")
-    fullBox.BackgroundTransparency = 1
-    fullBox.Visible = false
-    fullBox.ZIndex = 2
-    fullBox.Parent = espGui
-
-    local fullBoxGlow = Instance.new("UIStroke")
-    fullBoxGlow.Name = "BoxGlow"
-    fullBoxGlow.Thickness = 4
-    fullBoxGlow.Transparency = 0.5
-    fullBoxGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    fullBoxGlow.Parent = fullBox
-
-    local fullBoxStroke = Instance.new("UIStroke")
-    fullBoxStroke.Name = "BoxStroke"
-    fullBoxStroke.Thickness = 1
-    fullBoxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    fullBoxStroke.Parent = fullBox
-
     local box3dLines = {}
     for i = 1, 12 do
-        box3dLines["L"..i] = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+        box3dLines["L"..i] = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true})
     end
 
     local healthContainer = Instance.new("Frame")
@@ -609,18 +620,21 @@ local function CreateEntityESP(entity)
     end
 
     espModule._drawings[entity] = {
-        FullBox = fullBox,
-        FullBoxStroke = fullBoxStroke,
-        FullBoxGlow = fullBoxGlow,
+        Full = {
+            Top = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            Bottom = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            Left = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            Right = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+        },
         Corner = {
-            TL1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            TL2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            TR1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            TR2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BL1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BL2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BR1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            BR2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            TL1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            TL2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            TR1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            TR2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            BL1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            BL2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            BR1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
+            BR2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = true}),
         },
         Entity3DBox = box3dLines,
         BoxFill = boxFill,
@@ -640,7 +654,7 @@ local function CreateEntityESP(entity)
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
         ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
-        Tracer = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+        Tracer = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2, UseGlow = false}),
         Skeleton = {
             HeadTorso = MakeBone(),
             TorsoHip = MakeBone(),
@@ -658,7 +672,8 @@ end
 
 local function HideESP(data)
     if not data then return end
-    data.FullBox.Visible = false
+    local f = data.Full
+    f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
 
     local c = data.Corner
     c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
@@ -687,7 +702,7 @@ end
 local function RemoveESP(entity)
     local data = espModule._drawings[entity]
     if not data then return end
-    data.FullBox:Destroy()
+    for _, v in pairs(data.Full) do v:Destroy() end
     for _, v in pairs(data.Corner) do v:Destroy() end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
     data.BoxFill:Destroy()
@@ -1081,19 +1096,24 @@ local function ProcessEntity(entity)
             c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
             c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
 
-            data.FullBox.Position = UDim2.fromOffset(x, y)
-            data.FullBox.Size = UDim2.fromOffset(sx, sy)
-            data.FullBoxStroke.Color = cfg.LineColor
-            data.FullBoxStroke.Thickness = cfg.Thickness
-            data.FullBoxGlow.Color = cfg.LineColor
-            data.FullBoxGlow.Thickness = cfg.Thickness + 3
-            data.FullBox.Visible = true
+            local f = data.Full
+            f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
+            f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
+            f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
+            f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
+
+            f.Top:SetColor(cfg.LineColor) f.Top:SetThickness(cfg.Thickness) f.Top:SetOutlineThickness(1) f.Top:SetGlow(cfg.BoxGlow)
+            f.Bottom:SetColor(cfg.LineColor) f.Bottom:SetThickness(cfg.Thickness) f.Bottom:SetOutlineThickness(1) f.Bottom:SetGlow(cfg.BoxGlow)
+            f.Left:SetColor(cfg.LineColor) f.Left:SetThickness(cfg.Thickness) f.Left:SetOutlineThickness(1) f.Left:SetGlow(cfg.BoxGlow)
+            f.Right:SetColor(cfg.LineColor) f.Right:SetThickness(cfg.Thickness) f.Right:SetOutlineThickness(1) f.Right:SetGlow(cfg.BoxGlow)
 
         elseif cfg.BoxType == "3D" then
-            data.FullBox.Visible = false
             local c = data.Corner
             c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
             c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
+
+            local f = data.Full
+            f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
 
             for i = 1, 12 do
                 local e = BOX_3D_EDGES[i]
@@ -1104,14 +1124,16 @@ local function ProcessEntity(entity)
                     line:SetColor(cfg.LineColor)
                     line:SetThickness(cfg.Thickness)
                     line:SetOutlineThickness(1)
+                    line:SetGlow(cfg.BoxGlow)
                 else
                     line:Hide()
                 end
             end
 
         else
-            data.FullBox.Visible = false
             for _, line in pairs(data.Entity3DBox) do line:Hide() end
+            local f = data.Full
+            f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
 
             local len = math.clamp(0.22 + (rawStuds / 400) * 0.18, 0.22, 0.38)
             local cw = math.max(2, math.floor(sx * len + 0.5))
@@ -1127,18 +1149,19 @@ local function ProcessEntity(entity)
             c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw, y + sy))
             c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch))
 
-            c.TL1:SetColor(cfg.LineColor) c.TL1:SetThickness(cfg.Thickness) c.TL1:SetOutlineThickness(1)
-            c.TL2:SetColor(cfg.LineColor) c.TL2:SetThickness(cfg.Thickness) c.TL2:SetOutlineThickness(1)
-            c.TR1:SetColor(cfg.LineColor) c.TR1:SetThickness(cfg.Thickness) c.TR1:SetOutlineThickness(1)
-            c.TR2:SetColor(cfg.LineColor) c.TR2:SetThickness(cfg.Thickness) c.TR2:SetOutlineThickness(1)
-            c.BL1:SetColor(cfg.LineColor) c.BL1:SetThickness(cfg.Thickness) c.BL1:SetOutlineThickness(1)
-            c.BL2:SetColor(cfg.LineColor) c.BL2:SetThickness(cfg.Thickness) c.BL2:SetOutlineThickness(1)
-            c.BR1:SetColor(cfg.LineColor) c.BR1:SetThickness(cfg.Thickness) c.BR1:SetOutlineThickness(1)
-            c.BR2:SetColor(cfg.LineColor) c.BR2:SetThickness(cfg.Thickness) c.BR2:SetOutlineThickness(1)
+            c.TL1:SetColor(cfg.LineColor) c.TL1:SetThickness(cfg.Thickness) c.TL1:SetOutlineThickness(1) c.TL1:SetGlow(cfg.BoxGlow)
+            c.TL2:SetColor(cfg.LineColor) c.TL2:SetThickness(cfg.Thickness) c.TL2:SetOutlineThickness(1) c.TL2:SetGlow(cfg.BoxGlow)
+            c.TR1:SetColor(cfg.LineColor) c.TR1:SetThickness(cfg.Thickness) c.TR1:SetOutlineThickness(1) c.TR1:SetGlow(cfg.BoxGlow)
+            c.TR2:SetColor(cfg.LineColor) c.TR2:SetThickness(cfg.Thickness) c.TR2:SetOutlineThickness(1) c.TR2:SetGlow(cfg.BoxGlow)
+            c.BL1:SetColor(cfg.LineColor) c.BL1:SetThickness(cfg.Thickness) c.BL1:SetOutlineThickness(1) c.BL1:SetGlow(cfg.BoxGlow)
+            c.BL2:SetColor(cfg.LineColor) c.BL2:SetThickness(cfg.Thickness) c.BL2:SetOutlineThickness(1) c.BL2:SetGlow(cfg.BoxGlow)
+            c.BR1:SetColor(cfg.LineColor) c.BR1:SetThickness(cfg.Thickness) c.BR1:SetOutlineThickness(1) c.BR1:SetGlow(cfg.BoxGlow)
+            c.BR2:SetColor(cfg.LineColor) c.BR2:SetThickness(cfg.Thickness) c.BR2:SetOutlineThickness(1) c.BR2:SetGlow(cfg.BoxGlow)
         end
     else
-        data.FullBox.Visible = false
         for _, line in pairs(data.Entity3DBox) do line:Hide() end
+        local f = data.Full
+        f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
         local c = data.Corner
         c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
         c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()

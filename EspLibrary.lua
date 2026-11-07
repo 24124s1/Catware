@@ -1,4 +1,6 @@
-print('1')
+local hello = "world"
+
+print(hello)
 
 local espModule = {}
 

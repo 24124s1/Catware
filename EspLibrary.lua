@@ -1,7 +1,3 @@
-local hello = "world"
-
-print(hello)
-
 local espModule = {}
 
 espModule.Settings = {
@@ -472,41 +468,42 @@ local function CreateEntityESP(entity)
     local boxFillGradient = Instance.new("UIGradient")
     boxFillGradient.Parent = boxFill
 
-    local boxFillHighlight = Instance.new("Highlight")
-    boxFillHighlight.Name = "BoxFillHighlight"
-    boxFillHighlight.Parent = espGui
-    boxFillHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    boxFillHighlight.Enabled = false
-
-    local boxGlow = Instance.new("Frame")
-    boxGlow.BackgroundTransparency = 1
+    local boxGlow = Instance.new("ImageLabel")
+    boxGlow.Name = "BoxGlow"
+    boxGlow.Image = "rbxassetid://110204605000367"
+    boxGlow.ScaleType = Enum.ScaleType.Slice
+    boxGlow.SliceCenter = Rect.new(Vector2.new(21, 21), Vector2.new(79, 79))
+    boxGlow.AutomaticSize = Enum.AutomaticSize.XY
+    boxGlow.ImageTransparency = 0.65
+    boxGlow.ResampleMode = Enum.ResamplerMode.Pixelated
     boxGlow.Visible = false
+    boxGlow.BackgroundTransparency = 1
+    boxGlow.Position = UDim2.fromOffset(-21, -21)
+    boxGlow.Size = UDim2.fromOffset(0, 0)
+    boxGlow.BorderSizePixel = 0
+    boxGlow.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    boxGlow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     boxGlow.ZIndex = 0
     boxGlow.Parent = espGui
 
-    local glow1 = Instance.new("UIStroke")
-    glow1.Name = "Glow1"
-    glow1.Thickness = 12
-    glow1.Transparency = 0.85
-    glow1.LineJoinMode = Enum.LineJoinMode.Round
-    glow1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    glow1.Parent = boxGlow
+    local boxGlowGradient = Instance.new("UIGradient")
+    boxGlowGradient.Rotation = 90
+    boxGlowGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+    })
+    boxGlowGradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 0)
+    })
+    boxGlowGradient.Parent = boxGlow
 
-    local glow2 = Instance.new("UIStroke")
-    glow2.Name = "Glow2"
-    glow2.Thickness = 6
-    glow2.Transparency = 0.65
-    glow2.LineJoinMode = Enum.LineJoinMode.Round
-    glow2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    glow2.Parent = boxGlow
-
-    local glow3 = Instance.new("UIStroke")
-    glow3.Name = "Glow3"
-    glow3.Thickness = 2
-    glow3.Transparency = 0.45
-    glow3.LineJoinMode = Enum.LineJoinMode.Round
-    glow3.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    glow3.Parent = boxGlow
+    local boxGlowPadding = Instance.new("UIPadding")
+    boxGlowPadding.PaddingTop = UDim.new(0, 21)
+    boxGlowPadding.PaddingBottom = UDim.new(0, 20)
+    boxGlowPadding.PaddingLeft = UDim.new(0, 21)
+    boxGlowPadding.PaddingRight = UDim.new(0, 20)
+    boxGlowPadding.Parent = boxGlow
 
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -641,9 +638,9 @@ local function CreateEntityESP(entity)
         },
         Entity3DBox = box3dLines,
         BoxFill = boxFill,
-        BoxFillHighlight = boxFillHighlight,
         BoxFillGradient = boxFillGradient,
         BoxGlow = boxGlow,
+        BoxGlowGradient = boxGlowGradient,
         HeadDot = headDot,
         HealthContainer = healthContainer,
         HealthFill = healthFill,
@@ -687,7 +684,6 @@ local function HideESP(data)
     for _, line in pairs(data.Entity3DBox) do line:Hide() end
 
     data.BoxFill.Visible = false
-    data.BoxFillHighlight.Enabled = false
     data.BoxGlow.Visible = false
     data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
@@ -713,7 +709,6 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Corner) do v:Destroy() end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
     data.BoxFill:Destroy()
-    data.BoxFillHighlight:Destroy()
     data.BoxGlow:Destroy()
     data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
@@ -1018,7 +1013,6 @@ local function ProcessEntity(entity)
     local p = {}
     local vis = {}
 
-    local is3D = cfg.BoxEnabled and cfg.BoxType == "3D"
     local corners = {}
 
     local success, bboxCf, bboxSize = pcall(function()
@@ -1065,42 +1059,28 @@ local function ProcessEntity(entity)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
     if cfg.BoxFill and cfg.BoxEnabled then
-        if cfg.BoxType == "3D" then
-            data.BoxFill.Visible = false
-            data.BoxFillHighlight.Adornee = character
-            data.BoxFillHighlight.FillColor = cfg.BoxFillColor1
-            data.BoxFillHighlight.OutlineColor = cfg.LineColor
-            data.BoxFillHighlight.FillTransparency = math.clamp(cfg.BoxFillTransparency, 0, 1)
-            data.BoxFillHighlight.OutlineTransparency = 1
-            data.BoxFillHighlight.Enabled = true
-        else
-            data.BoxFillHighlight.Enabled = false
-            if not espModule._boxFillAngles[entity] then
-                espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
-            end
-            if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
-                espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
-            end
-
-            data.BoxFill.Position = UDim2.fromOffset(x, y)
-            data.BoxFill.Size = UDim2.fromOffset(sx, sy)
-            data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
-            data.BoxFillGradient.Transparency = NumberSequence.new(math.clamp(cfg.BoxFillTransparency, 0, 1))
-            data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
-            data.BoxFill.Visible = true
+        if not espModule._boxFillAngles[entity] then
+            espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
         end
+        if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
+            espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
+        end
+
+        data.BoxFill.Position = UDim2.fromOffset(x, y)
+        data.BoxFill.Size = UDim2.fromOffset(sx, sy)
+        data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
+        data.BoxFillGradient.Transparency = NumberSequence.new(math.clamp(cfg.BoxFillTransparency, 0, 1))
+        data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
+        data.BoxFill.Visible = true
     else
         data.BoxFill.Visible = false
-        data.BoxFillHighlight.Enabled = false
     end
 
     if cfg.BoxEnabled then
         if cfg.BoxGlow then
-            data.BoxGlow.Position = UDim2.fromOffset(x, y)
-            data.BoxGlow.Size = UDim2.fromOffset(sx, sy)
-            data.BoxGlow:FindFirstChild("Glow1").Color = cfg.LineColor
-            data.BoxGlow:FindFirstChild("Glow2").Color = cfg.LineColor
-            data.BoxGlow:FindFirstChild("Glow3").Color = cfg.LineColor
+            data.BoxGlow.Position = UDim2.fromOffset(x - 21, y - 21)
+            data.BoxGlow.Size = UDim2.fromOffset(sx + 42, sy + 41)
+            data.BoxGlowGradient.Color = ColorSequence.new(cfg.LineColor, cfg.LineColor)
             data.BoxGlow.Visible = true
         else
             data.BoxGlow.Visible = false

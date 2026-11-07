@@ -462,7 +462,7 @@ local function CreateEntityESP(entity)
     boxFill.BackgroundColor3 = Color3.new(1, 1, 1)
     boxFill.BorderSizePixel = 0
     boxFill.Visible = false
-    boxFill.ZIndex = 0
+    boxFill.ZIndex = 1
     boxFill.Parent = espGui
 
     local boxFillGradient = Instance.new("UIGradient")
@@ -471,22 +471,33 @@ local function CreateEntityESP(entity)
     local boxGlow = Instance.new("Frame")
     boxGlow.BackgroundTransparency = 1
     boxGlow.Visible = false
-    boxGlow.ZIndex = 1
+    boxGlow.ZIndex = 0
     boxGlow.Parent = espGui
 
-    local glowStroke1 = Instance.new("UIStroke")
-    glowStroke1.Name = "BoxGlowStroke1"
-    glowStroke1.Thickness = 8
-    glowStroke1.Transparency = 0.4
-    glowStroke1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    glowStroke1.Parent = boxGlow
+    local glowCorner = Instance.new("UICorner")
+    glowCorner.CornerRadius = UDim.new(0, 4)
+    glowCorner.Parent = boxGlow
 
-    local glowStroke2 = Instance.new("UIStroke")
-    glowStroke2.Name = "BoxGlowStroke2"
-    glowStroke2.Thickness = 16
-    glowStroke2.Transparency = 0.7
-    glowStroke2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    glowStroke2.Parent = boxGlow
+    local glow1 = Instance.new("UIStroke")
+    glow1.Name = "Glow1"
+    glow1.Thickness = 12
+    glow1.Transparency = 0.8
+    glow1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    glow1.Parent = boxGlow
+
+    local glow2 = Instance.new("UIStroke")
+    glow2.Name = "Glow2"
+    glow2.Thickness = 6
+    glow2.Transparency = 0.6
+    glow2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    glow2.Parent = boxGlow
+
+    local glow3 = Instance.new("UIStroke")
+    glow3.Name = "Glow3"
+    glow3.Thickness = 2
+    glow3.Transparency = 0.4
+    glow3.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    glow3.Parent = boxGlow
 
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -1061,10 +1072,11 @@ local function ProcessEntity(entity)
 
     if cfg.BoxEnabled then
         if cfg.BoxGlow then
-            data.BoxGlow.Position = UDim2.fromOffset(x, y)
-            data.BoxGlow.Size = UDim2.fromOffset(sx, sy)
-            data.BoxGlow:FindFirstChild("BoxGlowStroke1").Color = cfg.LineColor
-            data.BoxGlow:FindFirstChild("BoxGlowStroke2").Color = cfg.LineColor
+            data.BoxGlow.Position = UDim2.fromOffset(x - 2, y - 2)
+            data.BoxGlow.Size = UDim2.fromOffset(sx + 4, sy + 4)
+            data.BoxGlow:FindFirstChild("Glow1").Color = cfg.LineColor
+            data.BoxGlow:FindFirstChild("Glow2").Color = cfg.LineColor
+            data.BoxGlow:FindFirstChild("Glow3").Color = cfg.LineColor
             data.BoxGlow.Visible = true
         else
             data.BoxGlow.Visible = false
@@ -1119,14 +1131,14 @@ local function ProcessEntity(entity)
             local ch = math.clamp(math.floor(sy * len + 0.5), 2, math.floor(sy / 2))
 
             local c = data.Corner
-            c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw, y))
-            c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch))
-            c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw, y))
-            c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch))
-            c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw, y + sy))
-            c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch))
-            c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw, y + sy))
-            c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch))
+            c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw + 1, y))
+            c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch + 1))
+            c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw - 1, y))
+            c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch + 1))
+            c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw + 1, y + sy))
+            c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch - 1))
+            c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw - 1, y + sy))
+            c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch - 1))
 
             c.TL1:SetColor(cfg.LineColor) c.TL1:SetThickness(cfg.Thickness) c.TL1:SetOutlineThickness(1)
             c.TL2:SetColor(cfg.LineColor) c.TL2:SetThickness(cfg.Thickness) c.TL2:SetOutlineThickness(1)

@@ -480,24 +480,35 @@ local function CreateEntityESP(entity)
 
     local glow1 = Instance.new("UIStroke")
     glow1.Name = "Glow1"
-    glow1.Thickness = 12
-    glow1.Transparency = 0.8
+    glow1.Thickness = 24
+    glow1.Transparency = 0.9
+    glow1.LineJoinMode = Enum.LineJoinMode.Round
     glow1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     glow1.Parent = boxGlow
 
     local glow2 = Instance.new("UIStroke")
     glow2.Name = "Glow2"
-    glow2.Thickness = 6
-    glow2.Transparency = 0.6
+    glow2.Thickness = 16
+    glow2.Transparency = 0.8
+    glow2.LineJoinMode = Enum.LineJoinMode.Round
     glow2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     glow2.Parent = boxGlow
 
     local glow3 = Instance.new("UIStroke")
     glow3.Name = "Glow3"
-    glow3.Thickness = 2
-    glow3.Transparency = 0.4
+    glow3.Thickness = 10
+    glow3.Transparency = 0.6
+    glow3.LineJoinMode = Enum.LineJoinMode.Round
     glow3.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     glow3.Parent = boxGlow
+
+    local glow4 = Instance.new("UIStroke")
+    glow4.Name = "Glow4"
+    glow4.Thickness = 4
+    glow4.Transparency = 0.4
+    glow4.LineJoinMode = Enum.LineJoinMode.Round
+    glow4.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    glow4.Parent = boxGlow
 
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -1072,11 +1083,12 @@ local function ProcessEntity(entity)
 
     if cfg.BoxEnabled then
         if cfg.BoxGlow then
-            data.BoxGlow.Position = UDim2.fromOffset(x - 2, y - 2)
-            data.BoxGlow.Size = UDim2.fromOffset(sx + 4, sy + 4)
+            data.BoxGlow.Position = UDim2.fromOffset(x, y)
+            data.BoxGlow.Size = UDim2.fromOffset(sx, sy)
             data.BoxGlow:FindFirstChild("Glow1").Color = cfg.LineColor
             data.BoxGlow:FindFirstChild("Glow2").Color = cfg.LineColor
             data.BoxGlow:FindFirstChild("Glow3").Color = cfg.LineColor
+            data.BoxGlow:FindFirstChild("Glow4").Color = cfg.LineColor
             data.BoxGlow.Visible = true
         else
             data.BoxGlow.Visible = false

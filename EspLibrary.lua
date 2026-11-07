@@ -472,7 +472,7 @@ local function CreateEntityESP(entity)
     boxFillHighlight.Name = "BoxFillHighlight"
     boxFillHighlight.Parent = espGui
     boxFillHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    boxFillHighlight.Visible = false
+    boxFillHighlight.Enabled = false
 
     local boxGlow = Instance.new("Frame")
     boxGlow.BackgroundTransparency = 1
@@ -683,7 +683,7 @@ local function HideESP(data)
     for _, line in pairs(data.Entity3DBox) do line:Hide() end
 
     data.BoxFill.Visible = false
-    data.BoxFillHighlight.Visible = false
+    data.BoxFillHighlight.Enabled = false
     data.BoxGlow.Visible = false
     data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
@@ -1068,9 +1068,9 @@ local function ProcessEntity(entity)
             data.BoxFillHighlight.OutlineColor = cfg.LineColor
             data.BoxFillHighlight.FillTransparency = math.clamp(cfg.BoxFillTransparency, 0, 1)
             data.BoxFillHighlight.OutlineTransparency = 1
-            data.BoxFillHighlight.Visible = true
+            data.BoxFillHighlight.Enabled = true
         else
-            data.BoxFillHighlight.Visible = false
+            data.BoxFillHighlight.Enabled = false
             if not espModule._boxFillAngles[entity] then
                 espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
             end
@@ -1087,7 +1087,7 @@ local function ProcessEntity(entity)
         end
     else
         data.BoxFill.Visible = false
-        data.BoxFillHighlight.Visible = false
+        data.BoxFillHighlight.Enabled = false
     end
 
     if cfg.BoxEnabled then

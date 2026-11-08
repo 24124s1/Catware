@@ -18,6 +18,10 @@ espModule.Settings = {
         BoxFillTransparency = 0.7,
         BoxFillRotation = 0,
         BoxFillSpeed = 2,
+        Chams = false,
+        ChamsColor = Color3.fromRGB(255, 80, 80),
+        ChamsGlow = false,
+        ChamsFillTransparency = 0.3,
         Names = false,
         Distance = false,
         Tool = false,
@@ -66,6 +70,10 @@ espModule.Settings = {
         BoxFillTransparency = 0.7,
         BoxFillRotation = 0,
         BoxFillSpeed = 2,
+        Chams = false,
+        ChamsColor = Color3.fromRGB(0, 180, 255),
+        ChamsGlow = false,
+        ChamsFillTransparency = 0.3,
         Names = false,
         Distance = false,
         Tool = false,
@@ -114,6 +122,10 @@ espModule.Settings = {
         BoxFillTransparency = 0.7,
         BoxFillRotation = 0,
         BoxFillSpeed = 2,
+        Chams = false,
+        ChamsColor = Color3.fromRGB(255, 200, 50),
+        ChamsGlow = false,
+        ChamsFillTransparency = 0.3,
         Names = false,
         Distance = false,
         Tool = false,
@@ -468,6 +480,18 @@ local function CreateEntityESP(entity)
     local boxFillGradient = Instance.new("UIGradient")
     boxFillGradient.Parent = boxFill
 
+    local boxFillHighlight = Instance.new("Highlight")
+    boxFillHighlight.Name = "BoxFillHighlight"
+    boxFillHighlight.Parent = espGui
+    boxFillHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    boxFillHighlight.Enabled = false
+
+    local playerChams = Instance.new("Highlight")
+    playerChams.Name = "PlayerChams"
+    playerChams.Parent = espGui
+    playerChams.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    playerChams.Enabled = false
+
     local boxGlow = Instance.new("ImageLabel")
     boxGlow.Name = "BoxGlow"
     boxGlow.Image = "rbxassetid://110204605000367"
@@ -638,7 +662,9 @@ local function CreateEntityESP(entity)
         },
         Entity3DBox = box3dLines,
         BoxFill = boxFill,
+        BoxFillHighlight = boxFillHighlight,
         BoxFillGradient = boxFillGradient,
+        PlayerChams = playerChams,
         BoxGlow = boxGlow,
         BoxGlowGradient = boxGlowGradient,
         HeadDot = headDot,
@@ -684,6 +710,8 @@ local function HideESP(data)
     for _, line in pairs(data.Entity3DBox) do line:Hide() end
 
     data.BoxFill.Visible = false
+    data.BoxFillHighlight.Enabled = false
+    data.PlayerChams.Enabled = false
     data.BoxGlow.Visible = false
     data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
@@ -709,6 +737,8 @@ local function RemoveESP(entity)
     for _, v in pairs(data.Corner) do v:Destroy() end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
     data.BoxFill:Destroy()
+    data.BoxFillHighlight:Destroy()
+    data.PlayerChams:Destroy()
     data.BoxGlow:Destroy()
     data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
@@ -1013,33 +1043,28 @@ local function ProcessEntity(entity)
     local p = {}
     local vis = {}
 
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part.Transparency < 1 then
-            local sp, visPt = Camera:WorldToViewportPoint(part.Position)
-            if visPt and sp.Z > 0 then
-                validParts = validParts + 1
-                local cf = part.CFrame
-                local size = part.Size
-                local corners = {
-                    cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
-                    cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
-                    cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
-                    cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
-                    cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
-                    cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
-                    cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-                    cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
-                }
-                for i = 1, 8 do
-                    local pos, on = Camera:WorldToViewportPoint(corners[i])
-                    if on and pos.Z > 0 then
-                        if pos.X < minX then minX = pos.X end
-                        if pos.Y < minY then minY = pos.Y end
-                        if pos.X > maxX then maxX = pos.X end
-                        if pos.Y > maxY then maxY = pos.Y end
-                    end
-                end
-            end
+    local bboxCf, bboxSize = character:GetBoundingBox()
+    local corners = {
+        bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
+        bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
+        bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
+        bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
+        bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
+        bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
+        bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
+        bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2)
+    }
+    
+    for i = 1, 8 do
+        local pos, on = Camera:WorldToViewportPoint(corners[i])
+        p[i] = Vector2.new(pos.X, pos.Y)
+        vis[i] = on and pos.Z > 0
+        if vis[i] then
+            validParts = validParts + 1
+            if pos.X < minX then minX = pos.X end
+            if pos.Y < minY then minY = pos.Y end
+            if pos.X > maxX then maxX = pos.X end
+            if pos.Y > maxY then maxY = pos.Y end
         end
     end
 
@@ -1059,29 +1084,49 @@ local function ProcessEntity(entity)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
     if cfg.BoxFill and cfg.BoxEnabled then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                if not part:GetAttribute("OriginalColor") then
-                    part:SetAttribute("OriginalColor", part.Color)
-                    part:SetAttribute("OriginalMaterial", part.Material)
-                    part:SetAttribute("OriginalTransparency", part.Transparency)
-                end
-                part.Color = cfg.BoxFillColor1
-                part.Material = Enum.Material.Neon
-                part.Transparency = cfg.BoxFillTransparency
+        if cfg.BoxType == "3D" then
+            data.BoxFill.Visible = false
+            data.BoxFillHighlight.Adornee = character
+            data.BoxFillHighlight.FillColor = cfg.BoxFillColor1
+            data.BoxFillHighlight.OutlineColor = cfg.LineColor
+            data.BoxFillHighlight.FillTransparency = math.clamp(cfg.BoxFillTransparency, 0, 1)
+            data.BoxFillHighlight.OutlineTransparency = 1
+            data.BoxFillHighlight.Enabled = true
+        else
+            data.BoxFillHighlight.Enabled = false
+            if not espModule._boxFillAngles[entity] then
+                espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
             end
+            if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
+                espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
+            end
+
+            data.BoxFill.Position = UDim2.fromOffset(x, y)
+            data.BoxFill.Size = UDim2.fromOffset(sx, sy)
+            data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
+            data.BoxFillGradient.Transparency = NumberSequence.new(math.clamp(cfg.BoxFillTransparency, 0, 1))
+            data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
+            data.BoxFill.Visible = true
         end
     else
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") and part:GetAttribute("OriginalColor") then
-                part.Color = part:GetAttribute("OriginalColor")
-                part.Material = part:GetAttribute("OriginalMaterial")
-                part.Transparency = part:GetAttribute("OriginalTransparency")
-                part:SetAttribute("OriginalColor", nil)
-                part:SetAttribute("OriginalMaterial", nil)
-                part:SetAttribute("OriginalTransparency", nil)
-            end
+        data.BoxFill.Visible = false
+        data.BoxFillHighlight.Enabled = false
+    end
+
+    if cfg.Chams then
+        data.PlayerChams.Adornee = character
+        data.PlayerChams.FillColor = cfg.ChamsColor
+        data.PlayerChams.FillTransparency = cfg.ChamsFillTransparency
+        if cfg.ChamsGlow then
+            data.PlayerChams.OutlineColor = cfg.ChamsColor
+            data.PlayerChams.OutlineTransparency = 0
+        else
+            data.PlayerChams.OutlineColor = Color3.new(0, 0, 0)
+            data.PlayerChams.OutlineTransparency = 1
         end
+        data.PlayerChams.Enabled = true
+    else
+        data.PlayerChams.Enabled = false
     end
 
     if cfg.BoxEnabled then

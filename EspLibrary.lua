@@ -1013,32 +1013,32 @@ local function ProcessEntity(entity)
     local p = {}
     local vis = {}
 
-    local corners = {}
-
-    local success, bboxCf, bboxSize = pcall(function()
-        return character:GetBoundingBox()
-    end)
-    if success and bboxCf and bboxSize then
-        corners = {
-            bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
-            bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
-            bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
-            bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
-            bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
-            bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
-            bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
-            bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2)
-        }
-        for i = 1, 8 do
-            local pos, on = Camera:WorldToViewportPoint(corners[i])
-            p[i] = Vector2.new(pos.X, pos.Y)
-            vis[i] = on and pos.Z > 0
-            if vis[i] then
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Transparency < 1 then
+            local sp, visPt = Camera:WorldToViewportPoint(part.Position)
+            if visPt and sp.Z > 0 then
                 validParts = validParts + 1
-                if pos.X < minX then minX = pos.X end
-                if pos.Y < minY then minY = pos.Y end
-                if pos.X > maxX then maxX = pos.X end
-                if pos.Y > maxY then maxY = pos.Y end
+                local cf = part.CFrame
+                local size = part.Size
+                local corners = {
+                    cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
+                    cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
+                    cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
+                    cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
+                    cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
+                    cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
+                    cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
+                    cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
+                }
+                for i = 1, 8 do
+                    local pos, on = Camera:WorldToViewportPoint(corners[i])
+                    if on and pos.Z > 0 then
+                        if pos.X < minX then minX = pos.X end
+                        if pos.Y < minY then minY = pos.Y end
+                        if pos.X > maxX then maxX = pos.X end
+                        if pos.Y > maxY then maxY = pos.Y end
+                    end
+                end
             end
         end
     end
@@ -1059,21 +1059,29 @@ local function ProcessEntity(entity)
     local healthFont = getEspFont(espModule.Settings.HealthFont)
 
     if cfg.BoxFill and cfg.BoxEnabled then
-        if not espModule._boxFillAngles[entity] then
-            espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                if not part:GetAttribute("OriginalColor") then
+                    part:SetAttribute("OriginalColor", part.Color)
+                    part:SetAttribute("OriginalMaterial", part.Material)
+                    part:SetAttribute("OriginalTransparency", part.Transparency)
+                end
+                part.Color = cfg.BoxFillColor1
+                part.Material = Enum.Material.Neon
+                part.Transparency = cfg.BoxFillTransparency
+            end
         end
-        if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
-            espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
-        end
-
-        data.BoxFill.Position = UDim2.fromOffset(x, y)
-        data.BoxFill.Size = UDim2.fromOffset(sx, sy)
-        data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
-        data.BoxFillGradient.Transparency = NumberSequence.new(math.clamp(cfg.BoxFillTransparency, 0, 1))
-        data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
-        data.BoxFill.Visible = true
     else
-        data.BoxFill.Visible = false
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part:GetAttribute("OriginalColor") then
+                part.Color = part:GetAttribute("OriginalColor")
+                part.Material = part:GetAttribute("OriginalMaterial")
+                part.Transparency = part:GetAttribute("OriginalTransparency")
+                part:SetAttribute("OriginalColor", nil)
+                part:SetAttribute("OriginalMaterial", nil)
+                part:SetAttribute("OriginalTransparency", nil)
+            end
+        end
     end
 
     if cfg.BoxEnabled then

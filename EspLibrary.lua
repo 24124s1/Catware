@@ -460,7 +460,7 @@ local function getCharacterParts(character)
     local isR15 = character:FindFirstChild("UpperTorso") ~= nil
     local parts
     if isR15 then
-        parts = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "LeftHand", "RightHand", "LeftFoot", "RightFoot"}
+        parts = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     else
         parts = {"HumanoidRootPart", "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
     end
@@ -1046,52 +1046,39 @@ local function ProcessEntity(entity)
     local minVec = Vector3.new(math.huge, math.huge, math.huge)
     local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
 
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part.Transparency < 1 then
-            local isIgnored = false
-            local parent = part
-            while parent and parent ~= character do
-                if parent:IsA("Model") or parent:IsA("Folder") then
-                    local lowerName = string.lower(parent.Name)
-                    if string.find(lowerName, "pet") or string.find(lowerName, "familiar") then
-                        isIgnored = true
-                        break
-                    end
-                end
-                parent = parent.Parent
-            end
+    local function expandBounds(part)
+        if not part or not part:IsA("BasePart") then return end
+        local cf = part.CFrame
+        local size = part.Size
+        local corners3D = {
+            cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
+            cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
+            cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
+            cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
+            cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
+            cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
+            cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
+            cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
+        }
+        for i = 1, 8 do
+            local c = corners3D[i]
+            if c.X < minVec.X then minVec = Vector3.new(c.X, minVec.Y, minVec.Z) end
+            if c.Y < minVec.Y then minVec = Vector3.new(minVec.X, c.Y, minVec.Z) end
+            if c.Z < minVec.Z then minVec = Vector3.new(minVec.X, minVec.Y, c.Z) end
             
-            if not isIgnored and part ~= hrp then
-                local dist = (part.Position - hrp.Position).Magnitude
-                if dist > 15 then
-                    isIgnored = true
-                end
-            end
+            if c.X > maxVec.X then maxVec = Vector3.new(c.X, maxVec.Y, maxVec.Z) end
+            if c.Y > maxVec.Y then maxVec = Vector3.new(maxVec.X, c.Y, maxVec.Z) end
+            if c.Z > maxVec.Z then maxVec = Vector3.new(maxVec.X, maxVec.Y, c.Z) end
+        end
+    end
 
-            if not isIgnored then
-                local cf = part.CFrame
-                local size = part.Size
-                local corners3D = {
-                    cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
-                    cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
-                    cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
-                    cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
-                    cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
-                    cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
-                    cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-                    cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
-                }
-                for i = 1, 8 do
-                    local c = corners3D[i]
-                    if c.X < minVec.X then minVec = Vector3.new(c.X, minVec.Y, minVec.Z) end
-                    if c.Y < minVec.Y then minVec = Vector3.new(minVec.X, c.Y, minVec.Z) end
-                    if c.Z < minVec.Z then minVec = Vector3.new(minVec.X, minVec.Y, c.Z) end
-                    
-                    if c.X > maxVec.X then maxVec = Vector3.new(c.X, maxVec.Y, maxVec.Z) end
-                    if c.Y > maxVec.Y then maxVec = Vector3.new(maxVec.X, c.Y, maxVec.Z) end
-                    if c.Z > maxVec.Z then maxVec = Vector3.new(maxVec.X, maxVec.Y, c.Z) end
-                end
-            end
+    for _, partName in ipairs(parts) do
+        expandBounds(character:FindFirstChild(partName))
+    end
+
+    for _, child in ipairs(character:GetChildren()) do
+        if child:IsA("Accessory") then
+            expandBounds(child:FindFirstChild("Handle"))
         end
     end
 

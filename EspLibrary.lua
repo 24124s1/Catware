@@ -6,6 +6,8 @@ espModule.Settings = {
     FlagsFont = "Gojiberry Quibble",
     HealthFont = "Gojiberry Quibble",
     TextGradientAnimated = true,
+    OffscreenArrows = false,
+    SoundESP = false,
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
@@ -199,6 +201,8 @@ espModule._bots = {}
 espModule._containers = {}
 espModule.Fonts = {}
 espModule._boxFillAngles = {}
+espModule._fadeAlpha = 1
+espModule._isDead = false
 
 local cloneref = cloneref or function(...) return ... end
 local GetService = setmetatable({}, {
@@ -215,6 +219,7 @@ local Services = {
     HttpService = GetService.HttpService,
     TextService = GetService.TextService,
     UserInputService = GetService.UserInputService,
+    TweenService = GetService.TweenService,
 }
 Services.CurrentCamera = Services.WorkSpace.CurrentCamera
 Services.LocalPlayer = Services.Players.LocalPlayer
@@ -620,6 +625,23 @@ local function CreateEntityESP(entity)
     flagsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     flagsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
+    local offscreenArrow = Instance.new("Frame")
+    offscreenArrow.BackgroundColor3 = Color3.new(1, 1, 1)
+    offscreenArrow.Size = UDim2.fromOffset(16, 16)
+    offscreenArrow.AnchorPoint = Vector2.new(0.5, 0.5)
+    offscreenArrow.Visible = false
+    offscreenArrow.ZIndex = 2
+    offscreenArrow.Parent = espGui
+
+    local arrowCorner = Instance.new("UICorner")
+    arrowCorner.CornerRadius = UDim.new(0, 2)
+    arrowCorner.Parent = offscreenArrow
+
+    local arrowStroke = Instance.new("UIStroke")
+    arrowStroke.Color = Color3.new(0, 0, 0)
+    arrowStroke.Thickness = 1
+    arrowStroke.Parent = offscreenArrow
+
     local function createFlag(name, font)
         local lbl = Instance.new("TextLabel")
         lbl.BackgroundTransparency = 1
@@ -667,6 +689,7 @@ local function CreateEntityESP(entity)
         PlayerChams = playerChams,
         BoxGlow = boxGlow,
         BoxGlowGradient = boxGlowGradient,
+        OffscreenArrow = offscreenArrow,
         HeadDot = headDot,
         HealthContainer = healthContainer,
         HealthFill = healthFill,
@@ -713,6 +736,7 @@ local function HideESP(data)
     data.BoxFillHighlight.Enabled = false
     data.PlayerChams.Enabled = false
     data.BoxGlow.Visible = false
+    data.OffscreenArrow.Visible = false
     data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
     data.HealthFill.Visible = false
@@ -740,6 +764,7 @@ local function RemoveESP(entity)
     data.BoxFillHighlight:Destroy()
     data.PlayerChams:Destroy()
     data.BoxGlow:Destroy()
+    data.OffscreenArrow:Destroy()
     data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
     data.ArmorContainer:Destroy()
@@ -900,6 +925,8 @@ local function ProcessItem(item)
         data.NameDistText.Frame.TextColor3 = color
         data.NameDistText.Frame.Position = UDim2.fromOffset(pos.X, pos.Y - 12)
         data.NameDistText.Frame.Visible = true
+        data.NameDistText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+        data.NameDistText.Frame.TextStrokeTransparency = (1 - espModule._fadeAlpha)
     else
         data.NameDistText:Hide()
     end
@@ -936,6 +963,8 @@ local function ProcessItem(item)
             data.ContentsText.Frame.TextColor3 = color
             data.ContentsText.Frame.Position = UDim2.fromOffset(pos.X, pos.Y + 16)
             data.ContentsText.Frame.Visible = true
+            data.ContentsText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+            data.ContentsText.Frame.TextStrokeTransparency = (1 - espModule._fadeAlpha)
         else
             data.ContentsText:Hide()
         end
@@ -955,7 +984,7 @@ local function ProcessItem(item)
         hl.Adornee = item
         hl.FillColor = color
         hl.OutlineColor = Color3.new(0, 0, 0)
-        hl.FillTransparency = cfg.ChamsFillTransparency
+        hl.FillTransparency = 1 - ((1 - cfg.ChamsFillTransparency) * espModule._fadeAlpha)
         hl.OutlineTransparency = 1
         hl.Enabled = true
     else
@@ -1026,7 +1055,7 @@ local function ProcessEntity(entity)
     end
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-    if not onScreen or hrpPos.Z <= 0 then
+    if hrpPos.Z <= 0 then
         HideESP(espModule._drawings[entity])
         return
     end
@@ -1108,457 +1137,518 @@ local function ProcessEntity(entity)
         end
     end
 
-    if validParts == 0 then
-        HideESP(data)
-        return
-    end
-
+    local shouldDrawBox = validParts > 0 and onScreen
     local pad = 4
-    local x = math.floor(minX - pad + 0.5)
-    local y = math.floor(minY - pad + 0.5)
-    local sx = math.max(math.floor(maxX - minX + pad * 2 + 0.5), 8)
-    local sy = math.max(math.floor(maxY - minY + pad * 2 + 0.5), 8)
-    local meters = math.floor(rawStuds / 2.81 + 0.5)
-    local textFont = getEspFont(espModule.Settings.TextFont)
-    local flagsFont = getEspFont(espModule.Settings.FlagsFont)
-    local healthFont = getEspFont(espModule.Settings.HealthFont)
+    
+    if shouldDrawBox then
+        data.OffscreenArrow.Visible = false
+        
+        local x = math.floor(minX - pad + 0.5)
+        local y = math.floor(minY - pad + 0.5)
+        local sx = math.max(math.floor(maxX - minX + pad * 2 + 0.5), 8)
+        local sy = math.max(math.floor(maxY - minY + pad * 2 + 0.5), 8)
+        local meters = math.floor(rawStuds / 2.81 + 0.5)
+        local textFont = getEspFont(espModule.Settings.TextFont)
+        local flagsFont = getEspFont(espModule.Settings.FlagsFont)
+        local healthFont = getEspFont(espModule.Settings.HealthFont)
 
-    if cfg.BoxFill and cfg.BoxEnabled then
-        if cfg.BoxType == "3D" then
+        if cfg.BoxFill and cfg.BoxEnabled then
+            if cfg.BoxType == "3D" then
+                data.BoxFill.Visible = false
+                data.BoxFillHighlight.Adornee = character
+                data.BoxFillHighlight.FillColor = cfg.BoxFillColor1
+                data.BoxFillHighlight.OutlineColor = cfg.LineColor
+                data.BoxFillHighlight.FillTransparency = 1 - ((1 - cfg.BoxFillTransparency) * espModule._fadeAlpha)
+                data.BoxFillHighlight.OutlineTransparency = 1
+                data.BoxFillHighlight.Enabled = true
+            else
+                data.BoxFillHighlight.Enabled = false
+                if not espModule._boxFillAngles[entity] then
+                    espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
+                end
+                if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
+                    espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
+                end
+
+                data.BoxFill.Position = UDim2.fromOffset(x, y)
+                data.BoxFill.Size = UDim2.fromOffset(sx, sy)
+                data.BoxFill.BackgroundTransparency = 1 - ((1 - cfg.BoxFillTransparency) * espModule._fadeAlpha)
+                data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
+                data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
+                data.BoxFill.Visible = true
+            end
+        else
             data.BoxFill.Visible = false
-            data.BoxFillHighlight.Adornee = character
-            data.BoxFillHighlight.FillColor = cfg.BoxFillColor1
-            data.BoxFillHighlight.OutlineColor = cfg.LineColor
-            data.BoxFillHighlight.FillTransparency = math.clamp(cfg.BoxFillTransparency, 0, 1)
-            data.BoxFillHighlight.OutlineTransparency = 1
-            data.BoxFillHighlight.Enabled = true
-        else
             data.BoxFillHighlight.Enabled = false
-            if not espModule._boxFillAngles[entity] then
-                espModule._boxFillAngles[entity] = cfg.BoxFillRotation or 0
-            end
-            if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
-                espModule._boxFillAngles[entity] = (espModule._boxFillAngles[entity] + cfg.BoxFillSpeed) % 360
-            end
-
-            data.BoxFill.Position = UDim2.fromOffset(x, y)
-            data.BoxFill.Size = UDim2.fromOffset(sx, sy)
-            data.BoxFillGradient.Color = ColorSequence.new(cfg.BoxFillColor1, cfg.BoxFillColor2)
-            data.BoxFillGradient.Transparency = NumberSequence.new(math.clamp(cfg.BoxFillTransparency, 0, 1))
-            data.BoxFillGradient.Rotation = espModule._boxFillAngles[entity]
-            data.BoxFill.Visible = true
         end
-    else
-        data.BoxFill.Visible = false
-        data.BoxFillHighlight.Enabled = false
-    end
 
-    if cfg.Chams then
-        data.PlayerChams.Adornee = character
-        data.PlayerChams.FillColor = cfg.ChamsColor
-        data.PlayerChams.FillTransparency = cfg.ChamsFillTransparency
-        if cfg.ChamsGlow then
-            data.PlayerChams.OutlineColor = cfg.ChamsColor
-            data.PlayerChams.OutlineTransparency = 0
+        if cfg.Chams then
+            data.PlayerChams.Adornee = character
+            data.PlayerChams.FillColor = cfg.ChamsColor
+            data.PlayerChams.FillTransparency = 1 - ((1 - cfg.ChamsFillTransparency) * espModule._fadeAlpha)
+            if cfg.ChamsGlow then
+                data.PlayerChams.OutlineColor = cfg.ChamsColor
+                data.PlayerChams.OutlineTransparency = 1 - espModule._fadeAlpha
+            else
+                data.PlayerChams.OutlineColor = Color3.new(0, 0, 0)
+                data.PlayerChams.OutlineTransparency = 1
+            end
+            data.PlayerChams.Enabled = true
         else
-            data.PlayerChams.OutlineColor = Color3.new(0, 0, 0)
-            data.PlayerChams.OutlineTransparency = 1
+            data.PlayerChams.Enabled = false
         end
-        data.PlayerChams.Enabled = true
-    else
-        data.PlayerChams.Enabled = false
-    end
 
-    if cfg.BoxEnabled then
-        if cfg.BoxGlow then
-            data.BoxGlow.Position = UDim2.fromOffset(x - 21, y - 21)
-            data.BoxGlow.Size = UDim2.fromOffset(sx + 42, sy + 41)
-            data.BoxGlowGradient.Color = ColorSequence.new(cfg.LineColor, cfg.LineColor)
-            data.BoxGlow.Visible = true
+        if cfg.BoxEnabled then
+            if cfg.BoxGlow then
+                data.BoxGlow.Position = UDim2.fromOffset(x - 21, y - 21)
+                data.BoxGlow.Size = UDim2.fromOffset(sx + 42, sy + 41)
+                data.BoxGlow.ImageTransparency = 1 - (0.65 * espModule._fadeAlpha)
+                data.BoxGlowGradient.Color = ColorSequence.new(cfg.LineColor, cfg.LineColor)
+                data.BoxGlow.Visible = true
+            else
+                data.BoxGlow.Visible = false
+            end
+
+            if cfg.BoxType == "Full" then
+                for _, line in pairs(data.Entity3DBox) do line:Hide() end
+                local c = data.Corner
+                c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
+                c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
+
+                local f = data.Full
+                f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
+                f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
+                f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
+                f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
+
+                f.Top:SetColor(cfg.LineColor) f.Top:SetThickness(cfg.Thickness) f.Top:SetOutlineThickness(1)
+                f.Bottom:SetColor(cfg.LineColor) f.Bottom:SetThickness(cfg.Thickness) f.Bottom:SetOutlineThickness(1)
+                f.Left:SetColor(cfg.LineColor) f.Left:SetThickness(cfg.Thickness) f.Left:SetOutlineThickness(1)
+                f.Right:SetColor(cfg.LineColor) f.Right:SetThickness(cfg.Thickness) f.Right:SetOutlineThickness(1)
+                
+                f.Top.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                f.Bottom.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                f.Left.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                f.Right.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+
+            elseif cfg.BoxType == "3D" then
+                local c = data.Corner
+                c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
+                c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
+
+                local f = data.Full
+                f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
+
+                for i = 1, 12 do
+                    local e = BOX_3D_EDGES[i]
+                    local line = data.Entity3DBox["L"..i]
+
+                    if vis[e[1]] and vis[e[2]] then
+                        line:Set(p[e[1]], p[e[2]])
+                        line:SetColor(cfg.LineColor)
+                        line:SetThickness(cfg.Thickness)
+                        line:SetOutlineThickness(1)
+                        line.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                    else
+                        line:Hide()
+                    end
+                end
+
+            else
+                for _, line in pairs(data.Entity3DBox) do line:Hide() end
+                local f = data.Full
+                f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
+
+                local len = math.clamp(0.22 + (rawStuds / 400) * 0.18, 0.22, 0.38)
+                local cw = math.clamp(math.floor(sx * len + 0.5), 2, math.floor(sx / 2))
+                local ch = math.clamp(math.floor(sy * len + 0.5), 2, math.floor(sy / 2))
+
+                local c = data.Corner
+                c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw + 1, y))
+                c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch + 1))
+                c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw - 1, y))
+                c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch + 1))
+                c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw + 1, y + sy))
+                c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch - 1))
+                c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw - 1, y + sy))
+                c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch - 1))
+
+                c.TL1:SetColor(cfg.LineColor) c.TL1:SetThickness(cfg.Thickness) c.TL1:SetOutlineThickness(1)
+                c.TL2:SetColor(cfg.LineColor) c.TL2:SetThickness(cfg.Thickness) c.TL2:SetOutlineThickness(1)
+                c.TR1:SetColor(cfg.LineColor) c.TR1:SetThickness(cfg.Thickness) c.TR1:SetOutlineThickness(1)
+                c.TR2:SetColor(cfg.LineColor) c.TR2:SetThickness(cfg.Thickness) c.TR2:SetOutlineThickness(1)
+                c.BL1:SetColor(cfg.LineColor) c.BL1:SetThickness(cfg.Thickness) c.BL1:SetOutlineThickness(1)
+                c.BL2:SetColor(cfg.LineColor) c.BL2:SetThickness(cfg.Thickness) c.BL2:SetOutlineThickness(1)
+                c.BR1:SetColor(cfg.LineColor) c.BR1:SetThickness(cfg.Thickness) c.BR1:SetOutlineThickness(1)
+                c.BR2:SetColor(cfg.LineColor) c.BR2:SetThickness(cfg.Thickness) c.BR2:SetOutlineThickness(1)
+                
+                c.TL1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.TL2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.TR1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.TR2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BL1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BL2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BR1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BR2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+            end
         else
             data.BoxGlow.Visible = false
-        end
-
-        if cfg.BoxType == "Full" then
             for _, line in pairs(data.Entity3DBox) do line:Hide() end
-            local c = data.Corner
-            c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
-            c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
-
-            local f = data.Full
-            f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
-            f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
-            f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
-            f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
-
-            f.Top:SetColor(cfg.LineColor) f.Top:SetThickness(cfg.Thickness) f.Top:SetOutlineThickness(1)
-            f.Bottom:SetColor(cfg.LineColor) f.Bottom:SetThickness(cfg.Thickness) f.Bottom:SetOutlineThickness(1)
-            f.Left:SetColor(cfg.LineColor) f.Left:SetThickness(cfg.Thickness) f.Left:SetOutlineThickness(1)
-            f.Right:SetColor(cfg.LineColor) f.Right:SetThickness(cfg.Thickness) f.Right:SetOutlineThickness(1)
-
-        elseif cfg.BoxType == "3D" then
-            local c = data.Corner
-            c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
-            c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
-
             local f = data.Full
             f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
+            local c = data.Corner
+            c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
+            c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
+        end
 
-            for i = 1, 12 do
-                local e = BOX_3D_EDGES[i]
-                local line = data.Entity3DBox["L"..i]
+        if cfg.HeadDot then
+            local headPart = character:FindFirstChild("Head")
+            if headPart then
+                local hpPos, hpOn = Camera:WorldToViewportPoint(headPart.Position)
+                if hpOn and hpPos.Z > 0 then
+                    data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
+                    data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
+                    data.HeadDot.BackgroundColor3 = cfg.HeadDotColor
+                    data.HeadDot.BackgroundTransparency = 1 - espModule._fadeAlpha
 
-                if vis[e[1]] and vis[e[2]] then
-                    line:Set(p[e[1]], p[e[2]])
-                    line:SetColor(cfg.LineColor)
-                    line:SetThickness(cfg.Thickness)
-                    line:SetOutlineThickness(1)
+                    local stroke = data.HeadDot:FindFirstChild("DotStroke")
+                    if stroke then
+                        stroke.Thickness = cfg.HeadDotOutlineThickness
+                        stroke.Color = Color3.new(0, 0, 0)
+                        stroke.Transparency = 1 - espModule._fadeAlpha
+                    end
+
+                    data.HeadDot.Visible = true
                 else
-                    line:Hide()
+                    data.HeadDot.Visible = false
                 end
-            end
-
-        else
-            for _, line in pairs(data.Entity3DBox) do line:Hide() end
-            local f = data.Full
-            f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
-
-            local len = math.clamp(0.22 + (rawStuds / 400) * 0.18, 0.22, 0.38)
-            local cw = math.clamp(math.floor(sx * len + 0.5), 2, math.floor(sx / 2))
-            local ch = math.clamp(math.floor(sy * len + 0.5), 2, math.floor(sy / 2))
-
-            local c = data.Corner
-            c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw + 1, y))
-            c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch + 1))
-            c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw - 1, y))
-            c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch + 1))
-            c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw + 1, y + sy))
-            c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch - 1))
-            c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw - 1, y + sy))
-            c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch - 1))
-
-            c.TL1:SetColor(cfg.LineColor) c.TL1:SetThickness(cfg.Thickness) c.TL1:SetOutlineThickness(1)
-            c.TL2:SetColor(cfg.LineColor) c.TL2:SetThickness(cfg.Thickness) c.TL2:SetOutlineThickness(1)
-            c.TR1:SetColor(cfg.LineColor) c.TR1:SetThickness(cfg.Thickness) c.TR1:SetOutlineThickness(1)
-            c.TR2:SetColor(cfg.LineColor) c.TR2:SetThickness(cfg.Thickness) c.TR2:SetOutlineThickness(1)
-            c.BL1:SetColor(cfg.LineColor) c.BL1:SetThickness(cfg.Thickness) c.BL1:SetOutlineThickness(1)
-            c.BL2:SetColor(cfg.LineColor) c.BL2:SetThickness(cfg.Thickness) c.BL2:SetOutlineThickness(1)
-            c.BR1:SetColor(cfg.LineColor) c.BR1:SetThickness(cfg.Thickness) c.BR1:SetOutlineThickness(1)
-            c.BR2:SetColor(cfg.LineColor) c.BR2:SetThickness(cfg.Thickness) c.BR2:SetOutlineThickness(1)
-        end
-    else
-        data.BoxGlow.Visible = false
-        for _, line in pairs(data.Entity3DBox) do line:Hide() end
-        local f = data.Full
-        f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
-        local c = data.Corner
-        c.TL1:Hide() c.TL2:Hide() c.TR1:Hide() c.TR2:Hide()
-        c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
-    end
-
-    if cfg.HeadDot then
-        local headPart = character:FindFirstChild("Head")
-        if headPart then
-            local hpPos, hpOn = Camera:WorldToViewportPoint(headPart.Position)
-            if hpOn and hpPos.Z > 0 then
-                data.HeadDot.Size = UDim2.fromOffset(cfg.HeadDotSize, cfg.HeadDotSize)
-                data.HeadDot.Position = UDim2.fromOffset(hpPos.X, hpPos.Y)
-                data.HeadDot.BackgroundColor3 = cfg.HeadDotColor
-                data.HeadDot.BackgroundTransparency = 0
-
-                local stroke = data.HeadDot:FindFirstChild("DotStroke")
-                if stroke then
-                    stroke.Thickness = cfg.HeadDotOutlineThickness
-                    stroke.Color = Color3.new(0, 0, 0)
-                end
-
-                data.HeadDot.Visible = true
             else
                 data.HeadDot.Visible = false
             end
         else
             data.HeadDot.Visible = false
         end
-    else
-        data.HeadDot.Visible = false
-    end
 
-    if cfg.HealthBar then
-        local barX = x - 5
-        local barW = 2
+        if cfg.HealthBar then
+            local barX = x - 5
+            local barW = 2
 
-        data.HealthContainer.Position = UDim2.fromOffset(barX, y)
-        data.HealthContainer.Size = UDim2.fromOffset(barW, sy)
-        data.HealthContainer.Visible = true
+            data.HealthContainer.Position = UDim2.fromOffset(barX, y)
+            data.HealthContainer.Size = UDim2.fromOffset(barW, sy)
+            data.HealthContainer.Visible = true
+            data.HealthContainer.BackgroundTransparency = 1 - espModule._fadeAlpha
 
-        local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
+            local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
 
-        data.HealthFill.Size = UDim2.fromScale(1, hp)
-        data.HealthFill.Visible = true
+            data.HealthFill.Size = UDim2.fromScale(1, hp)
+            data.HealthFill.Visible = true
+            data.HealthFill.BackgroundTransparency = 1 - espModule._fadeAlpha
 
-        data.HealthGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, cfg.HealthHigh),
-            ColorSequenceKeypoint.new(0.5, cfg.HealthMid),
-            ColorSequenceKeypoint.new(1, cfg.HealthLow)
-        })
+            data.HealthGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, cfg.HealthHigh),
+                ColorSequenceKeypoint.new(0.5, cfg.HealthMid),
+                ColorSequenceKeypoint.new(1, cfg.HealthLow)
+            })
 
-        if cfg.HealthText then
-            local hpVal = math.floor(humanoid.Health + 0.5)
-            local textStr = tostring(hpVal)
-            if data.LastHealthStr ~= textStr then
-                data.HealthText.Frame.Text = textStr
-                data.LastHealthStr = textStr
+            if cfg.HealthText then
+                local hpVal = math.floor(humanoid.Health + 0.5)
+                local textStr = tostring(hpVal)
+                if data.LastHealthStr ~= textStr then
+                    data.HealthText.Frame.Text = textStr
+                    data.LastHealthStr = textStr
+                end
+                if data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
+                    data.HealthText.Frame.TextSize = cfg.TextSize
+                    data.HealthText.Frame.FontFace = healthFont
+                    data.LastHealthFont = healthFont
+                    data.LastHealthSize = cfg.TextSize
+                end
+                local fillH = sy * hp
+                local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
+                data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3, ty)
+                data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
+                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
+                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
+
+                local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
+                local grad = data.HealthText.Frame:FindFirstChild("TextGradient")
+                if grad then
+                    grad.Color = ColorSequence.new(hCol, hCol)
+                end
+                data.HealthText.Frame.Visible = true
+                data.HealthText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+                data.HealthText.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+            else
+                data.HealthText:Hide()
             end
-            if data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
-                data.HealthText.Frame.TextSize = cfg.TextSize
-                data.HealthText.Frame.FontFace = healthFont
-                data.LastHealthFont = healthFont
-                data.LastHealthSize = cfg.TextSize
-            end
-            local fillH = sy * hp
-            local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
-            data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3, ty)
-            data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
-            data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
-            data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-
-            local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
-            local grad = data.HealthText.Frame:FindFirstChild("TextGradient")
-            if grad then
-                grad.Color = ColorSequence.new(hCol, hCol)
-            end
-            data.HealthText.Frame.Visible = true
         else
+            data.HealthContainer.Visible = false
+            data.HealthFill.Visible = false
             data.HealthText:Hide()
         end
-    else
-        data.HealthContainer.Visible = false
-        data.HealthFill.Visible = false
-        data.HealthText:Hide()
-    end
 
-    if cfg.ArmorBar then
-        local armor = 100
-        local armorObj = character:FindFirstChild("Armor")
-        if armorObj and armorObj:IsA("NumberValue") and armorObj.Value > 0 then
-            armor = armorObj.Value
-        end
+        if cfg.ArmorBar then
+            local armor = 100
+            local armorObj = character:FindFirstChild("Armor")
+            if armorObj and armorObj:IsA("NumberValue") and armorObj.Value > 0 then
+                armor = armorObj.Value
+            end
 
-        local barY = y + sy + 2
-        local barH = 2
+            local barY = y + sy + 2
+            local barH = 2
 
-        data.ArmorContainer.Position = UDim2.fromOffset(x, barY)
-        data.ArmorContainer.Size = UDim2.fromOffset(sx, barH)
-        data.ArmorContainer.Visible = true
+            data.ArmorContainer.Position = UDim2.fromOffset(x, barY)
+            data.ArmorContainer.Size = UDim2.fromOffset(sx, barH)
+            data.ArmorContainer.Visible = true
+            data.ArmorContainer.BackgroundTransparency = 1 - espModule._fadeAlpha
 
-        local armRatio = math.clamp(armor / 100, 0, 1)
-        data.ArmorFill.Size = UDim2.fromScale(armRatio, 1)
-        data.ArmorGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, cfg.ArmorHigh),
-            ColorSequenceKeypoint.new(0.5, cfg.ArmorMid),
-            ColorSequenceKeypoint.new(1, cfg.ArmorLow)
-        })
-        data.ArmorFill.Visible = true
-    else
-        data.ArmorContainer.Visible = false
-        data.ArmorFill.Visible = false
-    end
-
-    if cfg.Names then
-        local name = isPlayer and entity.DisplayName or character.Name
-        if data.LastNameStr ~= name then
-            data.NameText.Frame.Text = name
-            data.LastNameStr = name
-        end
-        if data.LastNameFont ~= textFont or data.LastNameSize ~= cfg.TextSize then
-            data.NameText.Frame.TextSize = cfg.TextSize
-            data.NameText.Frame.FontFace = textFont
-            data.LastNameFont = textFont
-            data.LastNameSize = cfg.TextSize
-        end
-
-        ApplyGradient(data.NameText, cfg.NameColor, cfg.NameColor2)
-
-        data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 4)
-        data.NameText.Frame.AnchorPoint = Vector2.new(0.5, 1)
-        data.NameText.Frame.TextXAlignment = Enum.TextXAlignment.Center
-        data.NameText.Frame.TextYAlignment = Enum.TextYAlignment.Bottom
-        data.NameText.Frame.Visible = true
-    else
-        data.NameText:Hide()
-    end
-
-    if cfg.Distance then
-        local textStr = "[" .. tostring(meters) .. "m]"
-        if data.LastDistStr ~= textStr then
-            data.DistanceText.Frame.Text = textStr
-            data.LastDistStr = textStr
-        end
-        if data.LastDistFont ~= flagsFont or data.LastDistSize ~= cfg.TextSize then
-            data.DistanceText.Frame.TextSize = cfg.TextSize
-            data.DistanceText.Frame.FontFace = flagsFont
-            data.LastDistFont = flagsFont
-            data.LastDistSize = cfg.TextSize
-        end
-
-        ApplyGradient(data.DistanceText, cfg.DistanceColor, cfg.DistanceColor2)
-
-        data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
-        data.DistanceText.Frame.AnchorPoint = Vector2.new(0, 0)
-        data.DistanceText.Frame.TextXAlignment = Enum.TextXAlignment.Left
-        data.DistanceText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-        data.DistanceText.Frame.Visible = true
-    else
-        data.DistanceText:Hide()
-    end
-
-    if cfg.Tool then
-        local tool = character:FindFirstChildOfClass("Tool")
-        local textStr = tool and tool.Name or "None"
-        if data.LastToolStr ~= textStr then
-            data.ToolText.Frame.Text = textStr
-            data.LastToolStr = textStr
-        end
-        if data.LastToolFont ~= textFont or data.LastToolSize ~= cfg.TextSize then
-            data.ToolText.Frame.TextSize = cfg.TextSize
-            data.ToolText.Frame.FontFace = textFont
-            data.LastToolFont = textFont
-            data.LastToolSize = cfg.TextSize
-        end
-
-        ApplyGradient(data.ToolText, cfg.ToolColor, cfg.ToolColor2)
-
-        local toolOffset = cfg.ArmorBar and 6 or 2
-        data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + toolOffset)
-        data.ToolText.Frame.AnchorPoint = Vector2.new(0.5, 0)
-        data.ToolText.Frame.TextXAlignment = Enum.TextXAlignment.Center
-        data.ToolText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-        data.ToolText.Frame.Visible = true
-    else
-        data.ToolText:Hide()
-    end
-
-    if cfg.Flags then
-        local walking = humanoid.MoveDirection.Magnitude > 0
-        local jumping = false
-        local swimming = false
-        pcall(function()
-            local state = humanoid:GetState()
-            jumping = state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping
-            swimming = state == Enum.HumanoidStateType.Swimming
-        end)
-
-        local activeCount = 0
-
-        if swimming then
-            data.SwimFlag.Frame.Visible = true
-            ApplyGradient(data.SwimFlag, cfg.FlagSwimming, cfg.FlagSwimming)
-            data.SwimFlag.Frame.LayoutOrder = activeCount
-            activeCount = activeCount + 1
+            local armRatio = math.clamp(armor / 100, 0, 1)
+            data.ArmorFill.Size = UDim2.fromScale(armRatio, 1)
+            data.ArmorFill.BackgroundTransparency = 1 - espModule._fadeAlpha
+            data.ArmorGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, cfg.ArmorHigh),
+                ColorSequenceKeypoint.new(0.5, cfg.ArmorMid),
+                ColorSequenceKeypoint.new(1, cfg.ArmorLow)
+            })
+            data.ArmorFill.Visible = true
         else
-            data.SwimFlag.Frame.Visible = false
+            data.ArmorContainer.Visible = false
+            data.ArmorFill.Visible = false
         end
 
-        if jumping then
-            data.JumpFlag.Frame.Visible = true
-            ApplyGradient(data.JumpFlag, cfg.FlagJumping, cfg.FlagJumping)
-            data.JumpFlag.Frame.LayoutOrder = activeCount
-            activeCount = activeCount + 1
+        if cfg.Names then
+            local name = isPlayer and entity.DisplayName or character.Name
+            if data.LastNameStr ~= name then
+                data.NameText.Frame.Text = name
+                data.LastNameStr = name
+            end
+            if data.LastNameFont ~= textFont or data.LastNameSize ~= cfg.TextSize then
+                data.NameText.Frame.TextSize = cfg.TextSize
+                data.NameText.Frame.FontFace = textFont
+                data.LastNameFont = textFont
+                data.LastNameSize = cfg.TextSize
+            end
+
+            ApplyGradient(data.NameText, cfg.NameColor, cfg.NameColor2)
+
+            data.NameText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y - 4)
+            data.NameText.Frame.AnchorPoint = Vector2.new(0.5, 1)
+            data.NameText.Frame.TextXAlignment = Enum.TextXAlignment.Center
+            data.NameText.Frame.TextYAlignment = Enum.TextYAlignment.Bottom
+            data.NameText.Frame.Visible = true
+            data.NameText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+            data.NameText.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
         else
-            data.JumpFlag.Frame.Visible = false
+            data.NameText:Hide()
         end
 
-        if walking and not jumping and not swimming then
-            data.WalkFlag.Frame.Visible = true
-            ApplyGradient(data.WalkFlag, cfg.FlagWalking, cfg.FlagWalking)
-            data.WalkFlag.Frame.LayoutOrder = activeCount
-            activeCount = activeCount + 1
+        if cfg.Distance then
+            local textStr = "[" .. tostring(meters) .. "m]"
+            if data.LastDistStr ~= textStr then
+                data.DistanceText.Frame.Text = textStr
+                data.LastDistStr = textStr
+            end
+            if data.LastDistFont ~= flagsFont or data.LastDistSize ~= cfg.TextSize then
+                data.DistanceText.Frame.TextSize = cfg.TextSize
+                data.DistanceText.Frame.FontFace = flagsFont
+                data.LastDistFont = flagsFont
+                data.LastDistSize = cfg.TextSize
+            end
+
+            ApplyGradient(data.DistanceText, cfg.DistanceColor, cfg.DistanceColor2)
+
+            data.DistanceText.Frame.Position = UDim2.fromOffset(x + sx + 4, y - 1)
+            data.DistanceText.Frame.AnchorPoint = Vector2.new(0, 0)
+            data.DistanceText.Frame.TextXAlignment = Enum.TextXAlignment.Left
+            data.DistanceText.Frame.TextYAlignment = Enum.TextYAlignment.Top
+            data.DistanceText.Frame.Visible = true
+            data.DistanceText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+            data.DistanceText.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
         else
-            data.WalkFlag.Frame.Visible = false
+            data.DistanceText:Hide()
         end
 
-        if activeCount > 0 then
-            data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, y + 12)
-            data.FlagsFrame.Size = UDim2.fromOffset(0, 0)
-            data.FlagsFrame.AutomaticSize = Enum.AutomaticSize.XY
-            data.FlagsFrame.Visible = true
+        if cfg.Tool then
+            local tool = character:FindFirstChildOfClass("Tool")
+            local textStr = tool and tool.Name or "None"
+            if data.LastToolStr ~= textStr then
+                data.ToolText.Frame.Text = textStr
+                data.LastToolStr = textStr
+            end
+            if data.LastToolFont ~= textFont or data.LastToolSize ~= cfg.TextSize then
+                data.ToolText.Frame.TextSize = cfg.TextSize
+                data.ToolText.Frame.FontFace = textFont
+                data.LastToolFont = textFont
+                data.LastToolSize = cfg.TextSize
+            end
+
+            ApplyGradient(data.ToolText, cfg.ToolColor, cfg.ToolColor2)
+
+            local toolOffset = cfg.ArmorBar and 6 or 2
+            data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + toolOffset)
+            data.ToolText.Frame.AnchorPoint = Vector2.new(0.5, 0)
+            data.ToolText.Frame.TextXAlignment = Enum.TextXAlignment.Center
+            data.ToolText.Frame.TextYAlignment = Enum.TextYAlignment.Top
+            data.ToolText.Frame.Visible = true
+            data.ToolText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+            data.ToolText.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+        else
+            data.ToolText:Hide()
+        end
+
+        if cfg.Flags then
+            local walking = humanoid.MoveDirection.Magnitude > 0
+            local jumping = false
+            local swimming = false
+            pcall(function()
+                local state = humanoid:GetState()
+                jumping = state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping
+                swimming = state == Enum.HumanoidStateType.Swimming
+            end)
+
+            local activeCount = 0
+
+            if swimming then
+                data.SwimFlag.Frame.Visible = true
+                ApplyGradient(data.SwimFlag, cfg.FlagSwimming, cfg.FlagSwimming)
+                data.SwimFlag.Frame.LayoutOrder = activeCount
+                data.SwimFlag.Frame.TextTransparency = 1 - espModule._fadeAlpha
+                data.SwimFlag.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+                activeCount = activeCount + 1
+            else
+                data.SwimFlag.Frame.Visible = false
+            end
+
+            if jumping then
+                data.JumpFlag.Frame.Visible = true
+                ApplyGradient(data.JumpFlag, cfg.FlagJumping, cfg.FlagJumping)
+                data.JumpFlag.Frame.LayoutOrder = activeCount
+                data.JumpFlag.Frame.TextTransparency = 1 - espModule._fadeAlpha
+                data.JumpFlag.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+                activeCount = activeCount + 1
+            else
+                data.JumpFlag.Frame.Visible = false
+            end
+
+            if walking and not jumping and not swimming then
+                data.WalkFlag.Frame.Visible = true
+                ApplyGradient(data.WalkFlag, cfg.FlagWalking, cfg.FlagWalking)
+                data.WalkFlag.Frame.LayoutOrder = activeCount
+                data.WalkFlag.Frame.TextTransparency = 1 - espModule._fadeAlpha
+                data.WalkFlag.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+                activeCount = activeCount + 1
+            else
+                data.WalkFlag.Frame.Visible = false
+            end
+
+            if activeCount > 0 then
+                data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, y + 12)
+                data.FlagsFrame.Size = UDim2.fromOffset(0, 0)
+                data.FlagsFrame.AutomaticSize = Enum.AutomaticSize.XY
+                data.FlagsFrame.Visible = true
+            else
+                data.FlagsFrame.Visible = false
+            end
         else
             data.FlagsFrame.Visible = false
         end
-    else
-        data.FlagsFrame.Visible = false
-    end
 
-    if cfg.Tracers then
-        local viewport = Camera.ViewportSize
-        local from
-        if cfg.TracerOrigin == "Bottom" then
-            from = Vector2.new(viewport.X * 0.5, viewport.Y)
-        elseif cfg.TracerOrigin == "Top" then
-            from = Vector2.new(viewport.X * 0.5, 0)
-        elseif cfg.TracerOrigin == "Mouse" then
-            from = Services.UserInputService:GetMouseLocation()
-        else
-            from = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
-        end
-        local to = Vector2.new(x + sx * 0.5, y + sy)
-
-        data.Tracer:SetColor(cfg.TracerColor)
-        data.Tracer:SetThickness(cfg.TracerThickness)
-        data.Tracer:SetOutlineThickness(1)
-        data.Tracer:Set(from, to)
-    else
-        data.Tracer:Hide()
-    end
-
-    if cfg.Skeleton then
-        local function DrawBone(bone, p1n, p2n)
-            local p1 = character:FindFirstChild(p1n)
-            local p2 = character:FindFirstChild(p2n)
-            if p1 and p2 then
-                local s1, v1 = Camera:WorldToViewportPoint(p1.Position)
-                local s2, v2 = Camera:WorldToViewportPoint(p2.Position)
-                if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
-                    local a = Vector2.new(s1.X, s1.Y)
-                    local b = Vector2.new(s2.X, s2.Y)
-                    bone:SetColor(cfg.SkeletonColor)
-                    bone:SetThickness(cfg.SkeletonThickness)
-                    bone:SetOutlineThickness(1)
-                    bone:Set(a, b)
-                    return
-                end
+        if cfg.Tracers then
+            local viewport = Camera.ViewportSize
+            local from
+            if cfg.TracerOrigin == "Bottom" then
+                from = Vector2.new(viewport.X * 0.5, viewport.Y)
+            elseif cfg.TracerOrigin == "Top" then
+                from = Vector2.new(viewport.X * 0.5, 0)
+            elseif cfg.TracerOrigin == "Mouse" then
+                from = Services.UserInputService:GetMouseLocation()
+            else
+                from = Vector2.new(viewport.X * 0.5, viewport.Y * 0.5)
             end
-            bone:Hide()
+            local to = Vector2.new(x + sx * 0.5, y + sy)
+
+            data.Tracer:SetColor(cfg.TracerColor)
+            data.Tracer:SetThickness(cfg.TracerThickness)
+            data.Tracer:SetOutlineThickness(1)
+            data.Tracer:Set(from, to)
+            data.Tracer.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+        else
+            data.Tracer:Hide()
         end
 
-        local sk = data.Skeleton
-        if isR15 then
-            DrawBone(sk.HeadTorso, "Head", "UpperTorso")
-            DrawBone(sk.TorsoHip, "UpperTorso", "LowerTorso")
-            DrawBone(sk.HipL, "LowerTorso", "LeftUpperLeg")
-            DrawBone(sk.HipR, "LowerTorso", "RightUpperLeg")
-            DrawBone(sk.LLeg, "LeftUpperLeg", "LeftLowerLeg")
-            DrawBone(sk.RLeg, "RightUpperLeg", "RightLowerLeg")
-            DrawBone(sk.LArm, "UpperTorso", "LeftUpperArm")
-            DrawBone(sk.RArm, "UpperTorso", "RightUpperArm")
-            DrawBone(sk.LFore, "LeftUpperArm", "LeftLowerArm")
-            DrawBone(sk.RFore, "RightUpperArm", "RightLowerArm")
+        if cfg.Skeleton then
+            local function DrawBone(bone, p1n, p2n)
+                local p1 = character:FindFirstChild(p1n)
+                local p2 = character:FindFirstChild(p2n)
+                if p1 and p2 then
+                    local s1, v1 = Camera:WorldToViewportPoint(p1.Position)
+                    local s2, v2 = Camera:WorldToViewportPoint(p2.Position)
+                    if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
+                        local a = Vector2.new(s1.X, s1.Y)
+                        local b = Vector2.new(s2.X, s2.Y)
+                        bone:SetColor(cfg.SkeletonColor)
+                        bone:SetThickness(cfg.SkeletonThickness)
+                        bone:SetOutlineThickness(1)
+                        bone:Set(a, b)
+                        bone.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                        return
+                    end
+                end
+                bone:Hide()
+            end
+
+            local sk = data.Skeleton
+            if isR15 then
+                DrawBone(sk.HeadTorso, "Head", "UpperTorso")
+                DrawBone(sk.TorsoHip, "UpperTorso", "LowerTorso")
+                DrawBone(sk.HipL, "LowerTorso", "LeftUpperLeg")
+                DrawBone(sk.HipR, "LowerTorso", "RightUpperLeg")
+                DrawBone(sk.LLeg, "LeftUpperLeg", "LeftLowerLeg")
+                DrawBone(sk.RLeg, "RightUpperLeg", "RightLowerLeg")
+                DrawBone(sk.LArm, "UpperTorso", "LeftUpperArm")
+                DrawBone(sk.RArm, "UpperTorso", "RightUpperArm")
+                DrawBone(sk.LFore, "LeftUpperArm", "LeftLowerArm")
+                DrawBone(sk.RFore, "RightUpperArm", "RightLowerArm")
+            else
+                DrawBone(sk.HeadTorso, "Head", "Torso")
+                DrawBone(sk.TorsoHip, "Torso", "Torso")
+                DrawBone(sk.HipL, "Torso", "Left Leg")
+                DrawBone(sk.HipR, "Torso", "Right Leg")
+                DrawBone(sk.LLeg, "Left Leg", "Left Leg")
+                DrawBone(sk.RLeg, "Right Leg", "Right Leg")
+                DrawBone(sk.LArm, "Torso", "Left Arm")
+                DrawBone(sk.RArm, "Torso", "Right Arm")
+                DrawBone(sk.LFore, "Left Arm", "Left Arm")
+                DrawBone(sk.RFore, "Right Arm", "Right Arm")
+            end
         else
-            DrawBone(sk.HeadTorso, "Head", "Torso")
-            DrawBone(sk.TorsoHip, "Torso", "Torso")
-            DrawBone(sk.HipL, "Torso", "Left Leg")
-            DrawBone(sk.HipR, "Torso", "Right Leg")
-            DrawBone(sk.LLeg, "Left Leg", "Left Leg")
-            DrawBone(sk.RLeg, "Right Leg", "Right Leg")
-            DrawBone(sk.LArm, "Torso", "Left Arm")
-            DrawBone(sk.RArm, "Torso", "Right Arm")
-            DrawBone(sk.LFore, "Left Arm", "Left Arm")
-            DrawBone(sk.RFore, "Right Arm", "Right Arm")
+            local sk = data.Skeleton
+            for _, bone in pairs(sk) do
+                bone:Hide()
+            end
         end
     else
-        local sk = data.Skeleton
-        for _, bone in pairs(sk) do
-            bone:Hide()
+        HideESP(data)
+        
+        if espModule.Settings.OffscreenArrows then
+            local viewport = Camera.ViewportSize
+            local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
+            local dir = (Vector2.new(hrpPos.X, hrpPos.Y) - center).Unit
+            
+            local angle = math.deg(math.atan2(dir.Y, dir.X))
+            local radius = math.min(viewport.X, viewport.Y) / 2 - 40
+            local pos = center + dir * radius
+            
+            data.OffscreenArrow.Position = UDim2.fromOffset(pos.X, pos.Y)
+            data.OffscreenArrow.Rotation = angle + 90
+            data.OffscreenArrow.BackgroundColor3 = cfg.LineColor
+            data.OffscreenArrow.BackgroundTransparency = 1 - espModule._fadeAlpha
+            data.OffscreenArrow.Visible = true
+            
+            local stroke = data.OffscreenArrow:FindFirstChildOfClass("UIStroke")
+            if stroke then
+                stroke.Transparency = 1 - espModule._fadeAlpha
+            end
         end
     end
 end
@@ -1570,6 +1660,13 @@ local function espLoop()
     local s = espModule.Settings
     local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled
     local anyItem = s.Items.Enabled and HAS_BOTS_ITEMS
+    
+    if espModule._isDead then
+        espModule._fadeAlpha = math.max(0, espModule._fadeAlpha - 0.05)
+    else
+        espModule._fadeAlpha = math.min(1, espModule._fadeAlpha + 0.05)
+    end
+
     if not anyEntity and not anyItem then
         for entity in pairs(espModule._drawings) do
             RemoveESP(entity)
@@ -1637,6 +1734,65 @@ function espModule:Start()
 
     table.clear(self._bots)
     table.clear(self._containers)
+    
+    local function onCharacterAdded(char)
+        local hum = char:WaitForChild("Humanoid")
+        espModule._isDead = false
+        espModule._fadeAlpha = 1
+        hum.Died:Connect(function()
+            espModule._isDead = true
+        end)
+    end
+    
+    if Services.LocalPlayer.Character then
+        onCharacterAdded(Services.LocalPlayer.Character)
+    end
+    self._connections.CharacterAdded = Services.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    
+    self._connections.SoundAdded = Services.WorkSpace.ChildAdded:Connect(function(child)
+        if espModule.Settings.SoundESP and child:IsA("Sound") and child.Parent and child.Parent:IsA("BasePart") then
+            if child.Name:lower():find("gun") or child.Name:lower():find("shot") or child.Name:lower():find("step") then
+                local dist = (Services.CurrentCamera.CFrame.Position - child.Parent.Position).Magnitude
+                if dist < 300 then
+                    local circle = Instance.new("Frame")
+                    circle.Size = UDim2.fromOffset(12, 12)
+                    circle.AnchorPoint = Vector2.new(0.5, 0.5)
+                    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+                    circle.BackgroundTransparency = 0.3
+                    circle.BorderSizePixel = 0
+                    circle.ZIndex = 10
+                    circle.Parent = espGui
+                    
+                    local uiCorner = Instance.new("UICorner")
+                    uiCorner.CornerRadius = UDim.new(1, 0)
+                    uiCorner.Parent = circle
+                    
+                    local stroke = Instance.new("UIStroke")
+                    stroke.Color = Color3.fromRGB(0, 0, 0)
+                    stroke.Thickness = 1
+                    stroke.Parent = circle
+
+                    task.spawn(function()
+                        local start = tick()
+                        while tick() - start < 1.5 do
+                            local pos, onScreen = Services.CurrentCamera:WorldToViewportPoint(child.Parent.Position)
+                            if onScreen then
+                                circle.Position = UDim2.fromOffset(pos.X, pos.Y)
+                                circle.Visible = true
+                                local alpha = 1 - ((tick() - start) / 1.5)
+                                circle.BackgroundTransparency = 1 - alpha
+                                stroke.Transparency = 1 - alpha
+                            else
+                                circle.Visible = false
+                            end
+                            task.wait()
+                        end
+                        circle:Destroy()
+                    end)
+                end
+            end
+        end
+    end)
 
     if HAS_BOTS_ITEMS then
         local botsFolder = Services.WorkSpace:FindFirstChild("IngameBots")

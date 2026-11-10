@@ -1,4 +1,4 @@
-print('1')
+print('3')
 
 local espModule = {}
 
@@ -33,6 +33,9 @@ espModule.Settings = {
         Distance = false,
         Tool = false,
         Flags = false,
+        FlagWalkingEnabled = true,
+        FlagJumpingEnabled = true,
+        FlagSwimmingEnabled = true,
         FlagWalking = Color3.fromRGB(255, 255, 255),
         FlagJumping = Color3.fromRGB(0, 255, 0),
         FlagSwimming = Color3.fromRGB(0, 255, 255),
@@ -90,6 +93,9 @@ espModule.Settings = {
         Distance = false,
         Tool = false,
         Flags = false,
+        FlagWalkingEnabled = true,
+        FlagJumpingEnabled = true,
+        FlagSwimmingEnabled = true,
         FlagWalking = Color3.fromRGB(255, 255, 255),
         FlagJumping = Color3.fromRGB(0, 255, 0),
         FlagSwimming = Color3.fromRGB(0, 255, 255),
@@ -147,6 +153,9 @@ espModule.Settings = {
         Distance = false,
         Tool = false,
         Flags = false,
+        FlagWalkingEnabled = true,
+        FlagJumpingEnabled = true,
+        FlagSwimmingEnabled = true,
         FlagWalking = Color3.fromRGB(255, 255, 255),
         FlagJumping = Color3.fromRGB(0, 255, 0),
         FlagSwimming = Color3.fromRGB(0, 255, 255),
@@ -549,22 +558,16 @@ local function CreateEntityESP(entity)
     boxGlowPadding.PaddingRight = UDim.new(0, 20)
     boxGlowPadding.Parent = boxGlow
 
-    local offscreenArrow = Instance.new("Frame")
-    offscreenArrow.BackgroundColor3 = Color3.new(1, 1, 1)
-    offscreenArrow.Size = UDim2.fromOffset(16, 16)
+    local offscreenArrow = Instance.new("ImageLabel")
+    offscreenArrow.Name = "OffscreenArrow"
+    offscreenArrow.Image = "rbxassetid://8083436515"
+    offscreenArrow.Size = UDim2.fromOffset(24, 24)
     offscreenArrow.AnchorPoint = Vector2.new(0.5, 0.5)
+    offscreenArrow.BackgroundTransparency = 1
+    offscreenArrow.ImageColor3 = Color3.new(1, 1, 1)
     offscreenArrow.Visible = false
-    offscreenArrow.ZIndex = 2
+    offscreenArrow.ZIndex = 10
     offscreenArrow.Parent = espGui
-
-    local arrowCorner = Instance.new("UICorner")
-    arrowCorner.CornerRadius = UDim.new(0, 2)
-    arrowCorner.Parent = offscreenArrow
-
-    local arrowStroke = Instance.new("UIStroke")
-    arrowStroke.Color = Color3.new(0, 0, 0)
-    arrowStroke.Thickness = 1
-    arrowStroke.Parent = offscreenArrow
 
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -677,7 +680,7 @@ local function CreateEntityESP(entity)
         local uiGradient = Instance.new("UIGradient")
         uiGradient.Name = "TextGradient"
         uiGradient.Parent = lbl
-        return { Frame = lbl }
+        return { Frame = lbl, LastFont = font, LastSize = 10 }
     end
 
     espModule._drawings[entity] = {
@@ -1071,8 +1074,7 @@ local function ProcessEntity(entity)
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if hrpPos.Z <= 0 then
-        HideESP(espModule._drawings[entity])
-        return
+        onScreen = false
     end
 
     CreateEntityESP(entity)
@@ -1439,7 +1441,7 @@ local function ProcessEntity(entity)
                 elseif cfg.NameType == "Username" then
                     nameStr = entity.Name
                 else
-                    nameStr = entity.DisplayName .. " (" .. entity.Name .. ")"
+                    nameStr = entity.DisplayName .. " (@" .. entity.Name .. ")"
                 end
             else
                 nameStr = character.Name
@@ -1535,38 +1537,31 @@ local function ProcessEntity(entity)
 
             local activeCount = 0
 
-            if swimming then
-                data.SwimFlag.Frame.Visible = true
-                ApplyGradient(data.SwimFlag, cfg.FlagSwimming, cfg.FlagSwimming)
-                data.SwimFlag.Frame.LayoutOrder = activeCount
-                data.SwimFlag.Frame.TextTransparency = 1 - espModule._fadeAlpha
-                data.SwimFlag.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
-                activeCount = activeCount + 1
-            else
-                data.SwimFlag.Frame.Visible = false
+            local function updateFlag(flagData, visible, color, text)
+                if visible and cfg["Flag" .. text .. "Enabled"] then
+                    flagData.Frame.Visible = true
+                    flagData.Frame.Text = text
+                    ApplyGradient(flagData, color, color)
+                    flagData.Frame.LayoutOrder = activeCount
+                    activeCount = activeCount + 1
+                    
+                    if flagData.LastFont ~= flagsFont or flagData.LastSize ~= cfg.TextSize then
+                        flagData.Frame.FontFace = flagsFont
+                        flagData.Frame.TextSize = cfg.TextSize
+                        flagData.LastFont = flagsFont
+                        flagData.LastSize = cfg.TextSize
+                    end
+                    
+                    flagData.Frame.TextTransparency = 1 - espModule._fadeAlpha
+                    flagData.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+                else
+                    flagData.Frame.Visible = false
+                end
             end
 
-            if jumping then
-                data.JumpFlag.Frame.Visible = true
-                ApplyGradient(data.JumpFlag, cfg.FlagJumping, cfg.FlagJumping)
-                data.JumpFlag.Frame.LayoutOrder = activeCount
-                data.JumpFlag.Frame.TextTransparency = 1 - espModule._fadeAlpha
-                data.JumpFlag.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
-                activeCount = activeCount + 1
-            else
-                data.JumpFlag.Frame.Visible = false
-            end
-
-            if walking and not jumping and not swimming then
-                data.WalkFlag.Frame.Visible = true
-                ApplyGradient(data.WalkFlag, cfg.FlagWalking, cfg.FlagWalking)
-                data.WalkFlag.Frame.LayoutOrder = activeCount
-                data.WalkFlag.Frame.TextTransparency = 1 - espModule._fadeAlpha
-                data.WalkFlag.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
-                activeCount = activeCount + 1
-            else
-                data.WalkFlag.Frame.Visible = false
-            end
+            updateFlag(data.SwimFlag, swimming, cfg.FlagSwimming, "Swimming")
+            updateFlag(data.JumpFlag, jumping, cfg.FlagJumping, "Jumping")
+            updateFlag(data.WalkFlag, walking and not jumping and not swimming, cfg.FlagWalking, "Walking")
 
             if activeCount > 0 then
                 data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, y + 12)
@@ -1662,20 +1657,19 @@ local function ProcessEntity(entity)
             local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
             local dir = (Vector2.new(hrpPos.X, hrpPos.Y) - center).Unit
             
+            if hrpPos.Z <= 0 then
+                dir = -dir
+            end
+
             local angle = math.deg(math.atan2(dir.Y, dir.X))
             local radius = math.min(viewport.X, viewport.Y) / 2 - 40
             local pos = center + dir * radius
             
             data.OffscreenArrow.Position = UDim2.fromOffset(pos.X, pos.Y)
-            data.OffscreenArrow.Rotation = angle + 90
-            data.OffscreenArrow.BackgroundColor3 = cfg.OffscreenArrowsColor
-            data.OffscreenArrow.BackgroundTransparency = 1 - espModule._fadeAlpha
+            data.OffscreenArrow.Rotation = angle
+            data.OffscreenArrow.ImageColor3 = cfg.OffscreenArrowsColor
+            data.OffscreenArrow.ImageTransparency = 1 - espModule._fadeAlpha
             data.OffscreenArrow.Visible = true
-            
-            local stroke = data.OffscreenArrow:FindFirstChildOfClass("UIStroke")
-            if stroke then
-                stroke.Transparency = 1 - espModule._fadeAlpha
-            end
         end
     end
 end
@@ -1796,7 +1790,13 @@ function espModule:Start()
                     end
 
                     if cfg and cfg.SoundESP then
-                        local dist = (Services.CurrentCamera.CFrame.Position - child.Parent.Position).Magnitude
+                        local targetPos = child.Parent.Position
+                        local hrp = character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            targetPos = hrp.Position - Vector3.new(0, 2.5, 0)
+                        end
+                        
+                        local dist = (Services.CurrentCamera.CFrame.Position - targetPos).Magnitude
                         if dist < 300 then
                             local circle = Instance.new("Frame")
                             circle.Size = UDim2.fromOffset(12, 12)
@@ -1819,7 +1819,7 @@ function espModule:Start()
                             task.spawn(function()
                                 local start = tick()
                                 while tick() - start < 1.5 do
-                                    local pos, onScreen = Services.CurrentCamera:WorldToViewportPoint(child.Parent.Position)
+                                    local pos, onScreen = Services.CurrentCamera:WorldToViewportPoint(targetPos)
                                     if onScreen then
                                         circle.Position = UDim2.fromOffset(pos.X, pos.Y)
                                         circle.Visible = true

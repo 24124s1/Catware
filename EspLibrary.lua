@@ -1,5 +1,3 @@
-print('3')
-
 local espModule = {}
 
 espModule.Settings = {
@@ -33,12 +31,13 @@ espModule.Settings = {
         Distance = false,
         Tool = false,
         Flags = false,
-        FlagWalkingEnabled = true,
-        FlagJumpingEnabled = true,
-        FlagSwimmingEnabled = true,
+        SelectedFlags = {"Walking", "Jumping", "Swimming"},
         FlagWalking = Color3.fromRGB(255, 255, 255),
+        FlagWalking2 = Color3.fromRGB(200, 200, 200),
         FlagJumping = Color3.fromRGB(0, 255, 0),
+        FlagJumping2 = Color3.fromRGB(0, 200, 0),
         FlagSwimming = Color3.fromRGB(0, 255, 255),
+        FlagSwimming2 = Color3.fromRGB(0, 200, 200),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -52,6 +51,8 @@ espModule.Settings = {
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
+        SkeletonColor = Color3.fromRGB(255, 80, 80),
+        SkeletonColor2 = Color3.fromRGB(200, 200, 200),
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -65,7 +66,6 @@ espModule.Settings = {
         HealthHigh = Color3.fromRGB(0, 255, 100),
         HealthMid = Color3.fromRGB(255, 255, 0),
         HealthLow = Color3.fromRGB(255, 40, 40),
-        SkeletonColor = Color3.fromRGB(255, 80, 80),
         TracerColor = Color3.fromRGB(255, 80, 80),
     },
     Teammate = {
@@ -93,12 +93,13 @@ espModule.Settings = {
         Distance = false,
         Tool = false,
         Flags = false,
-        FlagWalkingEnabled = true,
-        FlagJumpingEnabled = true,
-        FlagSwimmingEnabled = true,
+        SelectedFlags = {"Walking", "Jumping", "Swimming"},
         FlagWalking = Color3.fromRGB(255, 255, 255),
+        FlagWalking2 = Color3.fromRGB(200, 200, 200),
         FlagJumping = Color3.fromRGB(0, 255, 0),
+        FlagJumping2 = Color3.fromRGB(0, 200, 0),
         FlagSwimming = Color3.fromRGB(0, 255, 255),
+        FlagSwimming2 = Color3.fromRGB(0, 200, 200),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -112,6 +113,8 @@ espModule.Settings = {
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
+        SkeletonColor = Color3.fromRGB(0, 180, 255),
+        SkeletonColor2 = Color3.fromRGB(100, 150, 200),
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -125,7 +128,6 @@ espModule.Settings = {
         HealthHigh = Color3.fromRGB(0, 200, 255),
         HealthMid = Color3.fromRGB(100, 200, 255),
         HealthLow = Color3.fromRGB(30, 80, 140),
-        SkeletonColor = Color3.fromRGB(0, 180, 255),
         TracerColor = Color3.fromRGB(0, 180, 255),
     },
     AI = {
@@ -153,12 +155,13 @@ espModule.Settings = {
         Distance = false,
         Tool = false,
         Flags = false,
-        FlagWalkingEnabled = true,
-        FlagJumpingEnabled = true,
-        FlagSwimmingEnabled = true,
+        SelectedFlags = {"Walking", "Jumping", "Swimming"},
         FlagWalking = Color3.fromRGB(255, 255, 255),
+        FlagWalking2 = Color3.fromRGB(200, 200, 200),
         FlagJumping = Color3.fromRGB(0, 255, 0),
+        FlagJumping2 = Color3.fromRGB(0, 200, 0),
         FlagSwimming = Color3.fromRGB(0, 255, 255),
+        FlagSwimming2 = Color3.fromRGB(0, 200, 200),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -172,6 +175,8 @@ espModule.Settings = {
         TextSize = 12,
         Skeleton = false,
         SkeletonThickness = 1,
+        SkeletonColor = Color3.fromRGB(255, 200, 50),
+        SkeletonColor2 = Color3.fromRGB(200, 150, 50),
         Tracers = false,
         TracerThickness = 1,
         TracerOrigin = "Bottom",
@@ -185,7 +190,6 @@ espModule.Settings = {
         HealthHigh = Color3.fromRGB(0, 255, 100),
         HealthMid = Color3.fromRGB(255, 255, 0),
         HealthLow = Color3.fromRGB(255, 40, 40),
-        SkeletonColor = Color3.fromRGB(255, 200, 50),
         TracerColor = Color3.fromRGB(255, 200, 50),
     },
     Items = {
@@ -227,6 +231,15 @@ espModule.Fonts = {}
 espModule._boxFillAngles = {}
 espModule._fadeAlpha = 1
 espModule._isDead = false
+espModule.CustomFlags = {}
+
+function espModule:AddFlag(name, func, color1, color2)
+    self.CustomFlags[name] = {
+        Func = func,
+        Color1 = color1 or Color3.fromRGB(255, 255, 255),
+        Color2 = color2 or Color3.fromRGB(200, 200, 200)
+    }
+end
 
 local cloneref = cloneref or function(...) return ... end
 local GetService = setmetatable({}, {
@@ -399,9 +412,13 @@ local function CreateLine(props)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = frame
 
+    local gradient = Instance.new("UIGradient")
+    gradient.Parent = frame
+
     local obj = {
         Frame = frame,
         Stroke = stroke,
+        Gradient = gradient,
         Thickness = props.Thickness or 1,
         OutlineThickness = props.OutlineThickness or 1,
         Color = props.Color or Color3.new(1, 1, 1),
@@ -482,7 +499,8 @@ local function CreateText(props)
 end
 
 local function MakeBone()
-    return CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+    local line = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+    return line
 end
 
 local function getCharacterParts(character)
@@ -660,29 +678,6 @@ local function CreateEntityESP(entity)
     flagsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     flagsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
-    local function createFlag(name, font)
-        local lbl = Instance.new("TextLabel")
-        lbl.BackgroundTransparency = 1
-        lbl.Text = name
-        lbl.TextSize = 10
-        lbl.TextColor3 = Color3.new(1, 1, 1)
-        lbl.TextStrokeTransparency = 0
-        lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
-        lbl.FontFace = font
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.TextYAlignment = Enum.TextYAlignment.Top
-        lbl.AutomaticSize = Enum.AutomaticSize.XY
-        lbl.Size = UDim2.fromOffset(0, 0)
-        lbl.Visible = false
-        lbl.ZIndex = 5
-        lbl.Parent = flagsFrame
-
-        local uiGradient = Instance.new("UIGradient")
-        uiGradient.Name = "TextGradient"
-        uiGradient.Parent = lbl
-        return { Frame = lbl, LastFont = font, LastSize = 10 }
-    end
-
     espModule._drawings[entity] = {
         Full = {
             Top = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
@@ -716,9 +711,7 @@ local function CreateEntityESP(entity)
         ArmorFill = armorFill,
         ArmorGradient = armorGradient,
         FlagsFrame = flagsFrame,
-        WalkFlag = createFlag("Walking", getEspFont(espModule.Settings.FlagsFont)),
-        JumpFlag = createFlag("Jumping", getEspFont(espModule.Settings.FlagsFont)),
-        SwimFlag = createFlag("Swimming", getEspFont(espModule.Settings.FlagsFont)),
+        FlagLabels = {},
         HealthText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.HealthFont), Visible = false, ZIndex = 5}),
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
@@ -761,6 +754,9 @@ local function HideESP(data)
     data.ArmorContainer.Visible = false
     data.ArmorFill.Visible = false
     data.FlagsFrame.Visible = false
+    for _, lbl in pairs(data.FlagLabels) do
+        lbl.Frame.Visible = false
+    end
     data.HealthText:Hide()
     data.NameText:Hide()
     data.DistanceText:Hide()
@@ -787,6 +783,9 @@ local function RemoveESP(entity)
     data.HealthContainer:Destroy()
     data.ArmorContainer:Destroy()
     data.FlagsFrame:Destroy()
+    for _, lbl in pairs(data.FlagLabels) do
+        lbl.Frame:Destroy()
+    end
     data.HealthText:Destroy()
     data.NameText:Destroy()
     data.DistanceText:Destroy()
@@ -1074,7 +1073,8 @@ local function ProcessEntity(entity)
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if hrpPos.Z <= 0 then
-        onScreen = false
+        HideESP(espModule._drawings[entity])
+        return
     end
 
     CreateEntityESP(entity)
@@ -1535,33 +1535,69 @@ local function ProcessEntity(entity)
                 swimming = state == Enum.HumanoidStateType.Swimming
             end)
 
-            local activeCount = 0
+            local activeFlags = {}
+            
+            if table.find(cfg.SelectedFlags, "Walking") and walking then activeFlags["Walking"] = {cfg.FlagWalking, cfg.FlagWalking2} end
+            if table.find(cfg.SelectedFlags, "Jumping") and jumping then activeFlags["Jumping"] = {cfg.FlagJumping, cfg.FlagJumping2} end
+            if table.find(cfg.SelectedFlags, "Swimming") and swimming then activeFlags["Swimming"] = {cfg.FlagSwimming, cfg.FlagSwimming2} end
 
-            local function updateFlag(flagData, visible, color, text)
-                if visible and cfg["Flag" .. text .. "Enabled"] then
-                    flagData.Frame.Visible = true
-                    flagData.Frame.Text = text
-                    ApplyGradient(flagData, color, color)
-                    flagData.Frame.LayoutOrder = activeCount
-                    activeCount = activeCount + 1
-                    
-                    if flagData.LastFont ~= flagsFont or flagData.LastSize ~= cfg.TextSize then
-                        flagData.Frame.FontFace = flagsFont
-                        flagData.Frame.TextSize = cfg.TextSize
-                        flagData.LastFont = flagsFont
-                        flagData.LastSize = cfg.TextSize
-                    end
-                    
-                    flagData.Frame.TextTransparency = 1 - espModule._fadeAlpha
-                    flagData.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
-                else
-                    flagData.Frame.Visible = false
+            for name, customFlag in pairs(espModule.CustomFlags) do
+                local success, res = pcall(customFlag.Func, entity, character, humanoid)
+                if success and res then
+                    activeFlags[name] = {customFlag.Color1, customFlag.Color2}
                 end
             end
 
-            updateFlag(data.SwimFlag, swimming, cfg.FlagSwimming, "Swimming")
-            updateFlag(data.JumpFlag, jumping, cfg.FlagJumping, "Jumping")
-            updateFlag(data.WalkFlag, walking and not jumping and not swimming, cfg.FlagWalking, "Walking")
+            local activeCount = 0
+            for name, colors in pairs(activeFlags) do
+                local lblData = data.FlagLabels[name]
+                if not lblData then
+                    local lbl = Instance.new("TextLabel")
+                    lbl.BackgroundTransparency = 1
+                    lbl.Text = name
+                    lbl.TextSize = 10
+                    lbl.TextColor3 = Color3.new(1, 1, 1)
+                    lbl.TextStrokeTransparency = 0
+                    lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+                    lbl.FontFace = flagsFont
+                    lbl.TextXAlignment = Enum.TextXAlignment.Left
+                    lbl.TextYAlignment = Enum.TextYAlignment.Top
+                    lbl.AutomaticSize = Enum.AutomaticSize.XY
+                    lbl.Size = UDim2.fromOffset(0, 0)
+                    lbl.Visible = false
+                    lbl.ZIndex = 5
+                    lbl.Parent = data.FlagsFrame
+
+                    local uiGradient = Instance.new("UIGradient")
+                    uiGradient.Name = "TextGradient"
+                    uiGradient.Parent = lbl
+
+                    lblData = { Frame = lbl, LastFont = flagsFont, LastSize = 10 }
+                    data.FlagLabels[name] = lblData
+                end
+                
+                lblData.Frame.Visible = true
+                lblData.Frame.LayoutOrder = activeCount
+                
+                if lblData.LastFont ~= flagsFont or lblData.LastSize ~= cfg.TextSize then
+                    lblData.Frame.FontFace = flagsFont
+                    lblData.Frame.TextSize = cfg.TextSize
+                    lblData.LastFont = flagsFont
+                    lblData.LastSize = cfg.TextSize
+                end
+                
+                ApplyGradient(lblData, colors[1], colors[2])
+                lblData.Frame.TextTransparency = 1 - espModule._fadeAlpha
+                lblData.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+                
+                activeCount = activeCount + 1
+            end
+
+            for name, lblData in pairs(data.FlagLabels) do
+                if not activeFlags[name] then
+                    lblData.Frame.Visible = false
+                end
+            end
 
             if activeCount > 0 then
                 data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, y + 12)
@@ -1573,6 +1609,9 @@ local function ProcessEntity(entity)
             end
         else
             data.FlagsFrame.Visible = false
+            for _, lbl in pairs(data.FlagLabels) do
+                lbl.Frame.Visible = false
+            end
         end
 
         if cfg.Tracers then
@@ -1608,7 +1647,9 @@ local function ProcessEntity(entity)
                     if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
                         local a = Vector2.new(s1.X, s1.Y)
                         local b = Vector2.new(s2.X, s2.Y)
-                        bone:SetColor(cfg.SkeletonColor)
+                        bone:SetColor(Color3.new(1, 1, 1))
+                        bone.Gradient.Color = ColorSequence.new(cfg.SkeletonColor, cfg.SkeletonColor2)
+                        bone.Gradient.Rotation = 0
                         bone:SetThickness(cfg.SkeletonThickness)
                         bone:SetOutlineThickness(1)
                         bone:Set(a, b)

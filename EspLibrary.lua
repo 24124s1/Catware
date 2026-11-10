@@ -1588,7 +1588,8 @@ local function ProcessEntity(entity)
             end
 
             if activeCount > 0 then
-                data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, y + 12)
+                local flagsY = cfg.Distance and (y + 12) or (y - 1)
+                data.FlagsFrame.Position = UDim2.fromOffset(x + sx + 4, flagsY)
                 data.FlagsFrame.Size = UDim2.fromOffset(0, 0)
                 data.FlagsFrame.AutomaticSize = Enum.AutomaticSize.XY
                 data.FlagsFrame.Visible = true

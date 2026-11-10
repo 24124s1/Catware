@@ -1043,28 +1043,81 @@ local function ProcessEntity(entity)
     local p = {}
     local vis = {}
 
-    local bboxCf, bboxSize = character:GetBoundingBox()
-    local corners = {
-        bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, bboxSize.Z/2),
-        bboxCf * Vector3.new(bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, bboxSize.Y/2, -bboxSize.Z/2),
-        bboxCf * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
-        bboxCf * Vector3.new(bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2)
-    }
-    
-    for i = 1, 8 do
-        local pos, on = Camera:WorldToViewportPoint(corners[i])
-        p[i] = Vector2.new(pos.X, pos.Y)
-        vis[i] = on and pos.Z > 0
-        if vis[i] then
-            validParts = validParts + 1
-            if pos.X < minX then minX = pos.X end
-            if pos.Y < minY then minY = pos.Y end
-            if pos.X > maxX then maxX = pos.X end
-            if pos.Y > maxY then maxY = pos.Y end
+    local minVec = Vector3.new(math.huge, math.huge, math.huge)
+    local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Transparency < 1 then
+            local isIgnored = false
+            local parent = part
+            while parent and parent ~= character do
+                if parent:IsA("Model") or parent:IsA("Folder") then
+                    local lowerName = string.lower(parent.Name)
+                    if string.find(lowerName, "pet") or string.find(lowerName, "familiar") then
+                        isIgnored = true
+                        break
+                    end
+                end
+                parent = parent.Parent
+            end
+            
+            if not isIgnored and part ~= hrp then
+                local dist = (part.Position - hrp.Position).Magnitude
+                if dist > 15 then
+                    isIgnored = true
+                end
+            end
+
+            if not isIgnored then
+                local cf = part.CFrame
+                local size = part.Size
+                local corners3D = {
+                    cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
+                    cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
+                    cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
+                    cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
+                    cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
+                    cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
+                    cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
+                    cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
+                }
+                for i = 1, 8 do
+                    local c = corners3D[i]
+                    if c.X < minVec.X then minVec = Vector3.new(c.X, minVec.Y, minVec.Z) end
+                    if c.Y < minVec.Y then minVec = Vector3.new(minVec.X, c.Y, minVec.Z) end
+                    if c.Z < minVec.Z then minVec = Vector3.new(minVec.X, minVec.Y, c.Z) end
+                    
+                    if c.X > maxVec.X then maxVec = Vector3.new(c.X, maxVec.Y, maxVec.Z) end
+                    if c.Y > maxVec.Y then maxVec = Vector3.new(maxVec.X, c.Y, maxVec.Z) end
+                    if c.Z > maxVec.Z then maxVec = Vector3.new(maxVec.X, maxVec.Y, c.Z) end
+                end
+            end
+        end
+    end
+
+    if minVec.X < math.huge then
+        local globalCorners = {
+            Vector3.new(maxVec.X, maxVec.Y, maxVec.Z),
+            Vector3.new(minVec.X, maxVec.Y, maxVec.Z),
+            Vector3.new(minVec.X, minVec.Y, maxVec.Z),
+            Vector3.new(maxVec.X, minVec.Y, maxVec.Z),
+            Vector3.new(maxVec.X, maxVec.Y, minVec.Z),
+            Vector3.new(minVec.X, maxVec.Y, minVec.Z),
+            Vector3.new(minVec.X, minVec.Y, minVec.Z),
+            Vector3.new(maxVec.X, minVec.Y, minVec.Z)
+        }
+        
+        for i = 1, 8 do
+            local pos, on = Camera:WorldToViewportPoint(globalCorners[i])
+            p[i] = Vector2.new(pos.X, pos.Y)
+            vis[i] = on and pos.Z > 0
+            if vis[i] then
+                validParts = validParts + 1
+                if pos.X < minX then minX = pos.X end
+                if pos.Y < minY then minY = pos.Y end
+                if pos.X > maxX then maxX = pos.X end
+                if pos.Y > maxY then maxY = pos.Y end
+            end
         end
     end
 

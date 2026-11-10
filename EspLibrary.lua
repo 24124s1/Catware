@@ -1,3 +1,5 @@
+print('1')
+
 local espModule = {}
 
 espModule.Settings = {
@@ -23,8 +25,11 @@ espModule.Settings = {
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
         OffscreenArrows = false,
+        OffscreenArrowsColor = Color3.fromRGB(255, 80, 80),
         SoundESP = false,
+        SoundESPColor = Color3.fromRGB(255, 80, 80),
         Names = false,
+        NameType = "Display",
         Distance = false,
         Tool = false,
         Flags = false,
@@ -77,8 +82,11 @@ espModule.Settings = {
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
         OffscreenArrows = false,
+        OffscreenArrowsColor = Color3.fromRGB(0, 180, 255),
         SoundESP = false,
+        SoundESPColor = Color3.fromRGB(0, 180, 255),
         Names = false,
+        NameType = "Display",
         Distance = false,
         Tool = false,
         Flags = false,
@@ -131,8 +139,11 @@ espModule.Settings = {
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
         OffscreenArrows = false,
+        OffscreenArrowsColor = Color3.fromRGB(255, 200, 50),
         SoundESP = false,
+        SoundESPColor = Color3.fromRGB(255, 200, 50),
         Names = false,
+        NameType = "Display",
         Distance = false,
         Tool = false,
         Flags = false,
@@ -1421,10 +1432,22 @@ local function ProcessEntity(entity)
         end
 
         if cfg.Names then
-            local name = isPlayer and entity.DisplayName or character.Name
-            if data.LastNameStr ~= name then
-                data.NameText.Frame.Text = name
-                data.LastNameStr = name
+            local nameStr
+            if isPlayer then
+                if cfg.NameType == "Display" then
+                    nameStr = entity.DisplayName
+                elseif cfg.NameType == "Username" then
+                    nameStr = entity.Name
+                else
+                    nameStr = entity.DisplayName .. " (" .. entity.Name .. ")"
+                end
+            else
+                nameStr = character.Name
+            end
+            
+            if data.LastNameStr ~= nameStr then
+                data.NameText.Frame.Text = nameStr
+                data.LastNameStr = nameStr
             end
             if data.LastNameFont ~= textFont or data.LastNameSize ~= cfg.TextSize then
                 data.NameText.Frame.TextSize = cfg.TextSize
@@ -1645,7 +1668,7 @@ local function ProcessEntity(entity)
             
             data.OffscreenArrow.Position = UDim2.fromOffset(pos.X, pos.Y)
             data.OffscreenArrow.Rotation = angle + 90
-            data.OffscreenArrow.BackgroundColor3 = cfg.LineColor
+            data.OffscreenArrow.BackgroundColor3 = cfg.OffscreenArrowsColor
             data.OffscreenArrow.BackgroundTransparency = 1 - espModule._fadeAlpha
             data.OffscreenArrow.Visible = true
             
@@ -1778,7 +1801,7 @@ function espModule:Start()
                             local circle = Instance.new("Frame")
                             circle.Size = UDim2.fromOffset(12, 12)
                             circle.AnchorPoint = Vector2.new(0.5, 0.5)
-                            circle.BackgroundColor3 = cfg.LineColor
+                            circle.BackgroundColor3 = cfg.SoundESPColor
                             circle.BackgroundTransparency = 0.3
                             circle.BorderSizePixel = 0
                             circle.ZIndex = 10

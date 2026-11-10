@@ -6,8 +6,6 @@ espModule.Settings = {
     FlagsFont = "Gojiberry Quibble",
     HealthFont = "Gojiberry Quibble",
     TextGradientAnimated = true,
-    OffscreenArrows = false,
-    SoundESP = false,
     Enemy = {
         Enabled = false,
         BoxEnabled = false,
@@ -24,6 +22,8 @@ espModule.Settings = {
         ChamsColor = Color3.fromRGB(255, 80, 80),
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
+        OffscreenArrows = false,
+        SoundESP = false,
         Names = false,
         Distance = false,
         Tool = false,
@@ -76,6 +76,8 @@ espModule.Settings = {
         ChamsColor = Color3.fromRGB(0, 180, 255),
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
+        OffscreenArrows = false,
+        SoundESP = false,
         Names = false,
         Distance = false,
         Tool = false,
@@ -128,6 +130,8 @@ espModule.Settings = {
         ChamsColor = Color3.fromRGB(255, 200, 50),
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
+        OffscreenArrows = false,
+        SoundESP = false,
         Names = false,
         Distance = false,
         Tool = false,
@@ -534,6 +538,23 @@ local function CreateEntityESP(entity)
     boxGlowPadding.PaddingRight = UDim.new(0, 20)
     boxGlowPadding.Parent = boxGlow
 
+    local offscreenArrow = Instance.new("Frame")
+    offscreenArrow.BackgroundColor3 = Color3.new(1, 1, 1)
+    offscreenArrow.Size = UDim2.fromOffset(16, 16)
+    offscreenArrow.AnchorPoint = Vector2.new(0.5, 0.5)
+    offscreenArrow.Visible = false
+    offscreenArrow.ZIndex = 2
+    offscreenArrow.Parent = espGui
+
+    local arrowCorner = Instance.new("UICorner")
+    arrowCorner.CornerRadius = UDim.new(0, 2)
+    arrowCorner.Parent = offscreenArrow
+
+    local arrowStroke = Instance.new("UIStroke")
+    arrowStroke.Color = Color3.new(0, 0, 0)
+    arrowStroke.Thickness = 1
+    arrowStroke.Parent = offscreenArrow
+
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
     headDot.BackgroundTransparency = 0
@@ -624,23 +645,6 @@ local function CreateEntityESP(entity)
     flagsLayout.Padding = UDim.new(0, 0)
     flagsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     flagsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-
-    local offscreenArrow = Instance.new("Frame")
-    offscreenArrow.BackgroundColor3 = Color3.new(1, 1, 1)
-    offscreenArrow.Size = UDim2.fromOffset(16, 16)
-    offscreenArrow.AnchorPoint = Vector2.new(0.5, 0.5)
-    offscreenArrow.Visible = false
-    offscreenArrow.ZIndex = 2
-    offscreenArrow.Parent = espGui
-
-    local arrowCorner = Instance.new("UICorner")
-    arrowCorner.CornerRadius = UDim.new(0, 2)
-    arrowCorner.Parent = offscreenArrow
-
-    local arrowStroke = Instance.new("UIStroke")
-    arrowStroke.Color = Color3.new(0, 0, 0)
-    arrowStroke.Thickness = 1
-    arrowStroke.Parent = offscreenArrow
 
     local function createFlag(name, font)
         local lbl = Instance.new("TextLabel")
@@ -1630,7 +1634,7 @@ local function ProcessEntity(entity)
     else
         HideESP(data)
         
-        if espModule.Settings.OffscreenArrows then
+        if cfg.OffscreenArrows then
             local viewport = Camera.ViewportSize
             local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
             local dir = (Vector2.new(hrpPos.X, hrpPos.Y) - center).Unit
@@ -1749,46 +1753,65 @@ function espModule:Start()
     end
     self._connections.CharacterAdded = Services.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
     
-    self._connections.SoundAdded = Services.WorkSpace.ChildAdded:Connect(function(child)
-        if espModule.Settings.SoundESP and child:IsA("Sound") and child.Parent and child.Parent:IsA("BasePart") then
-            if child.Name:lower():find("gun") or child.Name:lower():find("shot") or child.Name:lower():find("step") then
-                local dist = (Services.CurrentCamera.CFrame.Position - child.Parent.Position).Magnitude
-                if dist < 300 then
-                    local circle = Instance.new("Frame")
-                    circle.Size = UDim2.fromOffset(12, 12)
-                    circle.AnchorPoint = Vector2.new(0.5, 0.5)
-                    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-                    circle.BackgroundTransparency = 0.3
-                    circle.BorderSizePixel = 0
-                    circle.ZIndex = 10
-                    circle.Parent = espGui
+    self._connections.SoundAdded = Services.WorkSpace.DescendantAdded:Connect(function(child)
+        if child:IsA("Sound") and child.Parent and child.Parent:IsA("BasePart") then
+            local soundName = child.Name:lower()
+            if soundName:find("gun") or soundName:find("shot") or soundName:find("step") then
+                local character = child.Parent
+                while character and not character:FindFirstChild("Humanoid") do
+                    character = character.Parent
+                end
+                
+                if character and character:FindFirstChild("Humanoid") then
+                    local player = Services.Players:GetPlayerFromCharacter(character)
+                    local cfg
                     
-                    local uiCorner = Instance.new("UICorner")
-                    uiCorner.CornerRadius = UDim.new(1, 0)
-                    uiCorner.Parent = circle
-                    
-                    local stroke = Instance.new("UIStroke")
-                    stroke.Color = Color3.fromRGB(0, 0, 0)
-                    stroke.Thickness = 1
-                    stroke.Parent = circle
+                    if player then
+                        if IsTeam(player) then cfg = espModule.Settings.Teammate else cfg = espModule.Settings.Enemy end
+                    else
+                        cfg = espModule.Settings.AI
+                    end
 
-                    task.spawn(function()
-                        local start = tick()
-                        while tick() - start < 1.5 do
-                            local pos, onScreen = Services.CurrentCamera:WorldToViewportPoint(child.Parent.Position)
-                            if onScreen then
-                                circle.Position = UDim2.fromOffset(pos.X, pos.Y)
-                                circle.Visible = true
-                                local alpha = 1 - ((tick() - start) / 1.5)
-                                circle.BackgroundTransparency = 1 - alpha
-                                stroke.Transparency = 1 - alpha
-                            else
-                                circle.Visible = false
-                            end
-                            task.wait()
+                    if cfg and cfg.SoundESP then
+                        local dist = (Services.CurrentCamera.CFrame.Position - child.Parent.Position).Magnitude
+                        if dist < 300 then
+                            local circle = Instance.new("Frame")
+                            circle.Size = UDim2.fromOffset(12, 12)
+                            circle.AnchorPoint = Vector2.new(0.5, 0.5)
+                            circle.BackgroundColor3 = cfg.LineColor
+                            circle.BackgroundTransparency = 0.3
+                            circle.BorderSizePixel = 0
+                            circle.ZIndex = 10
+                            circle.Parent = espGui
+                            
+                            local uiCorner = Instance.new("UICorner")
+                            uiCorner.CornerRadius = UDim.new(1, 0)
+                            uiCorner.Parent = circle
+                            
+                            local stroke = Instance.new("UIStroke")
+                            stroke.Color = Color3.fromRGB(0, 0, 0)
+                            stroke.Thickness = 1
+                            stroke.Parent = circle
+
+                            task.spawn(function()
+                                local start = tick()
+                                while tick() - start < 1.5 do
+                                    local pos, onScreen = Services.CurrentCamera:WorldToViewportPoint(child.Parent.Position)
+                                    if onScreen then
+                                        circle.Position = UDim2.fromOffset(pos.X, pos.Y)
+                                        circle.Visible = true
+                                        local alpha = 1 - ((tick() - start) / 1.5)
+                                        circle.BackgroundTransparency = 1 - alpha
+                                        stroke.Transparency = 1 - alpha
+                                    else
+                                        circle.Visible = false
+                                    end
+                                    task.wait()
+                                end
+                                circle:Destroy()
+                            end)
                         end
-                        circle:Destroy()
-                    end)
+                    end
                 end
             end
         end

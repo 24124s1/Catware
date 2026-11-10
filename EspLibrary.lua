@@ -1,5 +1,3 @@
-print('1')
-
 local espModule = {}
 
 espModule.Settings = {
@@ -34,12 +32,8 @@ espModule.Settings = {
         Tool = false,
         Flags = false,
         SelectedFlags = {"Walking", "Jumping", "Swimming"},
-        FlagWalking = Color3.fromRGB(255, 255, 255),
-        FlagWalking2 = Color3.fromRGB(200, 200, 200),
-        FlagJumping = Color3.fromRGB(0, 255, 0),
-        FlagJumping2 = Color3.fromRGB(0, 200, 0),
-        FlagSwimming = Color3.fromRGB(0, 255, 255),
-        FlagSwimming2 = Color3.fromRGB(0, 200, 200),
+        FlagColor1 = Color3.fromRGB(255, 255, 255),
+        FlagColor2 = Color3.fromRGB(200, 200, 200),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -96,12 +90,8 @@ espModule.Settings = {
         Tool = false,
         Flags = false,
         SelectedFlags = {"Walking", "Jumping", "Swimming"},
-        FlagWalking = Color3.fromRGB(255, 255, 255),
-        FlagWalking2 = Color3.fromRGB(200, 200, 200),
-        FlagJumping = Color3.fromRGB(0, 255, 0),
-        FlagJumping2 = Color3.fromRGB(0, 200, 0),
-        FlagSwimming = Color3.fromRGB(0, 255, 255),
-        FlagSwimming2 = Color3.fromRGB(0, 200, 200),
+        FlagColor1 = Color3.fromRGB(255, 255, 255),
+        FlagColor2 = Color3.fromRGB(200, 200, 200),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -158,12 +148,8 @@ espModule.Settings = {
         Tool = false,
         Flags = false,
         SelectedFlags = {"Walking", "Jumping", "Swimming"},
-        FlagWalking = Color3.fromRGB(255, 255, 255),
-        FlagWalking2 = Color3.fromRGB(200, 200, 200),
-        FlagJumping = Color3.fromRGB(0, 255, 0),
-        FlagJumping2 = Color3.fromRGB(0, 200, 0),
-        FlagSwimming = Color3.fromRGB(0, 255, 255),
-        FlagSwimming2 = Color3.fromRGB(0, 200, 200),
+        FlagColor1 = Color3.fromRGB(255, 255, 255),
+        FlagColor2 = Color3.fromRGB(200, 200, 200),
         HealthBar = false,
         HealthText = false,
         ArmorBar = false,
@@ -235,11 +221,9 @@ espModule._fadeAlpha = 1
 espModule._isDead = false
 espModule.CustomFlags = {}
 
-function espModule:AddFlag(name, func, color1, color2)
+function espModule:AddFlag(name, func)
     self.CustomFlags[name] = {
-        Func = func,
-        Color1 = color1 or Color3.fromRGB(255, 255, 255),
-        Color2 = color2 or Color3.fromRGB(200, 200, 200)
+        Func = func
     }
 end
 
@@ -1539,19 +1523,21 @@ local function ProcessEntity(entity)
 
             local activeFlags = {}
             
-            if table.find(cfg.SelectedFlags, "Walking") and walking then activeFlags["Walking"] = {cfg.FlagWalking, cfg.FlagWalking2} end
-            if table.find(cfg.SelectedFlags, "Jumping") and jumping then activeFlags["Jumping"] = {cfg.FlagJumping, cfg.FlagJumping2} end
-            if table.find(cfg.SelectedFlags, "Swimming") and swimming then activeFlags["Swimming"] = {cfg.FlagSwimming, cfg.FlagSwimming2} end
+            if table.find(cfg.SelectedFlags, "Walking") and walking then table.insert(activeFlags, "Walking") end
+            if table.find(cfg.SelectedFlags, "Jumping") and jumping then table.insert(activeFlags, "Jumping") end
+            if table.find(cfg.SelectedFlags, "Swimming") and swimming then table.insert(activeFlags, "Swimming") end
 
             for name, customFlag in pairs(espModule.CustomFlags) do
-                local success, res = pcall(customFlag.Func, entity, character, humanoid)
-                if success and res then
-                    activeFlags[name] = {customFlag.Color1, customFlag.Color2}
+                if table.find(cfg.SelectedFlags, name) then
+                    local success, res = pcall(customFlag.Func, entity, character, humanoid)
+                    if success and res then
+                        table.insert(activeFlags, name)
+                    end
                 end
             end
 
             local activeCount = 0
-            for name, colors in pairs(activeFlags) do
+            for _, name in ipairs(activeFlags) do
                 local lblData = data.FlagLabels[name]
                 if not lblData then
                     local lbl = Instance.new("TextLabel")
@@ -1588,7 +1574,7 @@ local function ProcessEntity(entity)
                     lblData.LastSize = cfg.TextSize
                 end
                 
-                ApplyGradient(lblData, colors[1], colors[2])
+                ApplyGradient(lblData, cfg.FlagColor1, cfg.FlagColor2)
                 lblData.Frame.TextTransparency = 1 - espModule._fadeAlpha
                 lblData.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
                 
@@ -1596,7 +1582,7 @@ local function ProcessEntity(entity)
             end
 
             for name, lblData in pairs(data.FlagLabels) do
-                if not activeFlags[name] then
+                if not table.find(activeFlags, name) then
                     lblData.Frame.Visible = false
                 end
             end

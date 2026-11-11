@@ -382,89 +382,71 @@ local function GetHealthColor(t, high, mid, low)
     end
 end
 
-local function CreateLine()
-    local lineObj = nil
-    local DrawingAPI = nil
-    pcall(function() DrawingAPI = Drawing end)
-    if not DrawingAPI then
-        pcall(function() DrawingAPI = gethui().Drawings end)
-    end
-    
-    if DrawingAPI then
-        local success, l = pcall(function() return DrawingAPI.new("Line") end)
-        if success and l then
-            lineObj = l
-            l.Thickness = 1
-            l.Transparency = 1
-            l.Visible = false
+local function CreateLine(props)
+    local frame = Instance.new("Frame")
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BorderSizePixel = 0
+    frame.BackgroundColor3 = props.Color or Color3.new(1, 1, 1)
+    frame.Visible = props.Visible or false
+    frame.ZIndex = props.ZIndex or 2
+    frame.Parent = espGui
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Name = "LineOutline"
+    stroke.Color = props.OutlineColor or Color3.new(0, 0, 0)
+    stroke.Thickness = props.OutlineThickness or 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = frame
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Parent = frame
+
+    local obj = {
+        Frame = frame,
+        Stroke = stroke,
+        Gradient = gradient,
+        Thickness = props.Thickness or 1,
+        OutlineThickness = props.OutlineThickness or 1,
+        Color = props.Color or Color3.new(1, 1, 1),
+    }
+
+    function obj:Set(from, to)
+        if not from or not to then
+            frame.Visible = false
+            return
         end
+        local dist = (to - from).Magnitude
+        local center = from:Lerp(to, 0.5)
+        local angle = math.deg(math.atan2(to.Y - from.Y, to.X - from.X))
+        frame.Position = UDim2.fromOffset(center.X, center.Y)
+        frame.Size = UDim2.fromOffset(math.max(dist, 1), self.Thickness)
+        frame.Rotation = angle
+        frame.Visible = true
     end
 
-    if lineObj then
-        return {
-            Thickness = 1,
-            Length = 0,
-            Set = function(self, from, to, color)
-                local dist = (to - from).Magnitude
-                self.Length = dist
-                lineObj.From = from
-                lineObj.To = to
-                if color then lineObj.Color = color end
-                lineObj.Visible = true
-            end,
-            Hide = function(self) lineObj.Visible = false end,
-            Destroy = function(self) lineObj:Remove() end,
-            SetThickness = function(self, t) 
-                self.Thickness = t
-                lineObj.Thickness = t 
-            end,
-            SetTransparency = function(self, t) lineObj.Transparency = t end
-        }
-    else
-        local frame = Instance.new("Frame")
-        frame.AnchorPoint = Vector2.new(0.5, 0.5)
-        frame.BorderSizePixel = 0
-        frame.BackgroundColor3 = Color3.new(1, 1, 1)
+    function obj:SetColor(color)
+        self.Color = color
+        frame.BackgroundColor3 = color
+    end
+
+    function obj:SetThickness(t)
+        self.Thickness = t
+    end
+
+    function obj:SetOutlineThickness(t)
+        self.OutlineThickness = t
+        stroke.Thickness = t
+    end
+
+    function obj:Hide()
         frame.Visible = false
-        frame.Parent = espGui
-        
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.new(0, 0, 0)
-        stroke.Thickness = 1
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        stroke.Parent = frame
-
-        return {
-            Thickness = 1,
-            Length = 0,
-            Set = function(self, from, to, color)
-                local dist = (to - from).Magnitude
-                self.Length = dist
-                local center = from:Lerp(to, 0.5)
-                local angle = math.deg(math.atan2(to.Y - from.Y, to.X - from.X))
-                frame.Position = UDim2.fromOffset(center.X, center.Y)
-                frame.Size = UDim2.fromOffset(dist, self.Thickness)
-                frame.Rotation = angle
-                if color then 
-                    frame.BackgroundColor3 = color 
-                    stroke.Color = color 
-                end
-                frame.Visible = true
-            end,
-            Hide = function(self) frame.Visible = false end,
-            Destroy = function(self) frame:Destroy() end,
-            SetThickness = function(self, t) 
-                self.Thickness = t 
-                if self.Length > 0 then
-                    frame.Size = UDim2.fromOffset(self.Length, t) 
-                end
-            end,
-            SetTransparency = function(self, t) 
-                frame.BackgroundTransparency = t
-                stroke.Transparency = t
-            end
-        }
     end
+
+    function obj:Destroy()
+        frame:Destroy()
+    end
+
+    return obj
 end
 
 local function CreateText(props)
@@ -503,7 +485,8 @@ local function CreateText(props)
 end
 
 local function MakeBone()
-    return CreateLine()
+    local line = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+    return line
 end
 
 local function getCharacterParts(character)
@@ -612,7 +595,7 @@ local function CreateEntityESP(entity)
 
     local box3dLines = {}
     for i = 1, 12 do
-        box3dLines["L"..i] = CreateLine()
+        box3dLines["L"..i] = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
     end
 
     local healthContainer = Instance.new("Frame")
@@ -683,20 +666,20 @@ local function CreateEntityESP(entity)
 
     espModule._drawings[entity] = {
         Full = {
-            Top = CreateLine(),
-            Bottom = CreateLine(),
-            Left = CreateLine(),
-            Right = CreateLine(),
+            Top = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Bottom = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Left = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Right = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         },
         Corner = {
-            TL1 = CreateLine(),
-            TL2 = CreateLine(),
-            TR1 = CreateLine(),
-            TR2 = CreateLine(),
-            BL1 = CreateLine(),
-            BL2 = CreateLine(),
-            BR1 = CreateLine(),
-            BR2 = CreateLine(),
+            TL1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            TL2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            TR1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            TR2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            BL1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            BL2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            BR1 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            BR2 = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         },
         Entity3DBox = box3dLines,
         BoxFill = boxFill,
@@ -719,7 +702,7 @@ local function CreateEntityESP(entity)
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
         ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
-        Tracer = CreateLine(),
+        Tracer = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         Skeleton = {
             HeadTorso = MakeBone(),
             TorsoHip = MakeBone(),
@@ -1236,20 +1219,20 @@ local function ProcessEntity(entity)
                 c.BL1:Hide() c.BL2:Hide() c.BR1:Hide() c.BR2:Hide()
 
                 local f = data.Full
-                f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y), cfg.LineColor)
-                f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy), cfg.LineColor)
-                f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy), cfg.LineColor)
-                f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy), cfg.LineColor)
+                f.Top:Set(Vector2.new(x, y), Vector2.new(x + sx, y))
+                f.Bottom:Set(Vector2.new(x, y + sy), Vector2.new(x + sx, y + sy))
+                f.Left:Set(Vector2.new(x, y), Vector2.new(x, y + sy))
+                f.Right:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + sy))
 
-                f.Top:SetThickness(cfg.Thickness)
-                f.Bottom:SetThickness(cfg.Thickness)
-                f.Left:SetThickness(cfg.Thickness)
-                f.Right:SetThickness(cfg.Thickness)
-
-                f.Top:SetTransparency(1 - espModule._fadeAlpha)
-                f.Bottom:SetTransparency(1 - espModule._fadeAlpha)
-                f.Left:SetTransparency(1 - espModule._fadeAlpha)
-                f.Right:SetTransparency(1 - espModule._fadeAlpha)
+                f.Top:SetColor(cfg.LineColor) f.Top:SetThickness(cfg.Thickness) f.Top:SetOutlineThickness(1)
+                f.Bottom:SetColor(cfg.LineColor) f.Bottom:SetThickness(cfg.Thickness) f.Bottom:SetOutlineThickness(1)
+                f.Left:SetColor(cfg.LineColor) f.Left:SetThickness(cfg.Thickness) f.Left:SetOutlineThickness(1)
+                f.Right:SetColor(cfg.LineColor) f.Right:SetThickness(cfg.Thickness) f.Right:SetOutlineThickness(1)
+                
+                f.Top.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                f.Bottom.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                f.Left.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                f.Right.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
 
             elseif cfg.BoxType == "3D" then
                 local c = data.Corner
@@ -1264,9 +1247,11 @@ local function ProcessEntity(entity)
                     local line = data.Entity3DBox["L"..i]
 
                     if vis[e[1]] and vis[e[2]] then
-                        line:Set(p[e[1]], p[e[2]], cfg.LineColor)
+                        line:Set(p[e[1]], p[e[2]])
+                        line:SetColor(cfg.LineColor)
                         line:SetThickness(cfg.Thickness)
-                        line:SetTransparency(1 - espModule._fadeAlpha)
+                        line:SetOutlineThickness(1)
+                        line.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
                     else
                         line:Hide()
                     end
@@ -1282,24 +1267,32 @@ local function ProcessEntity(entity)
                 local ch = math.clamp(math.floor(sy * len + 0.5), 2, math.floor(sy / 2))
 
                 local c = data.Corner
-                c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw + 1, y), cfg.LineColor)
-                c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch + 1), cfg.LineColor)
-                c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw - 1, y), cfg.LineColor)
-                c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch + 1), cfg.LineColor)
-                c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw + 1, y + sy), cfg.LineColor)
-                c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch - 1), cfg.LineColor)
-                c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw - 1, y + sy), cfg.LineColor)
-                c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch - 1), cfg.LineColor)
+                c.TL1:Set(Vector2.new(x, y), Vector2.new(x + cw + 1, y))
+                c.TL2:Set(Vector2.new(x, y), Vector2.new(x, y + ch + 1))
+                c.TR1:Set(Vector2.new(x + sx, y), Vector2.new(x + sx - cw - 1, y))
+                c.TR2:Set(Vector2.new(x + sx, y), Vector2.new(x + sx, y + ch + 1))
+                c.BL1:Set(Vector2.new(x, y + sy), Vector2.new(x + cw + 1, y + sy))
+                c.BL2:Set(Vector2.new(x, y + sy), Vector2.new(x, y + sy - ch - 1))
+                c.BR1:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx - cw - 1, y + sy))
+                c.BR2:Set(Vector2.new(x + sx, y + sy), Vector2.new(x + sx, y + sy - ch - 1))
 
-                c.TL1:SetThickness(cfg.Thickness) c.TL2:SetThickness(cfg.Thickness)
-                c.TR1:SetThickness(cfg.Thickness) c.TR2:SetThickness(cfg.Thickness)
-                c.BL1:SetThickness(cfg.Thickness) c.BL2:SetThickness(cfg.Thickness)
-                c.BR1:SetThickness(cfg.Thickness) c.BR2:SetThickness(cfg.Thickness)
-
-                c.TL1:SetTransparency(1 - espModule._fadeAlpha) c.TL2:SetTransparency(1 - espModule._fadeAlpha)
-                c.TR1:SetTransparency(1 - espModule._fadeAlpha) c.TR2:SetTransparency(1 - espModule._fadeAlpha)
-                c.BL1:SetTransparency(1 - espModule._fadeAlpha) c.BL2:SetTransparency(1 - espModule._fadeAlpha)
-                c.BR1:SetTransparency(1 - espModule._fadeAlpha) c.BR2:SetTransparency(1 - espModule._fadeAlpha)
+                c.TL1:SetColor(cfg.LineColor) c.TL1:SetThickness(cfg.Thickness) c.TL1:SetOutlineThickness(1)
+                c.TL2:SetColor(cfg.LineColor) c.TL2:SetThickness(cfg.Thickness) c.TL2:SetOutlineThickness(1)
+                c.TR1:SetColor(cfg.LineColor) c.TR1:SetThickness(cfg.Thickness) c.TR1:SetOutlineThickness(1)
+                c.TR2:SetColor(cfg.LineColor) c.TR2:SetThickness(cfg.Thickness) c.TR2:SetOutlineThickness(1)
+                c.BL1:SetColor(cfg.LineColor) c.BL1:SetThickness(cfg.Thickness) c.BL1:SetOutlineThickness(1)
+                c.BL2:SetColor(cfg.LineColor) c.BL2:SetThickness(cfg.Thickness) c.BL2:SetOutlineThickness(1)
+                c.BR1:SetColor(cfg.LineColor) c.BR1:SetThickness(cfg.Thickness) c.BR1:SetOutlineThickness(1)
+                c.BR2:SetColor(cfg.LineColor) c.BR2:SetThickness(cfg.Thickness) c.BR2:SetOutlineThickness(1)
+                
+                c.TL1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.TL2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.TR1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.TR2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BL1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BL2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BR1.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
+                c.BR2.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
             end
         else
             data.BoxGlow.Visible = false
@@ -1624,9 +1617,11 @@ local function ProcessEntity(entity)
             end
             local to = Vector2.new(x + sx * 0.5, y + sy)
 
-            data.Tracer:Set(from, to, cfg.TracerColor)
+            data.Tracer:SetColor(cfg.TracerColor)
             data.Tracer:SetThickness(cfg.TracerThickness)
-            data.Tracer:SetTransparency(1 - espModule._fadeAlpha)
+            data.Tracer:SetOutlineThickness(1)
+            data.Tracer:Set(from, to)
+            data.Tracer.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
         else
             data.Tracer:Hide()
         end
@@ -1641,9 +1636,13 @@ local function ProcessEntity(entity)
                     if v1 and v2 and s1.Z > 0 and s2.Z > 0 then
                         local a = Vector2.new(s1.X, s1.Y)
                         local b = Vector2.new(s2.X, s2.Y)
-                        bone:Set(a, b, cfg.SkeletonColor)
+                        bone:SetColor(Color3.new(1, 1, 1))
+                        bone.Gradient.Color = ColorSequence.new(cfg.SkeletonColor, cfg.SkeletonColor2)
+                        bone.Gradient.Rotation = 0
                         bone:SetThickness(cfg.SkeletonThickness)
-                        bone:SetTransparency(1 - espModule._fadeAlpha)
+                        bone:SetOutlineThickness(1)
+                        bone:Set(a, b)
+                        bone.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
                         return
                     end
                 end

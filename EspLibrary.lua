@@ -1,3 +1,5 @@
+print('1')
+
 local espModule = {}
 
 espModule.Settings = {
@@ -391,7 +393,10 @@ local function CreateLine()
         line.Visible = false
         return {
             Thickness = 1,
+            Length = 0,
             Set = function(self, from, to, color)
+                local dist = (to - from).Magnitude
+                self.Length = dist
                 line.From = from
                 line.To = to
                 if color then line.Color = color end
@@ -414,8 +419,10 @@ local function CreateLine()
         frame.Parent = espGui
         return {
             Thickness = 1,
+            Length = 0,
             Set = function(self, from, to, color)
                 local dist = (to - from).Magnitude
+                self.Length = dist
                 local center = from:Lerp(to, 0.5)
                 local angle = math.deg(math.atan2(to.Y - from.Y, to.X - from.X))
                 frame.Position = UDim2.fromOffset(center.X, center.Y)
@@ -428,7 +435,9 @@ local function CreateLine()
             Destroy = function(self) frame:Destroy() end,
             SetThickness = function(self, t) 
                 self.Thickness = t 
-                frame.Size = UDim2.fromOffset(frame.AbsoluteSize.X, t) 
+                if self.Length > 0 then
+                    frame.Size = UDim2.fromOffset(self.Length, t) 
+                end
             end,
             SetTransparency = function(self, t) frame.BackgroundTransparency = t end
         }

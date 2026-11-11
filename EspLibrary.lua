@@ -390,6 +390,7 @@ local function CreateLine()
         line.Transparency = 1
         line.Visible = false
         return {
+            Thickness = 1,
             Set = function(self, from, to, color)
                 line.From = from
                 line.To = to
@@ -398,7 +399,10 @@ local function CreateLine()
             end,
             Hide = function(self) line.Visible = false end,
             Destroy = function(self) line:Remove() end,
-            SetThickness = function(self, t) line.Thickness = t end,
+            SetThickness = function(self, t) 
+                self.Thickness = t
+                line.Thickness = t 
+            end,
             SetTransparency = function(self, t) line.Transparency = t end
         }
     else
@@ -409,6 +413,7 @@ local function CreateLine()
         frame.Visible = false
         frame.Parent = espGui
         return {
+            Thickness = 1,
             Set = function(self, from, to, color)
                 local dist = (to - from).Magnitude
                 local center = from:Lerp(to, 0.5)
@@ -421,7 +426,10 @@ local function CreateLine()
             end,
             Hide = function(self) frame.Visible = false end,
             Destroy = function(self) frame:Destroy() end,
-            SetThickness = function(self, t) self.Thickness = t frame.Size = UDim2.fromOffset(frame.AbsoluteSize.X, t) end,
+            SetThickness = function(self, t) 
+                self.Thickness = t 
+                frame.Size = UDim2.fromOffset(frame.AbsoluteSize.X, t) 
+            end,
             SetTransparency = function(self, t) frame.BackgroundTransparency = t end
         }
     end

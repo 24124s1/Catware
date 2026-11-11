@@ -1,5 +1,3 @@
-print('1')
-
 local espModule = {}
 
 espModule.Settings = {
@@ -384,31 +382,43 @@ local function GetHealthColor(t, high, mid, low)
     end
 end
 
-local DrawingAPI = Drawing or (gethui() and gethui().Drawings)
 local function CreateLine()
+    local lineObj = nil
+    local DrawingAPI = nil
+    pcall(function() DrawingAPI = Drawing end)
+    if not DrawingAPI then
+        pcall(function() DrawingAPI = gethui().Drawings end)
+    end
+    
     if DrawingAPI then
-        local line = DrawingAPI.new("Line")
-        line.Thickness = 1
-        line.Transparency = 1
-        line.Visible = false
+        local success, l = pcall(function() return DrawingAPI.new("Line") end)
+        if success and l then
+            lineObj = l
+            l.Thickness = 1
+            l.Transparency = 1
+            l.Visible = false
+        end
+    end
+
+    if lineObj then
         return {
             Thickness = 1,
             Length = 0,
             Set = function(self, from, to, color)
                 local dist = (to - from).Magnitude
                 self.Length = dist
-                line.From = from
-                line.To = to
-                if color then line.Color = color end
-                line.Visible = true
+                lineObj.From = from
+                lineObj.To = to
+                if color then lineObj.Color = color end
+                lineObj.Visible = true
             end,
-            Hide = function(self) line.Visible = false end,
-            Destroy = function(self) line:Remove() end,
+            Hide = function(self) lineObj.Visible = false end,
+            Destroy = function(self) lineObj:Remove() end,
             SetThickness = function(self, t) 
                 self.Thickness = t
-                line.Thickness = t 
+                lineObj.Thickness = t 
             end,
-            SetTransparency = function(self, t) line.Transparency = t end
+            SetTransparency = function(self, t) lineObj.Transparency = t end
         }
     else
         local frame = Instance.new("Frame")
@@ -417,6 +427,13 @@ local function CreateLine()
         frame.BackgroundColor3 = Color3.new(1, 1, 1)
         frame.Visible = false
         frame.Parent = espGui
+        
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.new(0, 0, 0)
+        stroke.Thickness = 1
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = frame
+
         return {
             Thickness = 1,
             Length = 0,
@@ -428,7 +445,10 @@ local function CreateLine()
                 frame.Position = UDim2.fromOffset(center.X, center.Y)
                 frame.Size = UDim2.fromOffset(dist, self.Thickness)
                 frame.Rotation = angle
-                if color then frame.BackgroundColor3 = color end
+                if color then 
+                    frame.BackgroundColor3 = color 
+                    stroke.Color = color 
+                end
                 frame.Visible = true
             end,
             Hide = function(self) frame.Visible = false end,
@@ -439,7 +459,10 @@ local function CreateLine()
                     frame.Size = UDim2.fromOffset(self.Length, t) 
                 end
             end,
-            SetTransparency = function(self, t) frame.BackgroundTransparency = t end
+            SetTransparency = function(self, t) 
+                frame.BackgroundTransparency = t
+                stroke.Transparency = t
+            end
         }
     end
 end

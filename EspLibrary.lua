@@ -22,16 +22,12 @@ espModule.Settings = {
         ChamsColor = Color3.fromRGB(255, 80, 80),
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
-        OffscreenArrows = false,
-        OffscreenArrowsColor = Color3.fromRGB(255, 80, 80),
-        SoundESP = false,
-        SoundESPColor = Color3.fromRGB(255, 80, 80),
         Names = false,
         NameType = "Display",
         Distance = false,
         Tool = false,
         Flags = false,
-        SelectedFlags = {"Walking", "Jumping", "Swimming"},
+        SelectedFlags = {"Walking", "Jumping", "Swimming", "Dih"},
         FlagColor1 = Color3.fromRGB(255, 255, 255),
         FlagColor2 = Color3.fromRGB(200, 200, 200),
         HealthBar = false,
@@ -80,16 +76,12 @@ espModule.Settings = {
         ChamsColor = Color3.fromRGB(0, 180, 255),
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
-        OffscreenArrows = false,
-        OffscreenArrowsColor = Color3.fromRGB(0, 180, 255),
-        SoundESP = false,
-        SoundESPColor = Color3.fromRGB(0, 180, 255),
         Names = false,
         NameType = "Display",
         Distance = false,
         Tool = false,
         Flags = false,
-        SelectedFlags = {"Walking", "Jumping", "Swimming"},
+        SelectedFlags = {"Walking", "Jumping", "Swimming", "Dih"},
         FlagColor1 = Color3.fromRGB(255, 255, 255),
         FlagColor2 = Color3.fromRGB(200, 200, 200),
         HealthBar = false,
@@ -138,16 +130,12 @@ espModule.Settings = {
         ChamsColor = Color3.fromRGB(255, 200, 50),
         ChamsGlow = false,
         ChamsFillTransparency = 0.3,
-        OffscreenArrows = false,
-        OffscreenArrowsColor = Color3.fromRGB(255, 200, 50),
-        SoundESP = false,
-        SoundESPColor = Color3.fromRGB(255, 200, 50),
         Names = false,
         NameType = "Display",
         Distance = false,
         Tool = false,
         Flags = false,
-        SelectedFlags = {"Walking", "Jumping", "Swimming"},
+        SelectedFlags = {"Walking", "Jumping", "Swimming", "Dih"},
         FlagColor1 = Color3.fromRGB(255, 255, 255),
         FlagColor2 = Color3.fromRGB(200, 200, 200),
         HealthBar = false,
@@ -259,13 +247,32 @@ if not espGui.Parent then espGui.Parent = Services.CoreGui end
 local MAX_ENTITY_DIST = 1200
 local MAX_ITEM_DIST_MULT = 2.81
 local PLACE_ID = game.PlaceId
-local HAS_BOTS_ITEMS = PLACE_ID == 79783567666809
+
+local GamePlaces = {
+    [79783567666809] = true,
+    [138485390344924] = true
+}
+
+local HAS_BOTS_ITEMS = GamePlaces[PLACE_ID] or false
 local HAS_CUSTOM_CHARS = PLACE_ID == 138485390344924
 
 local BOX_3D_EDGES = {
     {1,2}, {2,3}, {3,4}, {4,1},
     {5,6}, {6,7}, {7,8}, {8,5},
     {1,5}, {2,6}, {3,7}, {4,8}
+}
+
+local ItemConfigs = {
+    ["Safe"] = "Safe", ["Civilian Airdrop"] = "CivilianAirdrop", ["Abandoned Car"] = "AbandonedCar",
+    ["Duffel Bag"] = "DuffelBag", ["Food Crate"] = "FoodCrate", ["Leather Pouch"] = "LeatherPouch",
+    ["Supply Crate"] = "SupplyCrate", ["Medical Pouch"] = "MedicalPouch", ["DroppedItemContainer"] = "DroppedItemContainer",
+    ["T.C.R Supply Crate"] = "TCRCrate", ["Metal Crate"] = "MetalCrate", ["Specops Supply Crate"] = "SpecopsCrate",
+    ["Tall Metal Crate"] = "TallMetalCrate", ["Wooden Crate"] = "WoodenCrate", ["Ammo Box"] = "AmmoBox", ["Dead"] = "Dead"
+}
+
+local ItemKeywords = {
+    "Safe", "Civilian Airdrop", "Abandoned Car", "Duffel Bag", "Food Crate", "Leather Pouch", "Supply Crate", "Medical Pouch",
+    "DroppedItemContainer", "T.C.R Supply Crate", "Metal Crate", "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
 }
 
 local function loadFont()
@@ -562,17 +569,6 @@ local function CreateEntityESP(entity)
     boxGlowPadding.PaddingRight = UDim.new(0, 20)
     boxGlowPadding.Parent = boxGlow
 
-    local offscreenArrow = Instance.new("ImageLabel")
-    offscreenArrow.Name = "OffscreenArrow"
-    offscreenArrow.Image = "rbxassetid://8083436515"
-    offscreenArrow.Size = UDim2.fromOffset(24, 24)
-    offscreenArrow.AnchorPoint = Vector2.new(0.5, 0.5)
-    offscreenArrow.BackgroundTransparency = 1
-    offscreenArrow.ImageColor3 = Color3.new(1, 1, 1)
-    offscreenArrow.Visible = false
-    offscreenArrow.ZIndex = 10
-    offscreenArrow.Parent = espGui
-
     local headDot = Instance.new("Frame")
     headDot.BackgroundColor3 = Color3.new(1, 1, 1)
     headDot.BackgroundTransparency = 0
@@ -688,7 +684,6 @@ local function CreateEntityESP(entity)
         PlayerChams = playerChams,
         BoxGlow = boxGlow,
         BoxGlowGradient = boxGlowGradient,
-        OffscreenArrow = offscreenArrow,
         HeadDot = headDot,
         HealthContainer = healthContainer,
         HealthFill = healthFill,
@@ -733,7 +728,6 @@ local function HideESP(data)
     data.BoxFillHighlight.Enabled = false
     data.PlayerChams.Enabled = false
     data.BoxGlow.Visible = false
-    data.OffscreenArrow.Visible = false
     data.HeadDot.Visible = false
     data.HealthContainer.Visible = false
     data.HealthFill.Visible = false
@@ -764,7 +758,6 @@ local function RemoveESP(entity)
     data.BoxFillHighlight:Destroy()
     data.PlayerChams:Destroy()
     data.BoxGlow:Destroy()
-    data.OffscreenArrow:Destroy()
     data.HeadDot:Destroy()
     data.HealthContainer:Destroy()
     data.ArmorContainer:Destroy()
@@ -803,18 +796,6 @@ local function RemoveItemESP(item)
         espModule._itemHighlights[item] = nil
     end
 end
-
-local itemTypeMap = {
-    ["Safe"] = "Safe", ["Civilian Airdrop"] = "CivilianAirdrop", ["Abandoned Car"] = "AbandonedCar", ["Duffel Bag"] = "DuffelBag",
-    ["Food Crate"] = "FoodCrate", ["Leather Pouch"] = "LeatherPouch", ["Supply Crate"] = "SupplyCrate", ["Medical Pouch"] = "MedicalPouch",
-    ["DroppedItemContainer"] = "DroppedItemContainer", ["T.C.R Supply Crate"] = "TCRCrate", ["Metal Crate"] = "MetalCrate",
-    ["Specops Supply Crate"] = "SpecopsCrate", ["Tall Metal Crate"] = "TallMetalCrate", ["Wooden Crate"] = "WoodenCrate", ["Ammo Box"] = "AmmoBox", ["Dead"] = "Dead",
-}
-
-local typeList = {
-    "Safe", "Civilian Airdrop", "Abandoned Car", "Duffel Bag", "Food Crate", "Leather Pouch", "Supply Crate", "Medical Pouch",
-    "DroppedItemContainer", "T.C.R Supply Crate", "Metal Crate", "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
-}
 
 local function ProcessItem(item)
     if not HAS_BOTS_ITEMS then return end
@@ -856,9 +837,9 @@ local function ProcessItem(item)
     local itemType = nil
     local isDead = false
 
-    for i = 1, #typeList do
-        if string.find(itemName, typeList[i], 1, true) then
-            itemType = typeList[i]
+    for i = 1, #ItemKeywords do
+        if string.find(itemName, ItemKeywords[i], 1, true) then
+            itemType = ItemKeywords[i]
             break
         end
     end
@@ -873,7 +854,7 @@ local function ProcessItem(item)
         return
     end
 
-    local settingsKey = itemTypeMap[itemType]
+    local settingsKey = ItemConfigs[itemType]
     if not settingsKey then
         RemoveItemESP(item)
         return
@@ -1144,8 +1125,6 @@ local function ProcessEntity(entity)
     local pad = 4
     
     if shouldDrawBox then
-        data.OffscreenArrow.Visible = false
-        
         local x = math.floor(minX - pad + 0.5)
         local y = math.floor(minY - pad + 0.5)
         local sx = math.max(math.floor(maxX - minX + pad * 2 + 0.5), 8)
@@ -1681,26 +1660,6 @@ local function ProcessEntity(entity)
         end
     else
         HideESP(data)
-        
-        if cfg.OffscreenArrows then
-            local viewport = Camera.ViewportSize
-            local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
-            local dir = (Vector2.new(hrpPos.X, hrpPos.Y) - center).Unit
-            
-            if hrpPos.Z <= 0 then
-                dir = -dir
-            end
-
-            local angle = math.deg(math.atan2(dir.Y, dir.X))
-            local radius = math.min(viewport.X, viewport.Y) / 2 - 40
-            local pos = center + dir * radius
-            
-            data.OffscreenArrow.Position = UDim2.fromOffset(pos.X, pos.Y)
-            data.OffscreenArrow.Rotation = angle
-            data.OffscreenArrow.ImageColor3 = cfg.OffscreenArrowsColor
-            data.OffscreenArrow.ImageTransparency = 1 - espModule._fadeAlpha
-            data.OffscreenArrow.Visible = true
-        end
     end
 end
 
@@ -1799,76 +1758,6 @@ function espModule:Start()
         onCharacterAdded(Services.LocalPlayer.Character)
     end
     self._connections.CharacterAdded = Services.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    
-    self._connections.SoundAdded = Services.WorkSpace.DescendantAdded:Connect(function(child)
-        if child:IsA("Sound") and child.Parent and child.Parent:IsA("BasePart") then
-            local soundName = child.Name:lower()
-            if soundName:find("gun") or soundName:find("shot") or soundName:find("step") then
-                local character = child.Parent
-                while character and not character:FindFirstChild("Humanoid") do
-                    character = character.Parent
-                end
-                
-                if character and character:FindFirstChild("Humanoid") then
-                    local player = Services.Players:GetPlayerFromCharacter(character)
-                    local cfg
-                    
-                    if player then
-                        if IsTeam(player) then cfg = espModule.Settings.Teammate else cfg = espModule.Settings.Enemy end
-                    else
-                        cfg = espModule.Settings.AI
-                    end
-
-                    if cfg and cfg.SoundESP then
-                        local targetPos = child.Parent.Position
-                        local hrp = character:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            targetPos = hrp.Position - Vector3.new(0, 2.5, 0)
-                        end
-                        
-                        local dist = (Services.CurrentCamera.CFrame.Position - targetPos).Magnitude
-                        if dist < 300 then
-                            local circle = Instance.new("Frame")
-                            circle.Size = UDim2.fromOffset(12, 12)
-                            circle.AnchorPoint = Vector2.new(0.5, 0.5)
-                            circle.BackgroundColor3 = cfg.SoundESPColor
-                            circle.BackgroundTransparency = 0.3
-                            circle.BorderSizePixel = 0
-                            circle.ZIndex = 10
-                            circle.Parent = espGui
-                            
-                            local uiCorner = Instance.new("UICorner")
-                            uiCorner.CornerRadius = UDim.new(1, 0)
-                            uiCorner.Parent = circle
-                            
-                            local stroke = Instance.new("UIStroke")
-                            stroke.Color = Color3.fromRGB(0, 0, 0)
-                            stroke.Thickness = 1
-                            stroke.Parent = circle
-
-                            task.spawn(function()
-                                local start = tick()
-                                while tick() - start < 1.5 do
-                                    local pos, onScreen = Services.CurrentCamera:WorldToViewportPoint(targetPos)
-                                    if onScreen then
-                                        circle.Position = UDim2.fromOffset(pos.X, pos.Y)
-                                        circle.Visible = true
-                                        local alpha = 1 - ((tick() - start) / 1.5)
-                                        circle.BackgroundTransparency = 1 - alpha
-                                        stroke.Transparency = 1 - alpha
-                                    else
-                                        circle.Visible = false
-                                    end
-                                    task.wait()
-                                end
-                                circle:Destroy()
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-    end)
 
     if HAS_BOTS_ITEMS then
         local botsFolder = Services.WorkSpace:FindFirstChild("IngameBots")

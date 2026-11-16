@@ -2173,24 +2173,23 @@ end
 local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
 
 local window = Library:window({
-    name = "shitfart",
+    name = "Catware",
     size = UDim2.new(0, 680, 0, 720),
 })
 
 local Visuals = window:tab({name = "Visuals"})
-local Misc = window:tab({name = "Misc"})
 local SettingsTab = window:tab({name = "Settings"})
-
 local left = Visuals:column()
 local right = Visuals:column()
 
-local Enemy, Team, AI, Items, Setting = left:multi_section({
-    names = {"Enemy", "Team", "AI", "Items", "Settings"}
-})
+local Enemy = Visuals:section({name = "Enemy", side = "left"})
+local Team  = Visuals:section({name = "Team",  side = "left"})
+local AI    = Visuals:section({name = "AI",    side = "left"})
+local Items = Visuals:section({name = "Items", side = "left"})
+local Setting = Visuals:section({name = "Settings", side = "left"})
 
-local ChamsSec, GlowSec = right:multi_section({
-    names = {"Chams", "Glow"}
-})
+local ChamsSec = Visuals:section({name = "Chams", side = "right"})
+local GlowSec  = Visuals:section({name = "Glow",  side = "right"})
 
 local function addESPSection(sec, tbl, prefix)
     sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
@@ -2321,7 +2320,7 @@ menu:button({name = "Unload", callback = function()
     window:unload()
 end})
 
-Visuals:open()
+Visuals:open() 
 ESP:Start()
 
 local Library, Themes = Library, Themes

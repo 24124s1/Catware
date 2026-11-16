@@ -1494,8 +1494,8 @@ local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/C
 local win = Library.new({ name = "Catware", version = "Private", config = "default.cfg", fonts = ESP.Fonts })
 
 local combat = win:category("Combat")
-local aimbot = combat:tab("Aimbot")
-local antiaim = combat:tab("Anti-Aim")
+local legit = combat:tab("Legit")
+local Rage = combat:tab("Rage")
 
 local visuals = win:category("Visuals")
 local playersTab = visuals:tab("Players")
@@ -1503,7 +1503,9 @@ local world = visuals:tab("World")
 
 local other = win:category("Other")
 local misc = other:tab("Misc")
-local config = other:tab("Config")
+
+local Settings = win:category("Settins")
+local config = Settings:tab("UI Settings")
 
 local left = playersTab:column("left")
 local right = playersTab:column("right")

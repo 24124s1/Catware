@@ -17,7 +17,8 @@ local GameNames = {
     [115872975504419] = "SquadGame",
     [142823291] = "MurderMystery2",
     [17625359962] = "Rivals",
-    [6035872082] = "Rivals"
+    [6035872082] = "Rivals",
+    [13197060622] = "Strike Force"
 }
 
 local currentGame = GameNames[game.PlaceId] or "Unknown"
@@ -165,6 +166,15 @@ local IsTeam = function(plr)
 
         return theirRole ~= "Murderer"
     end
+
+    if currentGame == "Strike Force" then
+        if not plr then return false end
+        local myTeam = LocalPlayer:FindFirstChild("Status"):GetAttribute("Team")
+        local theirTeam = plr:FindFirstChild("Status"):GetAttribute("Team")
+        if myTeam == nil and theirTeam == nil then return false end
+        return myTeam == theirTeam
+    end
+    
 
     return plr.Team == LocalPlayer.Team
 end

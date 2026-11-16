@@ -2172,3 +2172,157 @@ end
 
 local Library, Themes = Library, Themes
 return Library
+
+local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
+
+local window = Library:window({
+    name = "shitfart",
+    size = UDim2.new(0, 680, 0, 720),
+})
+
+local Visuals = window:tab({name = "Visuals"})
+local Misc = window:tab({name = "Misc"})
+local SettingsTab = window:tab({name = "Settings"})
+
+local left = Visuals:column()
+local right = Visuals:column()
+
+local Enemy, Team, AI, Items, Setting = left:multi_section({
+    names = {"Enemy", "Team", "AI", "Items", "Settings"}
+})
+
+local ChamsSec, GlowSec = right:multi_section({
+    names = {"Chams", "Glow"}
+})
+
+local function addESPSection(sec, tbl, prefix)
+    sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
+    sec:toggle({name = "Box", default = tbl.BoxEnabled, flag = prefix.."_box", callback = function(v) tbl.BoxEnabled = v end})
+        :colorpicker({flag = prefix.."_box_color", color = tbl.LineColor, callback = function(c) tbl.LineColor = c end})
+    sec:dropdown({name = "Box Type", items = {"Corner", "Full", "3D"}, default = tbl.BoxType, flag = prefix.."_box_type", callback = function(v) tbl.BoxType = v end})
+    sec:slider({name = "Box Thickness", min = 1, max = 5, default = tbl.Thickness, interval = 1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
+    sec:toggle({name = "Box Glow", default = tbl.BoxGlow, flag = prefix.."_box_glow", callback = function(v) tbl.BoxGlow = v end})
+    sec:toggle({name = "Box Fill", default = tbl.BoxFill, flag = prefix.."_boxfill", callback = function(v) tbl.BoxFill = v end})
+        :colorpicker({flag = prefix.."_boxfill_c1", color = tbl.BoxFillColor1, callback = function(c) tbl.BoxFillColor1 = c end})
+        :colorpicker({flag = prefix.."_boxfill_c2", color = tbl.BoxFillColor2, callback = function(c) tbl.BoxFillColor2 = c end})
+    sec:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
+    sec:toggle({name = "Chams", default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
+        :colorpicker({flag = prefix.."_chams_color", color = tbl.ChamsColor, callback = function(c) tbl.ChamsColor = c end})
+    sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
+        :colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
+        :colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})
+    sec:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
+    sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
+        :colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
+        :colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
+    sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
+        :colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
+        :colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
+    sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
+        :colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
+        :colorpicker({flag = prefix.."_health_mid", color = tbl.HealthMid, callback = function(c) tbl.HealthMid = c end})
+        :colorpicker({flag = prefix.."_health_low", color = tbl.HealthLow, callback = function(c) tbl.HealthLow = c end})
+    sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
+        :colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})
+        :colorpicker({flag = prefix.."_skeleton_color2", color = tbl.SkeletonColor2, callback = function(c) tbl.SkeletonColor2 = c end})
+    sec:toggle({name = "Head Dot", default = tbl.HeadDot, flag = prefix.."_headdot", callback = function(v) tbl.HeadDot = v end})
+        :colorpicker({flag = prefix.."_headdot_color", color = tbl.HeadDotColor, callback = function(c) tbl.HeadDotColor = c end})
+    sec:toggle({name = "Tracers", default = tbl.Tracers, flag = prefix.."_tracers", callback = function(v) tbl.Tracers = v end})
+        :colorpicker({flag = prefix.."_tracer_color", color = tbl.TracerColor, callback = function(c) tbl.TracerColor = c end})
+    sec:slider({name = "Text Size", min = 8, max = 20, default = tbl.TextSize, interval = 1, flag = prefix.."_textsize", callback = function(v) tbl.TextSize = v end})
+end
+
+addESPSection(Enemy, ESP.Settings.Enemy, "enemy")
+addESPSection(Team, ESP.Settings.Teammate, "team")
+addESPSection(AI, ESP.Settings.AI, "ai")
+
+Items:toggle({name = "Enabled", default = ESP.Settings.Items.Enabled, flag = "items_enabled", callback = function(v) ESP.Settings.Items.Enabled = v end})
+Items:slider({name = "Max Distance", min = 50, max = 1000, default = ESP.Settings.Items.MaxDistance, interval = 10, flag = "items_maxdist", callback = function(v) ESP.Settings.Items.MaxDistance = v end})
+Items:toggle({name = "Show Names", default = ESP.Settings.Items.ShowNames, flag = "items_names", callback = function(v) ESP.Settings.Items.ShowNames = v end})
+Items:toggle({name = "Show Distance", default = ESP.Settings.Items.ShowDistance, flag = "items_dist", callback = function(v) ESP.Settings.Items.ShowDistance = v end})
+Items:toggle({name = "Chams", default = ESP.Settings.Items.Chams, flag = "items_chams", callback = function(v) ESP.Settings.Items.Chams = v end})
+
+local itemList = {
+    {"Safe", "Safe"}, {"Civilian Airdrop", "CivilianAirdrop"}, {"Abandoned Car", "AbandonedCar"},
+    {"Duffel Bag", "DuffelBag"}, {"Food Crate", "FoodCrate"}, {"Leather Pouch", "LeatherPouch"},
+    {"Supply Crate", "SupplyCrate"}, {"Medical Pouch", "MedicalPouch"}, {"Metal Crate", "MetalCrate"},
+    {"Ammo Box", "AmmoBox"}, {"Wooden Crate", "WoodenCrate"}, {"Dead Body", "Dead"}
+}
+
+for _, item in ipairs(itemList) do
+    local displayName, key = item[1], item[2]
+    Items:toggle({
+        name = displayName,
+        default = ESP.Settings.Items[key] and ESP.Settings.Items[key].Enabled or false,
+        flag = "items_" .. string.lower(key),
+        callback = function(v)
+            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Enabled = v end
+        end
+    }):colorpicker({
+        flag = "items_" .. string.lower(key) .. "_color",
+        color = ESP.Settings.Items[key] and ESP.Settings.Items[key].Color or Color3.fromRGB(255,255,255),
+        callback = function(c)
+            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Color = c end
+        end
+    })
+end
+
+local fontList = {"Gojiberry Quibble", "Tahoma", "Tahoma Bold", "ProggyClean", "ProggyTiny", "Minecraftia", "Comfortaa", "Rubik", "Verdana", "Inter Medium", "Inter SemiBold"}
+
+Setting:dropdown({name = "Text Font", items = fontList, default = ESP.Settings.TextFont, flag = "esp_text_font", callback = function(v) ESP.Settings.TextFont = v end})
+Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.FlagsFont, flag = "esp_flags_font", callback = function(v) ESP.Settings.FlagsFont = v end})
+Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont, flag = "esp_health_font", callback = function(v) ESP.Settings.HealthFont = v end})
+Setting:dropdown({name = "Text Gradient", items = {"Static", "Animated"}, default = ESP.Settings.TextGradientAnimated and "Animated" or "Static", flag = "esp_text_gradient", callback = function(v) ESP.Settings.TextGradientAnimated = (v == "Animated") end})
+Setting:slider({name = "Refresh Rate", min = 60, max = 240, default = ESP.Settings.RefreshRate, flag = "esp_refresh_rate", callback = function(v) ESP.Settings.RefreshRate = v end})
+
+ChamsSec:toggle({name = "Enable", default = ESP.Settings.Enemy.Chams, flag = "chams_main", callback = function(v) ESP.Settings.Enemy.Chams = v end})
+    :colorpicker({flag = "chams_main_color", color = ESP.Settings.Enemy.ChamsColor, callback = function(c) ESP.Settings.Enemy.ChamsColor = c end})
+ChamsSec:dropdown({name = "Material", items = {"flat", "glass", "neon", "forcefield"}, default = "glass", flag = "chams_material"})
+
+GlowSec:toggle({name = "Enable", default = ESP.Settings.Enemy.BoxGlow, flag = "glow_main", callback = function(v) ESP.Settings.Enemy.BoxGlow = v end})
+    :colorpicker({flag = "glow_main_color", color = Color3.fromRGB(225, 110, 60)})
+GlowSec:dropdown({name = "Style", items = {"outline", "fill", "pulse"}, default = "outline", flag = "glow_style"})
+
+right:preview({
+    name = "preview",
+    flags = {
+        box = "enemy_box",
+        box_color = "enemy_box_color",
+        box_type = "enemy_box_type",
+        name = "enemy_names",
+        name_color = "enemy_name_color",
+        name_color2 = "enemy_name_color2",
+        health = "enemy_healthbar",
+        health_high = "enemy_health_high",
+        health_mid = "enemy_health_mid",
+        health_low = "enemy_health_low",
+        distance = "enemy_distance",
+        distance_color = "enemy_dist_color",
+        distance_color2 = "enemy_dist_color2",
+        weapon = "enemy_tool",
+        weapon_color = "enemy_tool_color",
+        weapon_color2 = "enemy_tool_color2",
+        skeleton = "enemy_skeleton",
+        skeleton_color = "enemy_skeleton_color",
+        skeleton_color2 = "enemy_skeleton_color2",
+        headdot = "enemy_headdot",
+        headdot_color = "enemy_headdot_color",
+        chams = "enemy_chams",
+        chams_color = "enemy_chams_color",
+    }
+})
+
+local menu = SettingsTab:section({name = "Menu"})
+menu:label("Menu Accent"):colorpicker({
+    flag = "menu_accent",
+    color = Themes.preset.accent,
+    callback = function(c) window:setAccent(c) end
+})
+menu:keybind({name = "Menu Key", flag = "ui_keybind", key = Enum.KeyCode.RightShift})
+menu:button({name = "Unload", callback = function()
+    ESP:Stop()
+    window:unload()
+end})
+
+Visuals:open()
+ESP:Start()

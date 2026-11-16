@@ -1,3 +1,5 @@
+print('1')
+
 local espModule = {}
 
 espModule.Settings = {

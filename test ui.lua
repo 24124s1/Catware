@@ -1,4 +1,4 @@
-getgenv().cloneref = cloneref or function(...) return ... end
+local cloneref = cloneref or function(...) return ... end
 
 local Library, Themes do
     local Players = cloneref(game:GetService("Players"))
@@ -24,8 +24,6 @@ local Library, Themes do
     local floor = math.floor
     local abs = math.abs
     local sin = math.sin
-    local max = math.max
-    local min = math.min
 
     local Enum_X = Enum.AutomaticSize.X
     local Enum_Y = Enum.AutomaticSize.Y
@@ -43,7 +41,7 @@ local Library, Themes do
             glow = hex("#CC7094"),
         },
         utility = {
-            outline = {BackgroundColor3 = {}, Color = {}},
+            outline = {BackgroundColor3 = {}},
             inline = {BackgroundColor3 = {}, ImageColor3 = {}},
             accent = {BackgroundColor3 = {}, TextColor3 = {}, ImageColor3 = {}, ScrollBarImageColor3 = {}},
             high_contrast = {BackgroundColor3 = {}},
@@ -59,7 +57,7 @@ local Library, Themes do
     local config_flags = {}
     local connections = {}
     local current_element_open = nil
-    local library = {
+    library = {
         directory = "Midnight",
         folders = {"/fonts", "/configs", "/images"},
         flags = flags,
@@ -399,10 +397,7 @@ local Library, Themes do
             Color = rgb(48, 48, 48),
             LineJoinMode = Enum.LineJoinMode.Miter,
         })
-        create("UICorner", {
-            Parent = avatar,
-            CornerRadius = dim(0, 4),
-        })
+        create("UICorner", { Parent = avatar, CornerRadius = dim(0, 4) })
 
         task.spawn(function()
             local ok, content = pcall(function()
@@ -502,7 +497,7 @@ local Library, Themes do
                     self:closePopups()
                 end
             end)
-            handle.InputEnded:Connect(function(i)
+            connection(UIS.InputEnded, function(i)
                 if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
                     dragging = false
                 end
@@ -711,15 +706,16 @@ local Library, Themes do
                 Padding = dim(0, 6),
                 SortOrder = Enum.SortOrder.LayoutOrder,
             })
-            return setmetatable(col, {__index = self.lib})
+            return setmetatable(col, {__index = self})
         end
 
         function tab:multi_section(opts)
             opts = opts or {}
             local names = opts.names or {"Section"}
             local sections = {}
+            local parent = self.holder or self.left
             local holder = create("Frame", {
-                Parent = self.left,
+                Parent = parent,
                 Size = dim2(1, 0, 0, 0),
                 AutomaticSize = Enum_Y,
                 BackgroundTransparency = 1,
@@ -794,6 +790,7 @@ local Library, Themes do
                     holder = secBody,
                     name = n,
                 }, {__index = self.lib})
+                sec.currentSection = sec
 
                 secBtn.MouseButton1Click:Connect(function()
                     if current then
@@ -816,7 +813,12 @@ local Library, Themes do
 
         function tab:section(opts)
             opts = opts or {}
-            local side = (opts.side == "right") and self.right or self.left
+            local side
+            if self.holder then
+                side = self.holder
+            else
+                side = (opts.side == "right") and self.right or self.left
+            end
             local container = create("Frame", {
                 Parent = side,
                 Size = dim2(1, 0, 0, 0),
@@ -825,10 +827,7 @@ local Library, Themes do
                 LayoutOrder = self.lib.order,
             })
             self.lib.order = self.lib.order + 1
-            create("UIPadding", {
-                Parent = container,
-                PaddingTop = dim(0, 7),
-            })
+            create("UIPadding", { Parent = container, PaddingTop = dim(0, 7) })
 
             local body = create("Frame", {
                 Parent = container,
@@ -886,6 +885,7 @@ local Library, Themes do
                 body = body,
                 holder = body,
             }, {__index = self.lib})
+            sec.currentSection = sec
             self.lib.currentSection = sec
             return sec
         end
@@ -970,13 +970,12 @@ local Library, Themes do
                     Size = dim2(0, w, 0, h),
                     BackgroundColor3 = rgb(0, 0, 0),
                 })
-                local inner = create("Frame", {
+                return create("Frame", {
                     Parent = f,
                     Position = dim2(0, 1, 0, 1),
                     Size = dim2(1, -2, 1, -2),
                     BackgroundColor3 = rgb(255, 80, 80),
                 })
-                return inner
             end
             local c1 = makeCorner(0, 0, 28, 2, 0, 0)
             local c2 = makeCorner(0, 0, 2, 22, 0, 0)
@@ -1008,11 +1007,7 @@ local Library, Themes do
                 Size = dim2(0, 3, 1, 0),
                 BackgroundColor3 = rgb(15, 15, 15),
             })
-            create("UIStroke", {
-                Parent = hpHolder,
-                Color = rgb(0, 0, 0),
-                Thickness = 1,
-            })
+            create("UIStroke", { Parent = hpHolder, Color = rgb(0, 0, 0), Thickness = 1 })
             local hpBar = create("Frame", {
                 Parent = hpHolder,
                 AnchorPoint = Vector2.new(0, 1),
@@ -1080,8 +1075,7 @@ local Library, Themes do
                 nameLbl.Visible = on("name")
                 nameLbl.TextColor3 = col("name_color", rgb(255, 255, 255))
                 hpHolder.Visible = on("health")
-                local mult = abs(sin(tick() * 1.8))
-                hpBar.Size = dim2(1, 0, mult, 0)
+                hpBar.Size = dim2(1, 0, abs(sin(tick() * 1.8)), 0)
                 distLbl.Visible = on("distance")
                 distLbl.TextColor3 = col("distance_color", rgb(255, 255, 255))
                 wepLbl.Visible = on("weapon")
@@ -1107,9 +1101,7 @@ local Library, Themes do
                 local ok, clone = pcall(function() return char:Clone() end)
                 if not ok or not clone then return end
                 for _, d in ipairs(clone:GetDescendants()) do
-                    if d:IsA("BaseScript") or d:IsA("LocalScript") then
-                        d:Destroy()
-                    end
+                    if d:IsA("BaseScript") or d:IsA("LocalScript") then d:Destroy() end
                 end
                 local hrp = clone:FindFirstChild("HumanoidRootPart")
                 if hrp then hrp.Anchored = true end
@@ -1125,7 +1117,7 @@ local Library, Themes do
             return sec
         end
 
-        return tab
+        return setmetatable(tab, {__index = self})
     end
 
     function Library:toggle(opts)
@@ -1202,15 +1194,9 @@ local Library, Themes do
         cfg.set(opts.default or false)
 
         local mt = {
-            colorpicker = function(_, o)
-                return self:colorpicker(o, right)
-            end,
-            dropdown = function(_, o)
-                return self:dropdown(o)
-            end,
-            keybind = function(_, o)
-                return self:keybind(o, right)
-            end,
+            colorpicker = function(_, o) return self:colorpicker(o, right) end,
+            dropdown = function(_, o) return self:dropdown(o) end,
+            keybind = function(_, o) return self:keybind(o, right) end,
         }
         return setmetatable(cfg, {__index = mt})
     end
@@ -1315,20 +1301,13 @@ local Library, Themes do
             Size = dim2(1, 0, 1, 0),
             BackgroundColor3 = rgb(255, 255, 255),
         })
-        create("UIGradient", {
-            Parent = white,
-            Transparency = NumberSequence.new(0, 1),
-        })
+        create("UIGradient", { Parent = white, Transparency = NumberSequence.new(0, 1) })
         local black = create("Frame", {
             Parent = satval,
             Size = dim2(1, 0, 1, 0),
             BackgroundColor3 = rgb(0, 0, 0),
         })
-        create("UIGradient", {
-            Parent = black,
-            Rotation = 90,
-            Transparency = NumberSequence.new(1, 0),
-        })
+        create("UIGradient", { Parent = black, Rotation = 90, Transparency = NumberSequence.new(1, 0) })
         local svBtn = create("TextButton", {
             Parent = satval,
             Size = dim2(1, 0, 1, 0),
@@ -1402,10 +1381,7 @@ local Library, Themes do
             Size = dim2(1, 0, 1, 0),
             TileSize = dim2(0, 6, 0, 6),
         })
-        create("UIGradient", {
-            Parent = alphaind,
-            Transparency = NumberSequence.new(0, 1),
-        })
+        create("UIGradient", { Parent = alphaind, Transparency = NumberSequence.new(0, 1) })
         local alphaCursor = create("Frame", {
             Parent = alpha_drag,
             Size = dim2(0, 3, 1, 0),
@@ -1444,9 +1420,7 @@ local Library, Themes do
         alpha.MouseButton1Down:Connect(function() dragging_alpha = true update() end)
         connection(UIS.InputEnded, function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging_sat = false
-                dragging_hue = false
-                dragging_alpha = false
+                dragging_sat, dragging_hue, dragging_alpha = false, false, false
             end
         end)
         connection(UIS.InputChanged, function(i)
@@ -1482,9 +1456,9 @@ local Library, Themes do
             if cp.open then self:openPopup(popup) else self.popup = nil end
         end)
 
-        function cp.set(color, alpha)
+        function cp.set(color, alphaVal)
             if color then h, s, v = color:ToHSV() end
-            if alpha then a = alpha end
+            if alphaVal then a = alphaVal end
             apply()
         end
         config_flags[cp.flag] = function(val)
@@ -1595,6 +1569,8 @@ local Library, Themes do
             PaddingBottom = dim(0, 2),
         })
 
+        local popup
+
         local function recolor()
             local lookup = {}
             if cfg.multi then
@@ -1638,9 +1614,7 @@ local Library, Themes do
         end
 
         function cfg.refresh_options(lst)
-            for _, v in ipairs(cfg.option_instances) do
-                v:Destroy()
-            end
+            for _, v in ipairs(cfg.option_instances) do v:Destroy() end
             cfg.option_instances = {}
             cfg.buttons = {}
             if type(lst) ~= "table" then return end
@@ -1656,10 +1630,7 @@ local Library, Themes do
                         TextSize = 12,
                         LayoutOrder = i,
                     })
-                    create("UIPadding", {
-                        Parent = b,
-                        PaddingLeft = dim(0, 8),
-                    })
+                    create("UIPadding", { Parent = b, PaddingLeft = dim(0, 8) })
                     cfg.buttons[item] = b
                     table.insert(cfg.option_instances, b)
                     b.MouseButton1Click:Connect(function()
@@ -1667,11 +1638,7 @@ local Library, Themes do
                             local new_sel, found = {}, false
                             if type(cfg.value) == "table" then
                                 for _, x in ipairs(cfg.value) do
-                                    if x == item then
-                                        found = true
-                                    else
-                                        table.insert(new_sel, x)
-                                    end
+                                    if x == item then found = true else table.insert(new_sel, x) end
                                 end
                             end
                             if not found then table.insert(new_sel, item) end
@@ -1687,7 +1654,7 @@ local Library, Themes do
             recolor()
         end
 
-        local popup = {frame = list, anchor = btn}
+        popup = {frame = list, anchor = btn}
         function popup.close()
             list.Visible = false
             cfg.open = false
@@ -1710,11 +1677,7 @@ local Library, Themes do
         btn.MouseButton1Click:Connect(function()
             cfg.open = not cfg.open
             cfg.set_visible(cfg.open)
-            if cfg.open then
-                self:openPopup(popup)
-            else
-                self.popup = nil
-            end
+            if cfg.open then self:openPopup(popup) else self.popup = nil end
         end)
 
         cfg.refresh_options(cfg.items)
@@ -2051,20 +2014,12 @@ local Library, Themes do
             Padding = dim(0, 4),
         })
 
-        local e = {
-            lib = self,
-            right = right,
-            lbl = lbl,
-        }
-        function e.set(t) lbl.Text = t end
+        local e = { lib = self, right = right, lbl = lbl }
+        function e.set(_, t) lbl.Text = t end
 
         local mt = {
-            colorpicker = function(_, o)
-                return self:colorpicker(o, right)
-            end,
-            keybind = function(_, o)
-                return self:keybind(o, right)
-            end,
+            colorpicker = function(_, o) return self:colorpicker(o, right) end,
+            keybind = function(_, o) return self:keybind(o, right) end,
         }
         return setmetatable(e, {__index = mt})
     end
@@ -2103,10 +2058,7 @@ local Library, Themes do
             Color = Themes.preset.inline,
             LineJoinMode = Enum.LineJoinMode.Miter,
         })
-        create("UIPadding", {
-            Parent = box,
-            PaddingLeft = dim(0, 8),
-        })
+        create("UIPadding", { Parent = box, PaddingLeft = dim(0, 8) })
 
         box:GetPropertyChangedSignal("Text"):Connect(function()
             flags[cfg.flag] = box.Text
@@ -2144,8 +2096,6 @@ local Library, Themes do
             if setter then
                 if type(v) == "table" and v.Color then
                     setter(hex(v.Color), v.Transparency)
-                elseif type(v) == "table" and v.active ~= nil then
-                    setter(v)
                 else
                     setter(v)
                 end
@@ -2166,162 +2116,6 @@ local Library, Themes do
             self.config_list.refresh_options(list)
         end
     end
-
-    return Library, Themes
 end
 
-local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
-
-local window = Library:window({
-    name = "Catware",
-    size = UDim2.new(0, 680, 0, 720),
-})
-
-local Visuals = window:tab({name = "Visuals"})
-local SettingsTab = window:tab({name = "Settings"})
-local left = Visuals:column()
-local right = Visuals:column()
-
-local Enemy = Visuals:section({name = "Enemy", side = "left"})
-local Team  = Visuals:section({name = "Team",  side = "left"})
-local AI    = Visuals:section({name = "AI",    side = "left"})
-local Items = Visuals:section({name = "Items", side = "left"})
-local Setting = Visuals:section({name = "Settings", side = "left"})
-
-local ChamsSec = Visuals:section({name = "Chams", side = "right"})
-local GlowSec  = Visuals:section({name = "Glow",  side = "right"})
-
-local function addESPSection(sec, tbl, prefix)
-    sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
-    sec:toggle({name = "Box", default = tbl.BoxEnabled, flag = prefix.."_box", callback = function(v) tbl.BoxEnabled = v end})
-        :colorpicker({flag = prefix.."_box_color", color = tbl.LineColor, callback = function(c) tbl.LineColor = c end})
-    sec:dropdown({name = "Box Type", items = {"Corner", "Full", "3D"}, default = tbl.BoxType, flag = prefix.."_box_type", callback = function(v) tbl.BoxType = v end})
-    sec:slider({name = "Box Thickness", min = 1, max = 5, default = tbl.Thickness, interval = 1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
-    sec:toggle({name = "Box Glow", default = tbl.BoxGlow, flag = prefix.."_box_glow", callback = function(v) tbl.BoxGlow = v end})
-    sec:toggle({name = "Box Fill", default = tbl.BoxFill, flag = prefix.."_boxfill", callback = function(v) tbl.BoxFill = v end})
-        :colorpicker({flag = prefix.."_boxfill_c1", color = tbl.BoxFillColor1, callback = function(c) tbl.BoxFillColor1 = c end})
-        :colorpicker({flag = prefix.."_boxfill_c2", color = tbl.BoxFillColor2, callback = function(c) tbl.BoxFillColor2 = c end})
-    sec:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
-    sec:toggle({name = "Chams", default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
-        :colorpicker({flag = prefix.."_chams_color", color = tbl.ChamsColor, callback = function(c) tbl.ChamsColor = c end})
-    sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
-        :colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
-        :colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})
-    sec:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
-    sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
-        :colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
-        :colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
-    sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
-        :colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
-        :colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
-    sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
-        :colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
-        :colorpicker({flag = prefix.."_health_mid", color = tbl.HealthMid, callback = function(c) tbl.HealthMid = c end})
-        :colorpicker({flag = prefix.."_health_low", color = tbl.HealthLow, callback = function(c) tbl.HealthLow = c end})
-    sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
-        :colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})
-        :colorpicker({flag = prefix.."_skeleton_color2", color = tbl.SkeletonColor2, callback = function(c) tbl.SkeletonColor2 = c end})
-    sec:toggle({name = "Head Dot", default = tbl.HeadDot, flag = prefix.."_headdot", callback = function(v) tbl.HeadDot = v end})
-        :colorpicker({flag = prefix.."_headdot_color", color = tbl.HeadDotColor, callback = function(c) tbl.HeadDotColor = c end})
-    sec:toggle({name = "Tracers", default = tbl.Tracers, flag = prefix.."_tracers", callback = function(v) tbl.Tracers = v end})
-        :colorpicker({flag = prefix.."_tracer_color", color = tbl.TracerColor, callback = function(c) tbl.TracerColor = c end})
-    sec:slider({name = "Text Size", min = 8, max = 20, default = tbl.TextSize, interval = 1, flag = prefix.."_textsize", callback = function(v) tbl.TextSize = v end})
-end
-
-addESPSection(Enemy, ESP.Settings.Enemy, "enemy")
-addESPSection(Team, ESP.Settings.Teammate, "team")
-addESPSection(AI, ESP.Settings.AI, "ai")
-
-Items:toggle({name = "Enabled", default = ESP.Settings.Items.Enabled, flag = "items_enabled", callback = function(v) ESP.Settings.Items.Enabled = v end})
-Items:slider({name = "Max Distance", min = 50, max = 1000, default = ESP.Settings.Items.MaxDistance, interval = 10, flag = "items_maxdist", callback = function(v) ESP.Settings.Items.MaxDistance = v end})
-Items:toggle({name = "Show Names", default = ESP.Settings.Items.ShowNames, flag = "items_names", callback = function(v) ESP.Settings.Items.ShowNames = v end})
-Items:toggle({name = "Show Distance", default = ESP.Settings.Items.ShowDistance, flag = "items_dist", callback = function(v) ESP.Settings.Items.ShowDistance = v end})
-Items:toggle({name = "Chams", default = ESP.Settings.Items.Chams, flag = "items_chams", callback = function(v) ESP.Settings.Items.Chams = v end})
-
-local itemList = {
-    {"Safe", "Safe"}, {"Civilian Airdrop", "CivilianAirdrop"}, {"Abandoned Car", "AbandonedCar"},
-    {"Duffel Bag", "DuffelBag"}, {"Food Crate", "FoodCrate"}, {"Leather Pouch", "LeatherPouch"},
-    {"Supply Crate", "SupplyCrate"}, {"Medical Pouch", "MedicalPouch"}, {"Metal Crate", "MetalCrate"},
-    {"Ammo Box", "AmmoBox"}, {"Wooden Crate", "WoodenCrate"}, {"Dead Body", "Dead"}
-}
-
-for _, item in ipairs(itemList) do
-    local displayName, key = item[1], item[2]
-    Items:toggle({
-        name = displayName,
-        default = ESP.Settings.Items[key] and ESP.Settings.Items[key].Enabled or false,
-        flag = "items_" .. string.lower(key),
-        callback = function(v)
-            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Enabled = v end
-        end
-    }):colorpicker({
-        flag = "items_" .. string.lower(key) .. "_color",
-        color = ESP.Settings.Items[key] and ESP.Settings.Items[key].Color or Color3.fromRGB(255,255,255),
-        callback = function(c)
-            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Color = c end
-        end
-    })
-end
-
-local fontList = {"Gojiberry Quibble", "Tahoma", "Tahoma Bold", "ProggyClean", "ProggyTiny", "Minecraftia", "Comfortaa", "Rubik", "Verdana", "Inter Medium", "Inter SemiBold"}
-
-Setting:dropdown({name = "Text Font", items = fontList, default = ESP.Settings.TextFont, flag = "esp_text_font", callback = function(v) ESP.Settings.TextFont = v end})
-Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.FlagsFont, flag = "esp_flags_font", callback = function(v) ESP.Settings.FlagsFont = v end})
-Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont, flag = "esp_health_font", callback = function(v) ESP.Settings.HealthFont = v end})
-Setting:dropdown({name = "Text Gradient", items = {"Static", "Animated"}, default = ESP.Settings.TextGradientAnimated and "Animated" or "Static", flag = "esp_text_gradient", callback = function(v) ESP.Settings.TextGradientAnimated = (v == "Animated") end})
-Setting:slider({name = "Refresh Rate", min = 60, max = 240, default = ESP.Settings.RefreshRate, flag = "esp_refresh_rate", callback = function(v) ESP.Settings.RefreshRate = v end})
-
-ChamsSec:toggle({name = "Enable", default = ESP.Settings.Enemy.Chams, flag = "chams_main", callback = function(v) ESP.Settings.Enemy.Chams = v end})
-    :colorpicker({flag = "chams_main_color", color = ESP.Settings.Enemy.ChamsColor, callback = function(c) ESP.Settings.Enemy.ChamsColor = c end})
-ChamsSec:dropdown({name = "Material", items = {"flat", "glass", "neon", "forcefield"}, default = "glass", flag = "chams_material"})
-
-GlowSec:toggle({name = "Enable", default = ESP.Settings.Enemy.BoxGlow, flag = "glow_main", callback = function(v) ESP.Settings.Enemy.BoxGlow = v end})
-    :colorpicker({flag = "glow_main_color", color = Color3.fromRGB(225, 110, 60)})
-GlowSec:dropdown({name = "Style", items = {"outline", "fill", "pulse"}, default = "outline", flag = "glow_style"})
-
-right:preview({
-    name = "preview",
-    flags = {
-        box = "enemy_box",
-        box_color = "enemy_box_color",
-        box_type = "enemy_box_type",
-        name = "enemy_names",
-        name_color = "enemy_name_color",
-        name_color2 = "enemy_name_color2",
-        health = "enemy_healthbar",
-        health_high = "enemy_health_high",
-        health_mid = "enemy_health_mid",
-        health_low = "enemy_health_low",
-        distance = "enemy_distance",
-        distance_color = "enemy_dist_color",
-        distance_color2 = "enemy_dist_color2",
-        weapon = "enemy_tool",
-        weapon_color = "enemy_tool_color",
-        weapon_color2 = "enemy_tool_color2",
-        skeleton = "enemy_skeleton",
-        skeleton_color = "enemy_skeleton_color",
-        skeleton_color2 = "enemy_skeleton_color2",
-        headdot = "enemy_headdot",
-        headdot_color = "enemy_headdot_color",
-        chams = "enemy_chams",
-        chams_color = "enemy_chams_color",
-    }
-})
-
-local menu = SettingsTab:section({name = "Menu"})
-menu:label("Menu Accent"):colorpicker({
-    flag = "menu_accent",
-    color = Themes.preset.accent,
-    callback = function(c) window:setAccent(c) end
-})
-menu:keybind({name = "Menu Key", flag = "ui_keybind", key = Enum.KeyCode.RightShift})
-menu:button({name = "Unload", callback = function()
-    ESP:Stop()
-    window:unload()
-end})
-
-Visuals:open() 
-ESP:Start()
-
-local Library, Themes = Library, Themes
-return Library
+return Library, Themes

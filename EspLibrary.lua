@@ -665,27 +665,40 @@ local function CreateEntityESP(entity)
     cornerHolder.Size = UDim2.new(1, 0, 1, 0)
     cornerHolder.BackgroundTransparency = 1
     cornerHolder.Visible = false
+    cornerHolder.ZIndex = 2
     cornerHolder.Parent = espGui
 
     local cornerLines = {}
     local defs = {
         {0, 0, true},
-        {0, 0, false},
-        {1, 0, true},
-        {1, 0, false},
-        {0, 1, true},
+        {0, 0, false}, 
+        {1, 0, true}, 
+        {1, 0, false}, 
+        {0, 1, true}, 
         {0, 1, false},
-        {1, 1, true},
-        {1, 1, false},
+        {1, 1, true}, 
+        {1, 1, false}, 
     }
-    for _, d in ipairs(defs) do
+
+    for i, d in ipairs(defs) do
         local line = Instance.new("Frame")
+        line.Name = "CornerLine" .. i
         line.AnchorPoint = Vector2.new(d[1], d[2])
         line.Position = UDim2.new(d[1], 0, d[2], 0)
-        line.Size = d[3] and UDim2.new(0.3, 0, 0, 1) or UDim2.new(0, 1, 0.25, 0)
+        line.Size = d[3] and UDim2.new(0.28, 0, 0, 2) or UDim2.new(0, 2, 0.22, 0)
         line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         line.BorderSizePixel = 0
+        line.ZIndex = 3
         line.Parent = cornerHolder
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Name = "Outline"
+        stroke.Color = Color3.new(0, 0, 0)
+        stroke.Thickness = 1
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = line
+
+        line:SetAttribute("IsHorizontal", d[3])
         table.insert(cornerLines, line)
     end
 
@@ -1273,16 +1286,25 @@ local function ProcessEntity(entity)
                 holder.Size = UDim2.fromOffset(sx, sy)
                 holder.Visible = true
 
-                local thick = math.max(cfg.Thickness or 1, 1)
-                for i, line in ipairs(lines) do
-                    local d = defs[i]
-                    if d[3] then
-                        line.Size = UDim2.new(0.3, 0, 0, thick)
+                local thick = math.max(1, cfg.Thickness or 1)
+
+                for _, line in ipairs(lines) do
+                    local isH = line:GetAttribute("IsHorizontal")
+                    if isH then
+                        line.Size = UDim2.new(0.28, 0, 0, thick)
                     else
-                        line.Size = UDim2.new(0, thick, 0.25, 0)
+                        line.Size = UDim2.new(0, thick, 0.22, 0)
                     end
+
                     line.BackgroundColor3 = cfg.LineColor
                     line.BackgroundTransparency = 1 - espModule._fadeAlpha
+
+                    local stroke = line:FindFirstChild("Outline")
+                    if stroke then
+                        stroke.Thickness = 1
+                        stroke.Color = Color3.new(0, 0, 0)
+                        stroke.Transparency = 1 - espModule._fadeAlpha
+                    end
                 end
             end
         else

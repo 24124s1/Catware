@@ -1313,7 +1313,7 @@ local function ProcessEntity(entity)
 
         if cfg.HealthBar then
             local barX = x - 5
-            local barW = 2
+            local barW = 0.5
 
             data.HealthContainer.Position = UDim2.fromOffset(barX, y)
             data.HealthContainer.Size = UDim2.fromOffset(barW, sy)

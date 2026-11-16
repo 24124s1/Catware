@@ -2170,9 +2170,6 @@ local Library, Themes do
     return Library, Themes
 end
 
-local Library, Themes = Library, Themes
-return Library
-
 local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
 
 local window = Library:window({
@@ -2326,3 +2323,6 @@ end})
 
 Visuals:open()
 ESP:Start()
+
+local Library, Themes = Library, Themes
+return Library

@@ -1,4 +1,4 @@
-print('2')
+print('1')
 
 local espModule = {}
 
@@ -400,10 +400,6 @@ local function CreateLine(props)
     frame.ZIndex = props.ZIndex or 2
     frame.Parent = espGui
 
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(1, 0)
-    uiCorner.Parent = frame
-
     local stroke = Instance.new("UIStroke")
     stroke.Name = "LineOutline"
     stroke.Color = props.OutlineColor or Color3.new(0, 0, 0)
@@ -500,6 +496,9 @@ end
 
 local function MakeBone()
     local line = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = line.Frame
     return line
 end
 
@@ -598,7 +597,11 @@ local function CreateEntityESP(entity)
 
     local box3dLines = {}
     for i = 1, 12 do
-        box3dLines["L"..i] = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+        local line = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2})
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(1, 0)
+        c.Parent = line.Frame
+        box3dLines["L"..i] = line
     end
 
     local healthContainer = Instance.new("Frame")
@@ -751,7 +754,7 @@ local function CreateEntityESP(entity)
         NameText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
         DistanceText = CreateText({Center = false, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.FlagsFont), Visible = false, ZIndex = 5}),
         ToolText = CreateText({Center = true, Outline = true, OutlineColor = Color3.new(0, 0, 0), Size = 10, Color = Color3.new(1, 1, 1), Font = getEspFont(espModule.Settings.TextFont), Visible = false, ZIndex = 5}),
-        Tracer = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+        Tracer = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
         Skeleton = {
             HeadTorso = MakeBone(),
             TorsoHip = MakeBone(),

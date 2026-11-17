@@ -2625,4 +2625,240 @@ function Section:preview(o)
     return outer
 end
 
+function Library:saveConfig(name)
+    if not name or name == "" then name = "default" end
+    local data = {}
+    for flag, value in pairs(self.flags) do
+        data[flag] = encode(value)
+    end
+    local ok = pcall(function()
+        if typeof(isfolder) == "function" and not isfolder(self.folder) then makefolder(self.folder) end
+        writefile(self.folder .. "/" .. name .. ".json", HttpService:JSONEncode(data))
+    end)
+    if ok then
+        self:notify({ title = "Config", text = "Saved: " .. name, kind = "success" })
+    else
+        self:notify({ title = "Config", text = "Save failed", kind = "error" })
+    end
+end
+
+function Library:loadConfig(name)
+    if not name or name == "" then name = "default" end
+    local path = self.folder .. "/" .. name .. ".json"
+    local ok, content = pcall(function()
+        if typeof(isfile) == "function" and isfile(path) then return readfile(path) end
+    end)
+    if not ok or not content then
+        self:notify({ title = "Config", text = "Not found: " .. name, kind = "error" })
+        return
+    end
+    local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok2 or type(data) ~= "table" then
+        self:notify({ title = "Config", text = "Invalid: " .. name, kind = "error" })
+        return
+    end
+    for flag, enc in pairs(data) do
+        local setter = self.setters[flag]
+        if setter then pcall(setter, decode(enc)) end
+    end
+    self:notify({ title = "Config", text = "Loaded: " .. name, kind = "success" })
+end
+
+function Library:deleteConfig(name)
+    if not name or name == "" then name = "default" end
+    local path = self.folder .. "/" .. name .. ".json"
+    pcall(function()
+        if typeof(isfile) == "function" and isfile(path) then delfile(path) end
+    end)
+    self:notify({ title = "Config", text = "Deleted: " .. name, kind = "warn" })
+end
+
+function Library:listConfigs()
+    local out = {}
+    pcall(function()
+        if typeof(isfolder) == "function" and isfolder(self.folder) then
+            for _, f in ipairs(listfiles(self.folder)) do
+                local n = f:match("([^/\\]+)%.json$")
+                if n then out[#out + 1] = n end
+            end
+        end
+    end)
+    table.sort(out)
+    return out
+end
+
+function Library:configTab(tab)
+    local left = tab:column("left")
+    local right = tab:column("right")
+    local cfg = left:section({ name = "Config" })
+    local saveName = "default"
+    cfg:textbox({
+        name = "Name", flag = "_cfgname", placeholder = "default",
+        callback = function(v) saveName = v end,
+    })
+    cfg:button({ name = "Save", callback = function() self:saveConfig(saveName) end })
+    cfg:button({ name = "Load", callback = function() self:loadConfig(saveName) end })
+    cfg:button({ name = "Delete", callback = function() self:deleteConfig(saveName) end })
+    cfg:button({ name = "List", callback = function()
+        local list = self:listConfigs()
+        self:notify({ title = "Configs", text = #list > 0 and table.concat(list, ", ") or "None", kind = "info" })
+    end })
+
+    local theme = right:section({ name = "Theme" })
+    for _, pname in ipairs(PRESET_NAMES) do
+        local key = lower(pname)
+        theme:button({ name = pname, callback = function()
+            local p = PRESETS[key]
+            if p then for k, v in pairs(p) do Theme.set(k, v) end end
+        end })
+    end
+
+    local accent = right:section({ name = "Accent" })
+    accent:label("Accent Color"):colorpicker({
+        flag = "_accent", color = Theme.v.accent,
+        callback = function(c) Theme.set("accent", c) end,
+    })
+
+    local misc = right:section({ name = "Misc" })
+    misc:button({ name = "Reset Theme", callback = function()
+        for k, v in pairs(PRESETS.default) do Theme.set(k, v) end
+    end })
+
+    return { left = left, right = right }
+end
+
+function Column:preview(o)
+    o = o or {}
+    local sec = self:section({ name = o.name or "Preview" })
+    return sec:preview(o)
+end
+
+local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
+
+local win = Library.new({
+    name = "Stardust", version = "Private", config = "default.cfg", folder = "catware",
+    logoIcon = "sparkles", fonts = ESP.Fonts,
+})
+win.onUnload = function() ESP:Stop() end
+
+local combat = win:category("Combat")
+local legit = combat:tab("Legit")
+local Rage = combat:tab("Rage")
+
+local visuals = win:category("Visuals")
+local playersTab = visuals:tab("Players")
+local world = visuals:tab("World")
+
+local other = win:category("Other")
+local misc = other:tab("Misc")
+
+local Settings = win:category("Settings")
+local config = Settings:tab("UI Settings")
+
+local left = playersTab:column("left")
+local right = playersTab:column("right")
+
+local Enemy, Team, AI, Items, Setting = left:multi_section({
+    names = {"Enemy", "Team", "AI", "Items", "Settings"}
+})
+
+local function addESPSection(sec, tbl, prefix)
+    sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
+    sec:toggle({name = "Box", default = tbl.BoxEnabled, flag = prefix.."_box", callback = function(v) tbl.BoxEnabled = v end})
+        :colorpicker({flag = prefix.."_box_color", color = tbl.LineColor, callback = function(c) tbl.LineColor = c end})
+    sec:dropdown({name = "Box Type", items = {"Corner", "Full", "3D"}, default = tbl.BoxType, flag = prefix.."_box_type", callback = function(v) tbl.BoxType = v end})
+    sec:slider({name = "Box Thickness", min = 1, max = 5, default = tbl.Thickness, interval = 1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
+    sec:toggle({name = "Box Glow", default = tbl.BoxGlow, flag = prefix.."_box_glow", callback = function(v) tbl.BoxGlow = v end})
+    sec:toggle({name = "Box Fill", default = tbl.BoxFill, flag = prefix.."_boxfill", callback = function(v) tbl.BoxFill = v end})
+        :colorpicker({flag = prefix.."_boxfill_c1", color = tbl.BoxFillColor1, callback = function(c) tbl.BoxFillColor1 = c end})
+        :colorpicker({flag = prefix.."_boxfill_c2", color = tbl.BoxFillColor2, callback = function(c) tbl.BoxFillColor2 = c end})
+    sec:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
+    sec:toggle({name = "Chams", default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
+        :colorpicker({flag = prefix.."_chams_color", color = tbl.ChamsColor, callback = function(c) tbl.ChamsColor = c end})
+    sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
+        :colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
+        :colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})
+    sec:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
+    sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
+        :colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
+        :colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
+    sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
+        :colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
+        :colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
+    sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
+        :colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
+        :colorpicker({flag = prefix.."_health_mid", color = tbl.HealthMid, callback = function(c) tbl.HealthMid = c end})
+        :colorpicker({flag = prefix.."_health_low", color = tbl.HealthLow, callback = function(c) tbl.HealthLow = c end})
+    sec:toggle({name = "Health Text", default = tbl.HealthText, flag = prefix.."_healthtext", callback = function(v) tbl.HealthText = v end})
+    sec:toggle({name = "Armor Bar", default = tbl.ArmorBar, flag = prefix.."_armorbar", callback = function(v) tbl.ArmorBar = v end})
+        :colorpicker({flag = prefix.."_armor_high", color = tbl.ArmorHigh, callback = function(c) tbl.ArmorHigh = c end})
+        :colorpicker({flag = prefix.."_armor_mid", color = tbl.ArmorMid, callback = function(c) tbl.ArmorMid = c end})
+        :colorpicker({flag = prefix.."_armor_low", color = tbl.ArmorLow, callback = function(c) tbl.ArmorLow = c end})
+    sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
+        :colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})
+        :colorpicker({flag = prefix.."_skeleton_color2", color = tbl.SkeletonColor2, callback = function(c) tbl.SkeletonColor2 = c end})
+    sec:slider({name = "Skeleton Thickness", min = 1, max = 5, default = tbl.SkeletonThickness, interval = 1, flag = prefix.."_skeleton_thickness", callback = function(v) tbl.SkeletonThickness = v end})
+    sec:toggle({name = "Head Dot", default = tbl.HeadDot, flag = prefix.."_headdot", callback = function(v) tbl.HeadDot = v end})
+        :colorpicker({flag = prefix.."_headdot_color", color = tbl.HeadDotColor, callback = function(c) tbl.HeadDotColor = c end})
+    sec:slider({name = "Head Dot Size", min = 4, max = 40, default = tbl.HeadDotSize, interval = 1, flag = prefix.."_headdot_size", callback = function(v) tbl.HeadDotSize = v end})
+    sec:toggle({name = "Tracers", default = tbl.Tracers, flag = prefix.."_tracers", callback = function(v) tbl.Tracers = v end})
+        :colorpicker({flag = prefix.."_tracer_color", color = tbl.TracerColor, callback = function(c) tbl.TracerColor = c end})
+    sec:slider({name = "Text Size", min = 8, max = 20, default = tbl.TextSize, interval = 1, flag = prefix.."_textsize", callback = function(v) tbl.TextSize = v end})
+end
+
+addESPSection(Enemy, ESP.Settings.Enemy, "enemy")
+addESPSection(Team, ESP.Settings.Teammate, "team")
+addESPSection(AI, ESP.Settings.AI, "ai")
+
+Items:toggle({name = "Enabled", default = ESP.Settings.Items.Enabled, flag = "items_enabled", callback = function(v) ESP.Settings.Items.Enabled = v end})
+Items:slider({name = "Max Distance", min = 50, max = 1000, default = ESP.Settings.Items.MaxDistance, interval = 10, flag = "items_maxdist", callback = function(v) ESP.Settings.Items.MaxDistance = v end})
+Items:toggle({name = "Show Names", default = ESP.Settings.Items.ShowNames, flag = "items_names", callback = function(v) ESP.Settings.Items.ShowNames = v end})
+Items:toggle({name = "Show Distance", default = ESP.Settings.Items.ShowDistance, flag = "items_dist", callback = function(v) ESP.Settings.Items.ShowDistance = v end})
+Items:toggle({name = "Chams", default = ESP.Settings.Items.Chams, flag = "items_chams", callback = function(v) ESP.Settings.Items.Chams = v end})
+Items:divider()
+
+local itemList = {
+    {"Safe", "Safe"}, {"Civilian Airdrop", "CivilianAirdrop"}, {"Abandoned Car", "AbandonedCar"},
+    {"Duffel Bag", "DuffelBag"}, {"Food Crate", "FoodCrate"}, {"Leather Pouch", "LeatherPouch"},
+    {"Supply Crate", "SupplyCrate"}, {"Medical Pouch", "MedicalPouch"}, {"Dropped Item Container", "DroppedItemContainer"},
+    {"T.C.R Supply Crate", "TCRCrate"}, {"Metal Crate", "MetalCrate"}, {"Specops Supply Crate", "SpecopsCrate"},
+    {"Tall Metal Crate", "TallMetalCrate"}, {"Wooden Crate", "WoodenCrate"}, {"Ammo Box", "AmmoBox"},
+    {"Dead Body", "Dead"}
+}
+
+for _, item in ipairs(itemList) do
+    local displayName, key = item[1], item[2]
+    Items:toggle({
+        name = displayName,
+        default = ESP.Settings.Items[key] and ESP.Settings.Items[key].Enabled or false,
+        flag = "items_" .. string.lower(key),
+        callback = function(v)
+            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Enabled = v end
+        end
+    }):colorpicker({
+        flag = "items_" .. string.lower(key) .. "_color",
+        color = ESP.Settings.Items[key] and ESP.Settings.Items[key].Color or Color3.fromRGB(255, 255, 255),
+        callback = function(c)
+            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Color = c end
+        end
+    })
+end
+
+local fontList = {}
+for _, e in ipairs(FONT_LIST) do fontList[#fontList + 1] = e[1] end
+
+Setting:dropdown({name = "Text Font", items = fontList, default = ESP.Settings.TextFont or "Tahoma", flag = "esp_text_font", callback = function(v) ESP.Settings.TextFont = v end})
+Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.FlagsFont or "Tahoma", flag = "esp_flags_font", callback = function(v) ESP.Settings.FlagsFont = v end})
+Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont or "Tahoma", flag = "esp_health_font", callback = function(v) ESP.Settings.HealthFont = v end})
+Setting:dropdown({name = "Text Gradient", items = {"Static", "Animated"}, default = ESP.Settings.TextGradientAnimated and "Animated" or "Static", flag = "esp_text_gradient", callback = function(v) ESP.Settings.TextGradientAnimated = (v == "Animated") end})
+Setting:slider({name = "Refresh Rate", min = 60, max = 240, default = ESP.Settings.RefreshRate, flag = "esp_refresh_rate", callback = function(v) ESP.Settings.RefreshRate = v end})
+
+right:preview({ name = "Preview" })
+
+win:configTab(config)
+
+playersTab:open()
+ESP:Start()
+win:notify({ title = "Stardust", text = "Loaded successfully.", kind = "success" })
+
 return Library

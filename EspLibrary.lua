@@ -1292,16 +1292,13 @@ local function ProcessEntity(entity)
                     local isH = (i % 2 == 1)
                     local isRight = (i == 3 or i == 4 or i == 7 or i == 8)
                     local isBottom = (i >= 5)
-                    
+
                     if isH then
-                        line.Size = UDim2.new(0.28, -thick, 0, thick)
+                        line.Size = UDim2.new(0.28, 0, 0, thick)
                         line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, 0)
                     else
                         line.Size = UDim2.new(0, thick, 0.22, -thick)
-                        local posX = isRight and 1 or 0
-                        local posY = isBottom and 1 or 0
-                        local offsetY = isBottom and -thick or thick
-                        line.Position = UDim2.new(posX, 0, posY, offsetY)
+                        line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, isBottom and -thick or thick)
                     end
 
                     line.BackgroundColor3 = cfg.LineColor

@@ -1,3 +1,5 @@
+print('1')
+
 local espModule = {}
 
 espModule.Settings = {
@@ -691,6 +693,10 @@ local function CreateEntityESP(entity)
         line.ZIndex = 3
         line.Parent = cornerHolder
 
+        local uiCorner = Instance.new("UICorner")
+        uiCorner.CornerRadius = UDim.new(1, 0)
+        uiCorner.Parent = line
+
         local stroke = Instance.new("UIStroke")
         stroke.Name = "Outline"
         stroke.Color = Color3.new(0, 0, 0)
@@ -701,13 +707,13 @@ local function CreateEntityESP(entity)
         line:SetAttribute("IsHorizontal", d[3])
         table.insert(cornerLines, line)
     end
-
+    
     espModule._drawings[entity] = {
         Full = {
-            Top = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            Bottom = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            Left = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
-            Right = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Top = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
+            Bottom = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
+            Left = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
+            Right = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
         },
         Corner = {
             Holder = cornerHolder,
@@ -1292,13 +1298,13 @@ local function ProcessEntity(entity)
                     local isH = (i % 2 == 1)
                     local isRight = (i == 3 or i == 4 or i == 7 or i == 8)
                     local isBottom = (i >= 5)
-
+                    
                     if isH then
                         line.Size = UDim2.new(0.28, 0, 0, thick)
                         line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, 0)
                     else
-                        line.Size = UDim2.new(0, thick, 0.22, -thick)
-                        line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, isBottom and -thick or thick)
+                        line.Size = UDim2.new(0, thick, 0.22, 0)
+                        line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, 0)
                     end
 
                     line.BackgroundColor3 = cfg.LineColor

@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local espModule = {}
 
@@ -400,6 +400,10 @@ local function CreateLine(props)
     frame.ZIndex = props.ZIndex or 2
     frame.Parent = espGui
 
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(1, 0)
+    uiCorner.Parent = frame
+
     local stroke = Instance.new("UIStroke")
     stroke.Name = "LineOutline"
     stroke.Color = props.OutlineColor or Color3.new(0, 0, 0)
@@ -440,6 +444,7 @@ local function CreateLine(props)
 
     function obj:SetThickness(t)
         self.Thickness = t
+        frame.Size = UDim2.new(frame.Size.X.Scale, frame.Size.X.Offset, 0, t)
     end
 
     function obj:SetOutlineThickness(t)
@@ -707,13 +712,20 @@ local function CreateEntityESP(entity)
         line:SetAttribute("IsHorizontal", d[3])
         table.insert(cornerLines, line)
     end
-    
+
     espModule._drawings[entity] = {
+        Cache = {
+            Character = nil,
+            Humanoid = nil,
+            HRP = nil,
+            Parts = nil,
+            IsR15 = false
+        },
         Full = {
-            Top = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
-            Bottom = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
-            Left = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
-            Right = (function() local l = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}); local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = l.Frame; return l end)(),
+            Top = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Bottom = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Left = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
+            Right = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         },
         Corner = {
             Holder = cornerHolder,
@@ -1038,6 +1050,12 @@ local function ApplyGradient(textObj, color1, color2)
     end
 end
 
+local _lastUpdate = 0
+local _cameraCache = nil
+local _cameraCacheTime = 0
+local _tempCorners = {}
+for i = 1, 8 do _tempCorners[i] = Vector3.zero end
+
 local function ProcessEntity(entity)
     if entity == Services.LocalPlayer then return end
     local character, isPlayer
@@ -1067,10 +1085,25 @@ local function ProcessEntity(entity)
         return
     end
 
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    CreateEntityESP(entity)
+    local data = espModule._drawings[entity]
+    if not data then return end
+
+    local cache = data.Cache
+    if cache.Character ~= character then
+        cache.Character = character
+        cache.Humanoid = character:FindFirstChildOfClass("Humanoid")
+        cache.HRP = character:FindFirstChild("HumanoidRootPart")
+        local parts, isR15 = getCharacterParts(character)
+        cache.Parts = parts
+        cache.IsR15 = isR15
+    end
+
+    local hrp = cache.HRP
+    local humanoid = cache.Humanoid
+
     if not (hrp and humanoid and humanoid.Health > 0) then
-        HideESP(espModule._drawings[entity])
+        HideESP(data)
         return
     end
 
@@ -1078,27 +1111,32 @@ local function ProcessEntity(entity)
     if not Camera then return end
     local rawStuds = (Camera.CFrame.Position - hrp.Position).Magnitude
     if rawStuds > MAX_ENTITY_DIST then
-        HideESP(espModule._drawings[entity])
+        HideESP(data)
         return
     end
 
     local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if hrpPos.Z <= 0 then
-        HideESP(espModule._drawings[entity])
+        HideESP(data)
         return
     end
 
-    CreateEntityESP(entity)
-    local data = espModule._drawings[entity]
-    if not data then return end
-
-    local parts, isR15 = getCharacterParts(character)
+    local parts = cache.Parts
+    local isR15 = cache.IsR15
 
     local minX, minY = math.huge, math.huge
     local maxX, maxY = -math.huge, -math.huge
     local validParts = 0
-    local p = {}
-    local vis = {}
+    local p = data._p
+    if not p then
+        p = {}
+        data._p = p
+    end
+    local vis = data._vis
+    if not vis then
+        vis = {}
+        data._vis = vis
+    end
 
     local minVec = Vector3.new(math.huge, math.huge, math.huge)
     local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
@@ -1107,26 +1145,26 @@ local function ProcessEntity(entity)
         if not part or not part:IsA("BasePart") then return end
         local cf = part.CFrame
         local size = part.Size
-        local corners3D = {
-            cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
-            cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
-            cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
-            cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
-            cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
-            cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
-            cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-            cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
-        }
-        for i = 1, 8 do
-            local c = corners3D[i]
-            if c.X < minVec.X then minVec = Vector3.new(c.X, minVec.Y, minVec.Z) end
-            if c.Y < minVec.Y then minVec = Vector3.new(minVec.X, c.Y, minVec.Z) end
-            if c.Z < minVec.Z then minVec = Vector3.new(minVec.X, minVec.Y, c.Z) end
+        local c1 = cf * Vector3.new(size.X/2, size.Y/2, size.Z/2)
+        local c2 = cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2)
+        local c3 = cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2)
+        local c4 = cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2)
+        local c5 = cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2)
+        local c6 = cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2)
+        local c7 = cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2)
+        local c8 = cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2)
+        
+        local function minMax(v)
+            if v.X < minVec.X then minVec = Vector3.new(v.X, minVec.Y, minVec.Z) end
+            if v.Y < minVec.Y then minVec = Vector3.new(minVec.X, v.Y, minVec.Z) end
+            if v.Z < minVec.Z then minVec = Vector3.new(minVec.X, minVec.Y, v.Z) end
             
-            if c.X > maxVec.X then maxVec = Vector3.new(c.X, maxVec.Y, maxVec.Z) end
-            if c.Y > maxVec.Y then maxVec = Vector3.new(maxVec.X, c.Y, maxVec.Z) end
-            if c.Z > maxVec.Z then maxVec = Vector3.new(maxVec.X, maxVec.Y, c.Z) end
+            if v.X > maxVec.X then maxVec = Vector3.new(v.X, maxVec.Y, maxVec.Z) end
+            if v.Y > maxVec.Y then maxVec = Vector3.new(maxVec.X, v.Y, maxVec.Z) end
+            if v.Z > maxVec.Z then maxVec = Vector3.new(maxVec.X, maxVec.Y, v.Z) end
         end
+        minMax(c1) minMax(c2) minMax(c3) minMax(c4)
+        minMax(c5) minMax(c6) minMax(c7) minMax(c8)
     end
 
     for _, partName in ipairs(parts) do
@@ -1140,19 +1178,18 @@ local function ProcessEntity(entity)
     end
 
     if minVec.X < math.huge then
-        local globalCorners = {
-            Vector3.new(maxVec.X, maxVec.Y, maxVec.Z),
-            Vector3.new(minVec.X, maxVec.Y, maxVec.Z),
-            Vector3.new(minVec.X, minVec.Y, maxVec.Z),
-            Vector3.new(maxVec.X, minVec.Y, maxVec.Z),
-            Vector3.new(maxVec.X, maxVec.Y, minVec.Z),
-            Vector3.new(minVec.X, maxVec.Y, minVec.Z),
-            Vector3.new(minVec.X, minVec.Y, minVec.Z),
-            Vector3.new(maxVec.X, minVec.Y, minVec.Z)
-        }
+        _tempCorners[1] = Vector3.new(maxVec.X, maxVec.Y, maxVec.Z)
+        _tempCorners[2] = Vector3.new(minVec.X, maxVec.Y, maxVec.Z)
+        _tempCorners[3] = Vector3.new(minVec.X, minVec.Y, maxVec.Z)
+        _tempCorners[4] = Vector3.new(maxVec.X, minVec.Y, maxVec.Z)
+        _tempCorners[5] = Vector3.new(maxVec.X, maxVec.Y, minVec.Z)
+        _tempCorners[6] = Vector3.new(minVec.X, maxVec.Y, minVec.Z)
+        _tempCorners[7] = Vector3.new(minVec.X, minVec.Y, minVec.Z)
+        _tempCorners[8] = Vector3.new(maxVec.X, minVec.Y, minVec.Z)
         
         for i = 1, 8 do
-            local pos, on = Camera:WorldToViewportPoint(globalCorners[i])
+            local pos, on = Camera:WorldToViewportPoint(_tempCorners[i])
+            if not p[i] then p[i] = Vector2.zero end
             p[i] = Vector2.new(pos.X, pos.Y)
             vis[i] = on and pos.Z > 0
             if vis[i] then
@@ -1715,9 +1752,6 @@ local function ProcessEntity(entity)
     end
 end
 
-local _lastUpdate = 0
-local _cameraCache = nil
-local _cameraCacheTime = 0
 local function espLoop()
     local s = espModule.Settings
     local anyEntity = s.Enemy.Enabled or s.Teammate.Enabled or s.AI.Enabled

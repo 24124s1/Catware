@@ -1348,8 +1348,8 @@ local function ProcessEntity(entity)
         end
 
         if cfg.HealthBar then
-            local barX = x - 5
-            local barW = 3
+            local barX = x - 8
+            local barW = 2
 
             data.HealthContainer.Position = UDim2.fromOffset(barX, y)
             data.HealthContainer.Size = UDim2.fromOffset(barW, sy)
@@ -1412,8 +1412,8 @@ local function ProcessEntity(entity)
                 armor = armorObj.Value
             end
 
-            local barY = y + sy + 2
-            local barH = 2
+            local barY = y + sy + 5
+            local barH = 1
 
             data.ArmorContainer.Position = UDim2.fromOffset(x, barY)
             data.ArmorContainer.Size = UDim2.fromOffset(sx, barH)

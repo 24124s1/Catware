@@ -1347,16 +1347,16 @@ local function ProcessEntity(entity)
             data.HeadDot.Visible = false
         end
 
-        if cfg.HealthBar then
-            local barX = x - 8
-            local barW = 2
+        local healthBarX = x - 4
+        local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
 
-            data.HealthContainer.Position = UDim2.fromOffset(barX, y)
+        if cfg.HealthBar then
+            local barW = 1
+
+            data.HealthContainer.Position = UDim2.fromOffset(healthBarX, y)
             data.HealthContainer.Size = UDim2.fromOffset(barW, sy)
             data.HealthContainer.Visible = true
             data.HealthContainer.BackgroundTransparency = 1 - espModule._fadeAlpha
-
-            local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
 
             data.HealthFill.Size = UDim2.fromScale(1, hp)
             data.HealthFill.Visible = true
@@ -1367,41 +1367,48 @@ local function ProcessEntity(entity)
                 ColorSequenceKeypoint.new(0.5, cfg.HealthMid),
                 ColorSequenceKeypoint.new(1, cfg.HealthLow)
             })
-
-            if cfg.HealthText then
-                local hpVal = math.floor(humanoid.Health + 0.5)
-                local textStr = tostring(hpVal)
-                if data.LastHealthStr ~= textStr then
-                    data.HealthText.Frame.Text = textStr
-                    data.LastHealthStr = textStr
-                end
-                if data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
-                    data.HealthText.Frame.TextSize = cfg.TextSize
-                    data.HealthText.Frame.FontFace = healthFont
-                    data.LastHealthFont = healthFont
-                    data.LastHealthSize = cfg.TextSize
-                end
-                local fillH = sy * hp
-                local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
-                data.HealthText.Frame.Position = UDim2.fromOffset(barX - 3, ty)
-                data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
-                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
-                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-
-                local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
-                local grad = data.HealthText.Frame:FindFirstChild("TextGradient")
-                if grad then
-                    grad.Color = ColorSequence.new(hCol, hCol)
-                end
-                data.HealthText.Frame.Visible = true
-                data.HealthText.Frame.TextTransparency = 1 - espModule._fadeAlpha
-                data.HealthText.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
-            else
-                data.HealthText:Hide()
-            end
         else
             data.HealthContainer.Visible = false
             data.HealthFill.Visible = false
+        end
+
+        if cfg.HealthText then
+            local hpVal = math.floor(humanoid.Health + 0.5)
+            local textStr = tostring(hpVal)
+            if data.LastHealthStr ~= textStr then
+                data.HealthText.Frame.Text = textStr
+                data.LastHealthStr = textStr
+            end
+            if data.LastHealthFont ~= healthFont or data.LastHealthSize ~= cfg.TextSize then
+                data.HealthText.Frame.TextSize = cfg.TextSize
+                data.HealthText.Frame.FontFace = healthFont
+                data.LastHealthFont = healthFont
+                data.LastHealthSize = cfg.TextSize
+            end
+
+            if cfg.HealthBar then
+                local fillH = sy * hp
+                local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
+                data.HealthText.Frame.Position = UDim2.fromOffset(healthBarX - 3, ty)
+                data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
+                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
+                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
+            else
+                data.HealthText.Frame.Position = UDim2.fromOffset(x, y)
+                data.HealthText.Frame.AnchorPoint = Vector2.new(0, 0)
+                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Left
+                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
+            end
+
+            local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
+            local grad = data.HealthText.Frame:FindFirstChild("TextGradient")
+            if grad then
+                grad.Color = ColorSequence.new(hCol, hCol)
+            end
+            data.HealthText.Frame.Visible = true
+            data.HealthText.Frame.TextTransparency = 1 - espModule._fadeAlpha
+            data.HealthText.Frame.TextStrokeTransparency = 1 - espModule._fadeAlpha
+        else
             data.HealthText:Hide()
         end
 

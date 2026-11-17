@@ -1,5 +1,3 @@
-print('2')
-
 local espModule = {}
 
 espModule.Settings = {
@@ -1386,17 +1384,18 @@ local function ProcessEntity(entity)
                 data.LastHealthSize = cfg.TextSize
             end
 
-            data.HealthText.Frame.Position = UDim2.fromOffset(x, y)
-            data.HealthText.Frame.AnchorPoint = Vector2.new(0, 0)
-            data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Left
-            data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-
             if cfg.HealthBar then
                 local fillH = sy * hp
                 local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
                 data.HealthText.Frame.Position = UDim2.fromOffset(healthBarX - 3, ty)
                 data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
                 data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
+                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
+            else
+                data.HealthText.Frame.Position = UDim2.fromOffset(x, y)
+                data.HealthText.Frame.AnchorPoint = Vector2.new(0, 0)
+                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Left
+                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
             end
 
             local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)

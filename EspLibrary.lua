@@ -275,7 +275,7 @@ local ItemKeywords = {
     "DroppedItemContainer", "T.C.R Supply Crate", "Metal Crate", "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
 }
 
-local BASE_LINE_LENGTH = 75
+local BASE_LINE_LENGTH = 50
 local OUTLINE_THICKNESS = 1
 local CORNER_RADIUS = UDim.new(0, 3)
 
@@ -1120,7 +1120,7 @@ local function ProcessEntity(entity)
                 box.Visible = true
 
                 local thick = math.max(1, cfg.Thickness or 1)
-                local maxAllowed = math.min(75, math.floor(math.min(sx, sy) * 0.42))
+                local maxAllowed = math.min(50, math.floor(math.min(sx, sy) * 0.42))
                 local lineLen = math.clamp(BASE_LINE_LENGTH, 6, math.max(6, maxAllowed))
                 local outerThick = thick + (OUTLINE_THICKNESS * 2)
                 local outerLen = lineLen + (OUTLINE_THICKNESS * 2)

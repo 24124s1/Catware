@@ -1321,7 +1321,7 @@ local function ProcessEntity(entity)
                 data.LastToolSize = cfg.TextSize
             end
             ApplyGradient(data.ToolText, cfg.ToolColor, cfg.ToolColor2)
-            local toolOffset = cfg.ArmorBar and 6 or 2
+            local toolOffset = cfg.ArmorBar and 8 or 2
             data.ToolText.Frame.Position = UDim2.fromOffset(x + sx * 0.5, y + sy + toolOffset)
             data.ToolText.Frame.AnchorPoint = Vector2.new(0.5, 0)
             data.ToolText.Frame.TextXAlignment = Enum.TextXAlignment.Center

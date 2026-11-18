@@ -1468,7 +1468,7 @@ local function ProcessEntity(entity)
                 armor = armorObj.Value
             end
 
-            local barY = y + sy + 2
+            local barY = y + sy + 4
             local barH = 1
 
             data.ArmorContainer.Position = UDim2.fromOffset(x, barY)

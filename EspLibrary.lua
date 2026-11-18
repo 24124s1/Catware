@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local espModule = {}
 
@@ -513,6 +513,25 @@ local function getCharacterParts(character)
     return parts, isR15
 end
 
+local LINE_LENGTH = 15
+local OUTLINE_THICKNESS = 1
+local CORNER_RADIUS = UDim.new(0, 3)
+
+local function createBar(parent, size, pos, anchor, color, radius, zIndex)
+	local bar = Instance.new("Frame")
+	bar.Size = size
+	bar.Position = pos
+	bar.AnchorPoint = anchor
+	bar.BackgroundColor3 = color
+	bar.BorderSizePixel = 0
+	bar.ZIndex = zIndex
+	bar.Parent = parent
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = radius
+	corner.Parent = bar
+	return bar
+end
+
 local function CreateEntityESP(entity)
     if espModule._drawings[entity] then return end
 
@@ -670,51 +689,66 @@ local function CreateEntityESP(entity)
     flagsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     flagsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
-    local cornerHolder = Instance.new("Frame")
-    cornerHolder.Name = "CornerHolder"
-    cornerHolder.Size = UDim2.new(1, 0, 1, 0)
-    cornerHolder.BackgroundTransparency = 1
-    cornerHolder.Visible = false
-    cornerHolder.ZIndex = 2
-    cornerHolder.Parent = espGui
+    local cornerBox = Instance.new("Frame")
+    cornerBox.Name = "CornerBox"
+    cornerBox.BackgroundTransparency = 1
+    cornerBox.Visible = false
+    cornerBox.ZIndex = 2
+    cornerBox.Parent = espGui
 
-    local cornerLines = {}
-    local defs = {
-        {0, 0, true},
-        {0, 0, false}, 
-        {1, 0, true}, 
-        {1, 0, false}, 
-        {0, 1, true}, 
-        {0, 1, false},
-        {1, 1, true}, 
-        {1, 1, false}, 
-    }
+    local cornerBars = {}
 
-    for i, d in ipairs(defs) do
-        local line = Instance.new("Frame")
-        line.Name = "CornerLine" .. i
-        line.AnchorPoint = Vector2.new(d[1], d[2])
-        line.Position = UDim2.new(d[1], 0, d[2], 0)
-        line.Size = d[3] and UDim2.new(0.28, 0, 0, 2) or UDim2.new(0, 2, 0.22, 0)
-        line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        line.BorderSizePixel = 0
-        line.ZIndex = 3
-        line.Parent = cornerHolder
+    local function createCorner(xSign, ySign)
+        local xDir = (xSign == 0) and 1 or -1
+        local yDir = (ySign == 0) and 1 or -1
+        local outerThick = 2 + (OUTLINE_THICKNESS * 2)
+        local outerLen = LINE_LENGTH + (OUTLINE_THICKNESS * 2)
+        local outerRadius = UDim.new(0, CORNER_RADIUS.Offset + OUTLINE_THICKNESS)
 
-        local uiCorner = Instance.new("UICorner")
-        uiCorner.CornerRadius = UDim.new(1, 0)
-        uiCorner.Parent = line
+        local outlineH = createBar(
+            cornerBox,
+            UDim2.fromOffset(outerLen, outerThick),
+            UDim2.new(xSign, -xDir * OUTLINE_THICKNESS, ySign, -yDir * OUTLINE_THICKNESS),
+            Vector2.new(xSign, ySign),
+            Color3.fromRGB(0, 0, 0),
+            outerRadius,
+            1
+        )
+        local outlineV = createBar(
+            cornerBox,
+            UDim2.fromOffset(outerThick, outerLen),
+            UDim2.new(xSign, -xDir * OUTLINE_THICKNESS, ySign, -yDir * OUTLINE_THICKNESS),
+            Vector2.new(xSign, ySign),
+            Color3.fromRGB(0, 0, 0),
+            outerRadius,
+            1
+        )
+        local colorH = createBar(
+            cornerBox,
+            UDim2.fromOffset(LINE_LENGTH, 2),
+            UDim2.fromScale(xSign, ySign),
+            Vector2.new(xSign, ySign),
+            Color3.fromRGB(255, 255, 255),
+            CORNER_RADIUS,
+            2
+        )
+        local colorV = createBar(
+            cornerBox,
+            UDim2.fromOffset(2, LINE_LENGTH),
+            UDim2.fromScale(xSign, ySign),
+            Vector2.new(xSign, ySign),
+            Color3.fromRGB(255, 255, 255),
+            CORNER_RADIUS,
+            2
+        )
 
-        local stroke = Instance.new("UIStroke")
-        stroke.Name = "Outline"
-        stroke.Color = Color3.new(0, 0, 0)
-        stroke.Thickness = 1
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        stroke.Parent = line
-
-        line:SetAttribute("IsHorizontal", d[3])
-        table.insert(cornerLines, line)
+        table.insert(cornerBars, {outlineH = outlineH, outlineV = outlineV, colorH = colorH, colorV = colorV, xSign = xSign, ySign = ySign})
     end
+
+    createCorner(0, 0)
+    createCorner(1, 0)
+    createCorner(0, 1)
+    createCorner(1, 1)
 
     espModule._drawings[entity] = {
         Cache = {
@@ -731,8 +765,8 @@ local function CreateEntityESP(entity)
             Right = CreateLine({Thickness = 1, OutlineThickness = 1, Color = Color3.new(1, 1, 1), Visible = false, ZIndex = 2}),
         },
         Corner = {
-            Holder = cornerHolder,
-            Lines = cornerLines,
+            Box = cornerBox,
+            Bars = cornerBars,
         },
         Entity3DBox = box3dLines,
         BoxFill = boxFill,
@@ -775,8 +809,8 @@ local function HideESP(data)
     local f = data.Full
     f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
 
-    if data.Corner and data.Corner.Holder then
-        data.Corner.Holder.Visible = false
+    if data.Corner and data.Corner.Box then
+        data.Corner.Box.Visible = false
     end
 
     for _, line in pairs(data.Entity3DBox) do line:Hide() end
@@ -809,8 +843,8 @@ local function RemoveESP(entity)
     local data = espModule._drawings[entity]
     if not data then return end
     for _, v in pairs(data.Full) do v:Destroy() end
-    if data.Corner and data.Corner.Holder then
-        data.Corner.Holder:Destroy()
+    if data.Corner and data.Corner.Box then
+        data.Corner.Box:Destroy()
     end
     for _, v in pairs(data.Entity3DBox) do v:Destroy() end
     data.BoxFill:Destroy()
@@ -1277,8 +1311,8 @@ local function ProcessEntity(entity)
 
             if cfg.BoxType == "Full" then
                 for _, line in pairs(data.Entity3DBox) do line:Hide() end
-                if data.Corner and data.Corner.Holder then
-                    data.Corner.Holder.Visible = false
+                if data.Corner and data.Corner.Box then
+                    data.Corner.Box.Visible = false
                 end
 
                 local f = data.Full
@@ -1298,8 +1332,8 @@ local function ProcessEntity(entity)
                 f.Right.Frame.BackgroundTransparency = 1 - espModule._fadeAlpha
 
             elseif cfg.BoxType == "3D" then
-                if data.Corner and data.Corner.Holder then
-                    data.Corner.Holder.Visible = false
+                if data.Corner and data.Corner.Box then
+                    data.Corner.Box.Visible = false
                 end
 
                 local f = data.Full
@@ -1325,37 +1359,43 @@ local function ProcessEntity(entity)
                 local f = data.Full
                 f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
 
-                local holder = data.Corner.Holder
-                local lines = data.Corner.Lines
+                local box = data.Corner.Box
+                local bars = data.Corner.Bars
 
-                holder.Position = UDim2.fromOffset(x, y)
-                holder.Size = UDim2.fromOffset(sx, sy)
-                holder.Visible = true
+                box.Position = UDim2.fromOffset(x, y)
+                box.Size = UDim2.fromOffset(sx, sy)
+                box.Visible = true
 
                 local thick = math.max(1, cfg.Thickness or 1)
+                local outerThick = thick + (OUTLINE_THICKNESS * 2)
+                local outerLen = LINE_LENGTH + (OUTLINE_THICKNESS * 2)
+                local outerRadius = UDim.new(0, CORNER_RADIUS.Offset + OUTLINE_THICKNESS)
 
-                for i, line in ipairs(lines) do
-                    local isH = (i % 2 == 1)
-                    local isRight = (i == 3 or i == 4 or i == 7 or i == 8)
-                    local isBottom = (i >= 5)
-                    
-                    if isH then
-                        line.Size = UDim2.new(0.28, 0, 0, thick)
-                        line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, 0)
-                    else
-                        line.Size = UDim2.new(0, thick, 0.22, 0)
-                        line.Position = UDim2.new(isRight and 1 or 0, 0, isBottom and 1 or 0, 0)
-                    end
+                for _, group in ipairs(bars) do
+                    local xSign = group.xSign
+                    local ySign = group.ySign
+                    local xDir = (xSign == 0) and 1 or -1
+                    local yDir = (ySign == 0) and 1 or -1
 
-                    line.BackgroundColor3 = cfg.LineColor
-                    line.BackgroundTransparency = 1 - espModule._fadeAlpha
+                    group.outlineH.Size = UDim2.fromOffset(outerLen, outerThick)
+                    group.outlineH.Position = UDim2.new(xSign, -xDir * OUTLINE_THICKNESS, ySign, -yDir * OUTLINE_THICKNESS)
+                    group.outlineH.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    group.outlineH.BackgroundTransparency = 1 - espModule._fadeAlpha
 
-                    local stroke = line:FindFirstChild("Outline")
-                    if stroke then
-                        stroke.Thickness = 1
-                        stroke.Color = Color3.new(0, 0, 0)
-                        stroke.Transparency = 1 - espModule._fadeAlpha
-                    end
+                    group.outlineV.Size = UDim2.fromOffset(outerThick, outerLen)
+                    group.outlineV.Position = UDim2.new(xSign, -xDir * OUTLINE_THICKNESS, ySign, -yDir * OUTLINE_THICKNESS)
+                    group.outlineV.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    group.outlineV.BackgroundTransparency = 1 - espModule._fadeAlpha
+
+                    group.colorH.Size = UDim2.fromOffset(LINE_LENGTH, thick)
+                    group.colorH.Position = UDim2.fromScale(xSign, ySign)
+                    group.colorH.BackgroundColor3 = cfg.LineColor
+                    group.colorH.BackgroundTransparency = 1 - espModule._fadeAlpha
+
+                    group.colorV.Size = UDim2.fromOffset(thick, LINE_LENGTH)
+                    group.colorV.Position = UDim2.fromScale(xSign, ySign)
+                    group.colorV.BackgroundColor3 = cfg.LineColor
+                    group.colorV.BackgroundTransparency = 1 - espModule._fadeAlpha
                 end
             end
         else
@@ -1363,8 +1403,8 @@ local function ProcessEntity(entity)
             for _, line in pairs(data.Entity3DBox) do line:Hide() end
             local f = data.Full
             f.Top:Hide() f.Bottom:Hide() f.Left:Hide() f.Right:Hide()
-            if data.Corner and data.Corner.Holder then
-                data.Corner.Holder.Visible = false
+            if data.Corner and data.Corner.Box then
+                data.Corner.Box.Visible = false
             end
         end
 

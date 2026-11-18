@@ -1185,7 +1185,7 @@ local function ProcessEntity(entity)
             data.HeadDot.Visible = false
         end
 
-        local healthBarX = x - 4
+local healthBarX = x - 4
         local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
 
         if cfg.HealthBar then
@@ -1206,7 +1206,7 @@ local function ProcessEntity(entity)
             data.HealthFill.Visible = false
         end
 
-        if cfg.HealthText then
+        if cfg.HealthText and cfg.HealthBar then
             local hpVal = math.floor(humanoid.Health + 0.5)
             local textStr = tostring(hpVal)
             if data.LastHealthStr ~= textStr then data.HealthText.Frame.Text = textStr data.LastHealthStr = textStr end
@@ -1216,19 +1216,12 @@ local function ProcessEntity(entity)
                 data.LastHealthFont = healthFont
                 data.LastHealthSize = cfg.TextSize
             end
-            if cfg.HealthBar then
-                local fillH = sy * hp
-                local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
-                data.HealthText.Frame.Position = UDim2.fromOffset(healthBarX - 3, ty)
-                data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
-                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
-                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-            else
-                data.HealthText.Frame.Position = UDim2.fromOffset(x, y)
-                data.HealthText.Frame.AnchorPoint = Vector2.new(0, 0)
-                data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Left
-                data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
-            end
+            local fillH = sy * hp
+            local ty = math.clamp(y + sy - fillH - 5, y - 2, y + sy - 10)
+            data.HealthText.Frame.Position = UDim2.fromOffset(healthBarX - 3, ty)
+            data.HealthText.Frame.AnchorPoint = Vector2.new(1, 0)
+            data.HealthText.Frame.TextXAlignment = Enum.TextXAlignment.Right
+            data.HealthText.Frame.TextYAlignment = Enum.TextYAlignment.Top
             local hCol = GetHealthColor(hp, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
             local grad = data.HealthText.Frame:FindFirstChild("TextGradient")
             if grad then grad.Color = ColorSequence.new(hCol, hCol) end

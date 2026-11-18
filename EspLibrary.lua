@@ -1,4 +1,4 @@
-print('2')
+print('1')
 
 local espModule = {}
 
@@ -275,7 +275,7 @@ local ItemKeywords = {
     "DroppedItemContainer", "T.C.R Supply Crate", "Metal Crate", "Specops Supply Crate", "Tall Metal Crate", "Wooden Crate", "Ammo Box"
 }
 
-local BASE_LINE_LENGTH = 20
+local BASE_LINE_LENGTH = 50
 local OUTLINE_THICKNESS = 1
 local CORNER_RADIUS = UDim.new(0, 3)
 

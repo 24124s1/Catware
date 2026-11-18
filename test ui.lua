@@ -32,6 +32,12 @@ local YMid    = Enum.TextYAlignment.Center
 local YBot    = Enum.TextYAlignment.Bottom
 
 local WHITE = rgb(255, 255, 255)
+local RISKY_TAG = ' <font color="rgb(230,80,80)">[Risky]</font>'
+
+local function nameText(name, risky)
+    if risky then return name .. RISKY_TAG end
+    return name
+end
 
 local ICON_NAMES = {
     Legit = "crosshair", Rage = "flame", Players = "users", World = "globe",
@@ -64,8 +70,8 @@ local KEYS = {
 
 local BASE_GRAYS = {
     outline = 0, inline = 38, panel = 11, body = 14, field_top = 34, field_bot = 23,
-    tab = 18, tab_active = 22, preview = 9, line = 30, text = 205, text_active = 240,
-    item = 160, dim = 112, mute = 85, handle = 130,
+    tab_active = 22, preview = 9, line = 30, text = 205, text_active = 240,
+    item = 160, dim = 112, mute = 85,
 }
 
 local function makePreset(accent, t)
@@ -81,7 +87,7 @@ local function makePreset(accent, t)
     return out
 end
 
-local PRESET_NAMES = { "Default", "Midnight", "Emerald", "Crimson", "Violet", "Amber", "Mono" }
+local PRESET_NAMES = { "Default", "Midnight", "Emerald", "Crimson", "Violet", "Amber", "Mono", "Ocean", "Rose", "Mint", "Sunset", "Ghost" }
 local PRESETS = {
     default  = makePreset(rgb(204, 112, 148), { 0, 0, 0 }),
     midnight = makePreset(rgb(100, 140, 255), { -2, 0, 10 }),
@@ -90,14 +96,19 @@ local PRESETS = {
     violet   = makePreset(rgb(161, 113, 255), { 4, 0, 10 }),
     amber    = makePreset(rgb(240, 170, 60), { 6, 3, -4 }),
     mono     = makePreset(rgb(220, 220, 220), { 0, 0, 0 }),
+    ocean    = makePreset(rgb(60, 190, 230), { -3, 3, 9 }),
+    rose     = makePreset(rgb(245, 130, 170), { 6, -1, 2 }),
+    mint     = makePreset(rgb(120, 230, 190), { -2, 6, 4 }),
+    sunset   = makePreset(rgb(255, 120, 80), { 7, 1, -3 }),
+    ghost    = makePreset(rgb(200, 200, 225), { 1, 1, 4 }),
 }
 
 local THEME_KEYS = {
     { "accent", "Accent" }, { "outline", "Outline" }, { "inline", "Border" }, { "panel", "Window" },
     { "body", "Section" }, { "field_top", "Field Top" }, { "field_bot", "Field Bottom" },
-    { "tab", "Tab" }, { "tab_active", "Tab Active" }, { "preview", "Preview Background" },
+    { "tab_active", "Tab Highlight" }, { "preview", "Preview Background" },
     { "line", "Lines" }, { "text", "Text" }, { "text_active", "Text Bright" },
-    { "item", "Text Idle" }, { "dim", "Text Dim" }, { "mute", "Text Muted" }, { "handle", "Slider Handle" },
+    { "item", "Text Idle" }, { "dim", "Text Dim" }, { "mute", "Text Muted" },
 }
 
 local Theme = { v = {}, hooks = {} }
@@ -510,6 +521,10 @@ local function decode(v)
     return v
 end
 
+local function isUiFlag(k)
+    return string.sub(k, 1, 2) == "__"
+end
+
 local function newLine(parent, z)
     local frame = new("Frame", {
         Parent = parent, AnchorPoint = v2(0.5, 0.5), BackgroundColor3 = WHITE,
@@ -835,9 +850,9 @@ function Library.new(opts)
     self.keybinds = {}
     self.sideLabels = {}
     self.sideBgLabels = {}
+    self.stack = {}
     self.order = 0
     self.cpCount = 0
-    self.popup = nil
     self.currentTab = nil
     self.clipboard = nil
     self.onUnload = nil
@@ -845,6 +860,11 @@ function Library.new(opts)
     self.binding = false
     self.notifyEnabled = true
     self.sideExpanded = false
+    self.searchIndex = {}
+    self.allTabs = {}
+    self.searchQuery = ""
+    self.searchAll = false
+    self._searching = false
     self.accent = Theme.v.accent
     Theme.on("accent", function() self.accent = Theme.v.accent end)
     if typeof(opts.accent) == "Color3" then Theme.set("accent", opts.accent) end
@@ -855,16 +875,32 @@ function Library.new(opts)
     })
     pcall(function() self.gui.ScreenInsets = Enum.ScreenInsets.None end)
 
-    local size = opts.size or Vector2.new(680, 520)
-    self.size = size
     local sideCollapsed, sideOpen = 52, 150
     local extra = sideOpen - sideCollapsed
+    local minW, minH = 560, 420
+    self.size = opts.size or Vector2.new(680, 520)
     local vp = Workspace.CurrentCamera.ViewportSize
 
     self.root = new("Frame", {
-        Parent = self.gui, BackgroundTransparency = 1, Size = off(size.X, size.Y),
-        Position = off(floor(vp.X / 2 - size.X / 2), floor(vp.Y / 2 - size.Y / 2)),
+        Parent = self.gui, BackgroundTransparency = 1, Size = off(self.size.X, self.size.Y),
+        Position = off(floor(vp.X / 2 - self.size.X / 2), floor(vp.Y / 2 - self.size.Y / 2)),
     })
+
+    for i = 1, 3 do
+        new("Frame", {
+            Parent = self.root,
+            Size = dim2(1, i * 10, 1, i * 10),
+            Position = off(-i * 5, -i * 5),
+            BackgroundColor3 = T("accent"),
+            BackgroundTransparency = 0.80 + i * 0.04,
+            ZIndex = 1,
+        })
+    end
+
+    function self:applySize()
+        local extraNow = self.sideExpanded and extra or 0
+        self.root.Size = off(self.size.X + extraNow, self.size.Y)
+    end
 
     self.catcher = new("TextButton", {
         Parent = self.gui, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
@@ -873,7 +909,16 @@ function Library.new(opts)
     self.catcher.MouseButton1Down:Connect(function() self:closePopups() end)
     self.catcher.MouseButton2Down:Connect(function() self:closePopups() end)
 
-    local win, winOuter = framed(self.root, off(size.X, size.Y))
+    self.catcher2 = new("TextButton", {
+        Parent = self.gui, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
+        Visible = false, ZIndex = 250, Active = true,
+    })
+    self.catcher2.MouseButton1Down:Connect(function() self:closeLevel(2) end)
+    self.catcher2.MouseButton2Down:Connect(function() self:closeLevel(2) end)
+
+    local win, winOuter = framed(self.root, dim2(1, 0, 1, 0))
+    winOuter.ZIndex = 2
+    win.ZIndex = 2
     topGlow(win).ZIndex = 15
     accentLine(win).ZIndex = 30
 
@@ -887,6 +932,10 @@ function Library.new(opts)
         ZIndex = 10, ClipsDescendants = true, Active = true,
     })
     self.side = side
+    local sideGrad = new("UIGradient", { Parent = side, Rotation = 90 })
+    Theme.on({ "accent", "panel" }, function()
+        sideGrad.Color = ColorSequence.new(Theme.v.accent:Lerp(rgb(0, 0, 0), 0.6), Theme.v.panel)
+    end)
     new("Frame", {
         Parent = side, AnchorPoint = v2(1, 0), Position = dim2(1, 0, 0, 0), Size = dim2(0, 1, 1, 0),
         BackgroundColor3 = T("inline"), ZIndex = 12,
@@ -963,11 +1012,9 @@ function Library.new(opts)
         if self.sideExpanded == on then return end
         self.sideExpanded = on
         local sw = on and sideOpen or sideCollapsed
-        local total = self.size.X + (on and extra or 0)
         tween(side, { Size = dim2(0, sw, 1, 0) }, 0.18)
         tween(content, { Position = off(sw, 0), Size = dim2(1, -sw, 1, 0) }, 0.18)
-        tween(winOuter, { Size = off(total, self.size.Y) }, 0.18)
-        tween(self.root, { Size = off(total, self.size.Y) }, 0.18)
+        tween(self.root, { Size = off(self.size.X + (on and extra or 0), self.size.Y) }, 0.18)
         local trans = on and 0 or 1
         for _, lbl in ipairs(self.sideLabels) do
             if lbl.Parent then tween(lbl, { TextTransparency = trans }, 0.12) end
@@ -981,24 +1028,95 @@ function Library.new(opts)
     side.MouseLeave:Connect(function() self:setSideExpanded(false) end)
 
     local header = new("Frame", { Parent = content, Position = off(0, 2), Size = dim2(1, 0, 0, 28), BackgroundTransparency = 1, Active = true })
-    local crumbs = new("Frame", { Parent = header, Position = off(8, 0), Size = dim2(0.7, 0, 1, 0), BackgroundTransparency = 1 })
+    local crumbs = new("Frame", { Parent = header, Position = off(8, 0), Size = dim2(0.5, 0, 1, 0), BackgroundTransparency = 1 })
     new("UIListLayout", {
         Parent = crumbs, FillDirection = Enum.FillDirection.Horizontal,
         VerticalAlignment = Enum.VerticalAlignment.Center, Padding = dim(0, 4),
     })
     self.crumbCat = label(crumbs, "", "mute", nil, dim2(0, 0, 1, 0)); self.crumbCat.AutomaticSize = Enum_X
     self.crumbTab = label(crumbs, "", "text_active", nil, dim2(0, 0, 1, 0)); self.crumbTab.AutomaticSize = Enum_X
-    local cfgName = label(header, opts.config or "default.cfg", "mute", dim2(1, -8, 0, 0), dim2(0, 0, 1, 0), ARight)
-    cfgName.AnchorPoint = v2(1, 0); cfgName.AutomaticSize = Enum_X
-    self.cfgLabel = cfgName
+
+    local filterBody, filterOuter = fieldBox(header, off(58, 18), nil, "panel")
+    filterOuter.AnchorPoint = v2(1, 0.5)
+    filterOuter.Position = dim2(1, -8, 0.5, 0)
+    filterOuter.ZIndex = 6
+    local filterLbl = label(filterBody, "This Tab", "text", off(0, 0), dim2(1, 0, 1, 0), ACenter)
+    local filterHit = new("TextButton", { Parent = filterOuter, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 7 })
+
+    local searchBody, searchOuter = fieldBox(header, off(130, 18), nil, "panel")
+    searchOuter.AnchorPoint = v2(1, 0.5)
+    searchOuter.Position = dim2(1, -70, 0.5, 0)
+    searchOuter.ZIndex = 6
+    local searchInput = new("TextBox", {
+        Parent = searchBody, Size = dim2(1, -10, 1, 0), Position = off(5, 0),
+        PlaceholderText = "Search...", PlaceholderColor3 = T("mute"),
+        ClearTextOnFocus = false, ZIndex = 7,
+    })
+
+    filterHit.MouseButton1Click:Connect(function()
+        self.searchAll = not self.searchAll
+        filterLbl.Text = self.searchAll and "All Tabs" or "This Tab"
+        self:applySearch()
+    end)
+    searchInput:GetPropertyChangedSignal("Text"):Connect(function()
+        self.searchQuery = searchInput.Text
+        self:applySearch()
+    end)
+
     new("Frame", { Parent = content, Position = off(0, 31), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
 
     self.pageHolder = new("Frame", { Parent = content, Position = off(0, 32), Size = dim2(1, 0, 1, -32), BackgroundTransparency = 1 })
 
+    local grip = new("TextButton", {
+        Parent = win, AnchorPoint = v2(1, 1), Position = dim2(1, 0, 1, 0), Size = off(16, 16),
+        BackgroundTransparency = 1, ZIndex = 40, Text = "",
+    })
+    local gripDots = {}
+    for _, p in ipairs({ {12, 12}, {8, 12}, {12, 8}, {4, 12}, {8, 8}, {12, 4} }) do
+        gripDots[#gripDots + 1] = new("Frame", {
+            Parent = grip, Position = off(p[1], p[2]), Size = off(2, 2), BackgroundColor3 = Theme.v.mute, ZIndex = 41,
+        })
+    end
+    local gripHot, resizing, rStart, rSize = false, false, nil, nil
+    local function paintGrip()
+        local c = (gripHot or resizing) and Theme.v.accent or Theme.v.mute
+        for _, d in ipairs(gripDots) do d.BackgroundColor3 = c end
+    end
+    Theme.on({ "accent", "mute" }, paintGrip)
+    grip.MouseEnter:Connect(function() gripHot = true; paintGrip() end)
+    grip.MouseLeave:Connect(function() gripHot = false; paintGrip() end)
+    grip.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            resizing = true
+            rStart = i.Position
+            rSize = self.size
+            self:closePopups()
+            paintGrip()
+        end
+    end)
+    grip.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            resizing = false
+            paintGrip()
+        end
+    end)
+    self:connect(UIS.InputChanged, function(i)
+        if resizing and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - rStart
+            local gs = self:guiSize()
+            local p = self.root.AbsolutePosition - self.gui.AbsolutePosition
+            local extraNow = self.sideExpanded and extra or 0
+            local maxW = math.max(minW, gs.X - p.X - extraNow - 4)
+            local maxH = math.max(minH, gs.Y - p.Y - 4)
+            self.size = v2(clamp(rSize.X + d.X, minW, maxW), clamp(rSize.Y + d.Y, minH, maxH))
+            self:applySize()
+        end
+    end)
+
     self.notifPos = "Bottom Left"
     self.notifHolder = new("Frame", {
         Parent = self.gui, AnchorPoint = v2(0, 1), Position = dim2(0, 14, 1, -14),
-        Size = off(240, 0), AutomaticSize = Enum_Y, BackgroundTransparency = 1, ZIndex = 300,
+        Size = off(240, 0), AutomaticSize = Enum_Y, BackgroundTransparency = 1, ZIndex = 400,
     })
     local notifLayout = new("UIListLayout", { Parent = self.notifHolder, Padding = dim(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Bottom })
 
@@ -1025,46 +1143,6 @@ function Library.new(opts)
     self:watermark()
     self:keybindList()
 
-    local resizeGrip = new("TextButton", {
-        Parent = winOuter, AnchorPoint = v2(1, 1), Position = dim2(1, 0, 1, 0),
-        Size = off(16, 16), BackgroundTransparency = 1, Text = "", ZIndex = 60,
-    })
-    for i = 1, 3 do
-        for j = 1, i do
-            new("Frame", {
-                Parent = resizeGrip, AnchorPoint = v2(1, 1),
-                Position = dim2(1, -(i - 1) * 5 - 3, 1, -(j - 1) * 5 - 3),
-                Size = off(2, 2), BackgroundColor3 = T("dim"), ZIndex = 61,
-            })
-        end
-    end
-
-    local resizing, resizeStart, resizeSize = false, nil, nil
-    resizeGrip.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            resizing = true
-            resizeStart = i.Position
-            resizeSize = Vector2.new(self.root.AbsoluteSize.X, self.root.AbsoluteSize.Y)
-            self:closePopups()
-        end
-    end)
-    resizeGrip.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            resizing = false
-        end
-    end)
-    self:connect(UIS.InputChanged, function(i)
-        if not resizing then return end
-        if i.UserInputType ~= Enum.UserInputType.MouseMovement and i.UserInputType ~= Enum.UserInputType.Touch then return end
-        local d = i.Position - resizeStart
-        local totalW = math.max(420, resizeSize.X + d.X)
-        local totalH = math.max(320, resizeSize.Y + d.Y)
-        local baseW = totalW - (self.sideExpanded and extra or 0)
-        self.size = Vector2.new(baseW, totalH)
-        self.root.Size = off(totalW, totalH)
-        winOuter.Size = off(totalW, totalH)
-    end)
-
     self:connect(UIS.InputBegan, function(input, gp)
         if not gp and not self.binding and input.KeyCode == self.toggleKey then
             self.root.Visible = not self.root.Visible
@@ -1072,7 +1150,49 @@ function Library.new(opts)
         end
     end)
 
+    self.cfgLabel = label(header, "default.cfg", "mute", nil, dim2(0, 0, 1, 0))
+    self.cfgLabel.AutomaticSize = Enum_X
+    self.cfgLabel.LayoutOrder = 99
+
     return self
+end
+
+function Library:registerElement(name, tab, row, section)
+    self.searchIndex[#self.searchIndex + 1] = { name = tostring(name or ""), tab = tab, row = row, section = section }
+end
+
+function Library:applySearch()
+    if self._searching then return end
+    self._searching = true
+    local q = lower(self.searchQuery or "")
+    local cur = self.currentTab
+    local all = self.searchAll
+    local matchingTabs = {}
+    for _, e in ipairs(self.searchIndex) do
+        local match = q == "" or string.find(lower(e.name), q, 1, true) ~= nil
+        e.match = match
+        if match and q ~= "" and e.tab then matchingTabs[e.tab] = true end
+    end
+    if q ~= "" and all and cur and not matchingTabs[cur] then
+        for _, t in ipairs(self.allTabs) do
+            if matchingTabs[t] then t:open() break end
+        end
+    end
+    cur = self.currentTab
+    local vis = {}
+    for _, e in ipairs(self.searchIndex) do
+        if e.tab == cur then
+            local show = q == "" or e.match
+            e.row.Visible = show
+            if show and e.section then vis[e.section] = true end
+        end
+    end
+    for _, e in ipairs(self.searchIndex) do
+        if e.tab == cur and e.section and e.section.container then
+            e.section.container.Visible = (q == "") or vis[e.section] or false
+        end
+    end
+    self._searching = false
 end
 
 function Library:connect(signal, fn)
@@ -1180,23 +1300,52 @@ function Library:setFlag(flag, value)
     self.flags[flag] = value
 end
 
+function Library:syncCatchers()
+    local any, two = #self.stack > 0, false
+    for _, p in ipairs(self.stack) do
+        if (p.level or 1) >= 2 then two = true end
+    end
+    self.catcher.Visible = any
+    self.catcher2.Visible = two
+end
+
 function Library:openPopup(p)
-    if self.popup and self.popup ~= p then
-        local old = self.popup
-        self.popup = nil
+    local lvl = p.level or 1
+    while #self.stack > 0 and (self.stack[#self.stack].level or 1) >= lvl do
+        local old = table.remove(self.stack)
         old.close()
     end
-    self.popup = p
-    self.catcher.Visible = true
+    self.stack[#self.stack + 1] = p
+    self:syncCatchers()
+end
+
+function Library:closePopup(p)
+    local idx
+    for i, q in ipairs(self.stack) do
+        if q == p then idx = i break end
+    end
+    if not idx then return end
+    while #self.stack >= idx do
+        local q = table.remove(self.stack)
+        q.close()
+    end
+    self:syncCatchers()
+end
+
+function Library:closeLevel(level)
+    while #self.stack > 0 and (self.stack[#self.stack].level or 1) >= level do
+        local q = table.remove(self.stack)
+        q.close()
+    end
+    self:syncCatchers()
 end
 
 function Library:closePopups()
-    if self.popup then
-        local p = self.popup
-        self.popup = nil
-        p.close()
+    while #self.stack > 0 do
+        local q = table.remove(self.stack)
+        q.close()
     end
-    self.catcher.Visible = false
+    self:syncCatchers()
 end
 
 function Library:unload()
@@ -1229,7 +1378,7 @@ function Library:notify(a, duration, kind)
     local def = NOTIFY_KINDS[kind] or NOTIFY_KINDS.info
     title = title or def.title
     duration = duration or 3.5
-    local tone = def.color or Theme.v.accent
+    local tone = def.color or T("accent")
 
     while #self.notifs >= 6 do
         local old = table.remove(self.notifs, 1)
@@ -1406,6 +1555,7 @@ end
 
 function Library:popupList(anchor, items, o)
     local lib = self
+    local level = o.level or 1
     local rowH = 18
     local maxRows = o.maxRows or 8
     local searchable = #items > 8
@@ -1415,10 +1565,10 @@ function Library:popupList(anchor, items, o)
 
     local body, outer = fieldBox(lib.gui, off(120, listH))
     outer.Visible = false
-    outer.ZIndex = 200
+    outer.ZIndex = level >= 2 and 300 or 200
     outer.Active = true
 
-    local P = { frame = outer, anchor = anchor, buttons = {}, open = false }
+    local P = { frame = outer, anchor = anchor, buttons = {}, open = false, level = level }
 
     local search
     if searchable then
@@ -1462,7 +1612,7 @@ function Library:popupList(anchor, items, o)
         b.MouseButton1Click:Connect(function()
             o.pick(item)
             P.refresh()
-            if not o.multi then lib:closePopups() end
+            if not o.multi then lib:closePopup(P) end
         end)
     end
 
@@ -1497,14 +1647,14 @@ function Library:popupList(anchor, items, o)
 
     function P.toggle()
         if P.open then
-            lib:closePopups()
+            lib:closePopup(P)
         else
             P.show()
         end
     end
 
     function P.destroy()
-        if lib.popup == P then lib.popup = nil end
+        lib:closePopup(P)
         outer:Destroy()
     end
 
@@ -1535,6 +1685,7 @@ function Category:tab(name, iconName)
     local lib = self.lib
     local tab = setmetatable({ lib = lib, name = name, category = self }, Tab)
     iconName = iconName or ICON_NAMES[name] or ICON_NAMES[self.name]
+    lib.allTabs[#lib.allTabs + 1] = tab
 
     local body, outer = fieldBox(lib.sideList, dim2(1, -12, 0, 32))
     outer.LayoutOrder = nxt(lib)
@@ -1585,11 +1736,9 @@ function Category:tab(name, iconName)
         })
         new("UIListLayout", { Parent = col, Padding = dim(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
         new("UIPadding", {
-            Parent = col,
-            PaddingLeft = dim(0, 2), PaddingTop = dim(0, 2),
+            Parent = col, PaddingLeft = dim(0, 2), PaddingTop = dim(0, 2),
             PaddingRight = dim(0, 4), PaddingBottom = dim(0, 8),
         })
-        lib:guard(col)
         tab[sideName] = col
     end
 
@@ -1627,6 +1776,7 @@ function Tab:open()
     self.paint()
     lib.crumbCat.Text = self.category.name .. " /"
     lib.crumbTab.Text = self.name
+    lib:applySearch()
 end
 
 function Tab:column(side)
@@ -1661,7 +1811,7 @@ function Column:section(o)
     new("UIPadding", { Parent = body, PaddingTop = dim(0, 8), PaddingBottom = dim(0, 8), PaddingLeft = dim(0, 8), PaddingRight = dim(0, 8) })
     new("UIListLayout", { Parent = body, Padding = dim(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
 
-    return setmetatable({ lib = lib, body = body, container = container }, Section)
+    return setmetatable({ lib = lib, body = body, container = container, tab = self.tab }, Section)
 end
 
 function Column:multi_section(o)
@@ -1670,21 +1820,31 @@ function Column:multi_section(o)
     local tab = self.tab
     local names = o.names or { "Section" }
     local fills = o.fills ~= false
+    local colFrame = self.holder
 
     local container = new("Frame", {
-        Parent = self.holder,
+        Parent = colFrame,
+        Size = fills and dim2(1, 0, 0, 300) or dim2(1, 0, 0, 0),
+        AutomaticSize = fills and Enum.AutomaticSize.None or Enum_Y,
+        BackgroundColor3 = T("inline"),
+        LayoutOrder = nxt(lib),
+    })
+    new("UIPadding", {
+        Parent = container, PaddingTop = dim(0, 1), PaddingBottom = dim(0, 1),
+        PaddingLeft = dim(0, 1), PaddingRight = dim(0, 1),
+    })
+    local inner = new("Frame", {
+        Parent = container,
         Size = fills and dim2(1, 0, 1, 0) or dim2(1, 0, 0, 0),
         AutomaticSize = fills and Enum.AutomaticSize.None or Enum_Y,
-        BackgroundColor3 = T("body"),
-        LayoutOrder = nxt(lib), ClipsDescendants = true,
+        BackgroundColor3 = T("body"), ClipsDescendants = true,
     })
-    stroke(container, "inline")
     if not fills then
-        new("UIListLayout", { Parent = container, SortOrder = Enum.SortOrder.LayoutOrder })
+        new("UIListLayout", { Parent = inner, SortOrder = Enum.SortOrder.LayoutOrder })
     end
 
     local header = new("Frame", {
-        Parent = container, Size = dim2(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 1,
+        Parent = inner, Size = dim2(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 1,
         Position = fills and off(0, 0) or UDim2.new(),
     })
     local glow = new("Frame", { Parent = header, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent") })
@@ -1700,7 +1860,7 @@ function Column:multi_section(o)
     })
 
     local holder = new("Frame", {
-        Parent = container,
+        Parent = inner,
         Position = fills and off(0, 24) or UDim2.new(),
         Size = fills and dim2(1, 0, 1, -24) or dim2(1, 0, 0, 0),
         AutomaticSize = fills and Enum.AutomaticSize.None or Enum_Y,
@@ -1761,7 +1921,7 @@ function Column:multi_section(o)
         new("UIPadding", { Parent = page, PaddingTop = dim(0, 9), PaddingBottom = dim(0, 9), PaddingLeft = dim(0, 8), PaddingRight = dim(0, 10) })
         new("UIListLayout", { Parent = page, Padding = dim(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
 
-        local sec = setmetatable({ lib = lib, body = page, page = page, name = name, btn = btn, lbl = lbl, mark = mark }, Section)
+        local sec = setmetatable({ lib = lib, body = page, page = page, name = name, btn = btn, lbl = lbl, mark = mark, tab = tab }, Section)
         sections[i] = sec
 
         Theme.on({ "tab_active", "text_active", "dim" }, function() paint(sec) end)
@@ -1784,8 +1944,12 @@ function Section:label(text)
     if type(text) == "table" then text = text.name or text.text end
     local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 14), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
     local lbl = label(row, tostring(text or "Label"), "text", off(0, 0), dim2(1, -30, 1, 0))
-    local e = setmetatable({ lib = lib, right = makeRight(row), lbl = lbl, _labelText = tostring(text or "Label"), name = tostring(text or "Label") }, Element)
+    local e = setmetatable({
+        lib = lib, right = makeRight(row), lbl = lbl, level = self.level,
+        _labelText = tostring(text or "Label"), name = tostring(text or "Label"), row = row, section = self,
+    }, Element)
     function e.set(t) lbl.Text = tostring(t) end
+    lib:registerElement(tostring(text or "Label"), self.tab, row, self)
     return e
 end
 
@@ -1798,13 +1962,15 @@ end
 
 function Section:button(o)
     local lib = self.lib
-    local outer, lbl, hit = miniButton(self.body, o.name or "Button", UDim2.new(), dim2(1, 0, 0, 20))
+    local outer, lbl, hit = miniButton(self.body, nameText(o.name or "Button", o.risky), UDim2.new(), dim2(1, 0, 0, 20))
+    if o.risky then lbl.RichText = true end
     outer.LayoutOrder = nxt(lib)
     hit.MouseButton1Click:Connect(function()
         lbl.TextColor3 = Theme.v.accent
         tween(lbl, { TextColor3 = Theme.v.text }, 0.3)
         if o.callback then o.callback() end
     end)
+    lib:registerElement(o.name or "Button", self.tab, outer, self)
     return outer
 end
 
@@ -1812,7 +1978,7 @@ function Section:toggle(o)
     local lib = self.lib
     local cfg = {
         lib = lib, name = o.name or "Toggle", flag = o.flag or o.name or "toggle",
-        callback = o.callback or function() end, value = false,
+        callback = o.callback or function() end, value = false, level = self.level,
     }
 
     local row = new("TextButton", { Parent = self.body, Size = dim2(1, 0, 0, 14), LayoutOrder = nxt(lib) })
@@ -1824,7 +1990,8 @@ function Section:toggle(o)
     end)
     local fill = new("Frame", { Parent = inner, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent"), BackgroundTransparency = 1 })
     new("UIGradient", { Parent = fill, Rotation = 90, Color = ColorSequence.new(WHITE, rgb(150, 150, 150)) })
-    local lbl = label(row, cfg.name, Theme.v.item, off(18, 0), dim2(1, -18, 1, 0))
+    local lbl = label(row, nameText(cfg.name, o.risky), Theme.v.item, off(18, 0), dim2(1, -18, 1, 0))
+    if o.risky then lbl.RichText = true end
     cfg.right = makeRight(row)
 
     Theme.on({ "text", "item" }, function()
@@ -1858,13 +2025,489 @@ function Section:toggle(o)
 
     lib.setters[cfg.flag] = cfg.set
     cfg.set(o.default or false, true)
+    lib:registerElement(cfg.name, self.tab, row, self)
+    cfg.row = row
+    cfg.section = self
 
     return setmetatable(cfg, Element)
+end
+
+function Section:textbox(o)
+    local lib = self.lib
+    o = o or {}
+    local cfg = {
+        lib = lib, name = o.name or "Textbox", flag = o.flag or o.name or "textbox",
+        callback = o.callback or function() end, value = tostring(o.default or ""),
+        level = self.level,
+    }
+
+    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
+    local lbl = label(row, nameText(cfg.name, o.risky), "item", off(0, 0), dim2(1, 0, 0, 14))
+    if o.risky then lbl.RichText = true end
+
+    local body, outer = fieldBox(row, dim2(1, 0, 0, 18), off(0, 16))
+    local box = new("TextBox", {
+        Parent = body, Size = dim2(1, -10, 1, 0), Position = off(5, 0),
+        Text = cfg.value, PlaceholderText = o.placeholder or "", PlaceholderColor3 = T("mute"),
+        ClearTextOnFocus = false, TextXAlignment = ALeft, ZIndex = 3,
+    })
+
+    function cfg.set(v)
+        cfg.value = tostring(v or "")
+        if not box:IsFocused() then box.Text = cfg.value end
+        lib:setFlag(cfg.flag, cfg.value)
+        cfg.callback(cfg.value)
+    end
+
+    box.FocusLost:Connect(function()
+        cfg.set(box.Text)
+    end)
+    box:GetPropertyChangedSignal("Text"):Connect(function()
+        if box:IsFocused() then
+            cfg.value = box.Text
+            lib:setFlag(cfg.flag, cfg.value)
+        end
+    end)
+
+    lib.setters[cfg.flag] = cfg.set
+    lib:setFlag(cfg.flag, cfg.value)
+    lib:registerElement(cfg.name, self.tab, row, self)
+    cfg.row = row
+    cfg.section = self
+    cfg.right = makeRight(row)
+    return setmetatable(cfg, Element)
+end
+
+function Section:dropdown(o)
+    local lib = self.lib
+    o = o or {}
+    local items = o.items or {}
+    local multi = o.multi == true
+    local cfg = {
+        lib = lib, name = o.name or "Dropdown", flag = o.flag or o.name or "dropdown",
+        callback = o.callback or function() end, multi = multi, level = self.level,
+        items = items,
+    }
+
+    if multi then
+        local def = o.default
+        if type(def) ~= "table" then def = {} end
+        cfg.value = {}
+        for _, v in ipairs(def) do cfg.value[v] = true end
+        cfg.list = {}
+        for _, v in ipairs(def) do cfg.list[#cfg.list + 1] = v end
+    else
+        cfg.value = o.default or (items[1] or "None")
+    end
+
+    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
+    local lbl = label(row, nameText(cfg.name, o.risky), "item", off(0, 0), dim2(1, 0, 0, 14))
+    if o.risky then lbl.RichText = true end
+
+    local body, outer = fieldBox(row, dim2(1, 0, 0, 18), off(0, 16))
+    local valLbl = label(body, "", "text", off(6, 0), dim2(1, -20, 1, 0), ALeft)
+    valLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    local arrow = label(body, "v", "mute", nil, dim2(0, 14, 1, 0), ACenter)
+    arrow.AnchorPoint = v2(1, 0)
+    arrow.Position = dim2(1, -2, 0, 0)
+
+    local function display()
+        if multi then
+            local parts = {}
+            for _, v in ipairs(cfg.list or {}) do
+                if cfg.value[v] then parts[#parts + 1] = tostring(v) end
+            end
+            valLbl.Text = #parts > 0 and table.concat(parts, ", ") or "None"
+        else
+            valLbl.Text = tostring(cfg.value or "None")
+        end
+    end
+    display()
+
+    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
+    hit.MouseEnter:Connect(function() hot(outer, true) end)
+    hit.MouseLeave:Connect(function() if not (cfg._popup and cfg._popup.open) then hot(outer, false) end end)
+
+    local function selected(item)
+        if multi then
+            return cfg.value[item] == true
+        end
+        return cfg.value == item
+    end
+
+    local function pick(item)
+        if multi then
+            if cfg.value[item] then
+                cfg.value[item] = nil
+                for i, v in ipairs(cfg.list) do
+                    if v == item then table.remove(cfg.list, i) break end
+                end
+            else
+                cfg.value[item] = true
+                cfg.list[#cfg.list + 1] = item
+            end
+            local out = {}
+            for _, v in ipairs(cfg.list) do if cfg.value[v] then out[#out + 1] = v end end
+            lib:setFlag(cfg.flag, out)
+            cfg.callback(out)
+        else
+            cfg.value = item
+            lib:setFlag(cfg.flag, item)
+            cfg.callback(item)
+        end
+        display()
+    end
+
+    local P
+    hit.MouseButton1Click:Connect(function()
+        if P and P.open then
+            lib:closePopup(P)
+            return
+        end
+        P = lib:popupList(outer, cfg.items, {
+            multi = multi,
+            selected = selected,
+            pick = pick,
+            alignRight = false,
+            onClose = function() hot(outer, false) end,
+        })
+        cfg._popup = P
+        P.show()
+        hot(outer, true)
+    end)
+
+    function cfg.set(v)
+        if multi then
+            cfg.value = {}
+            cfg.list = {}
+            if type(v) == "table" then
+                for _, x in ipairs(v) do
+                    cfg.value[x] = true
+                    cfg.list[#cfg.list + 1] = x
+                end
+            end
+            local out = {}
+            for _, x in ipairs(cfg.list) do out[#out + 1] = x end
+            lib:setFlag(cfg.flag, out)
+            cfg.callback(out)
+        else
+            cfg.value = v
+            lib:setFlag(cfg.flag, v)
+            cfg.callback(v)
+        end
+        display()
+    end
+
+    function cfg.setItems(list)
+        cfg.items = list or {}
+        if not multi then
+            local found = false
+            for _, it in ipairs(cfg.items) do
+                if it == cfg.value then found = true break end
+            end
+            if not found and cfg.items[1] then
+                cfg.set(cfg.items[1])
+            end
+        end
+        display()
+    end
+
+    if multi then
+        local out = {}
+        for _, v in ipairs(cfg.list) do out[#out + 1] = v end
+        lib:setFlag(cfg.flag, out)
+    else
+        lib:setFlag(cfg.flag, cfg.value)
+    end
+    lib.setters[cfg.flag] = cfg.set
+    lib:registerElement(cfg.name, self.tab, row, self)
+    cfg.row = row
+    cfg.section = self
+    cfg.right = makeRight(row)
+    return setmetatable(cfg, Element)
+end
+
+function Section:slider(o)
+    local lib = self.lib
+    o = o or {}
+    local min = o.min or 0
+    local max = o.max or 100
+    local interval = o.interval or 1
+    local cfg = {
+        lib = lib, name = o.name or "Slider", flag = o.flag or o.name or "slider",
+        callback = o.callback or function() end, min = min, max = max, interval = interval,
+        value = o.default ~= nil and o.default or min, level = self.level,
+    }
+
+    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
+    local top = new("Frame", { Parent = row, Size = dim2(1, 0, 0, 14), BackgroundTransparency = 1 })
+    local lbl = label(top, nameText(cfg.name, o.risky), "item", off(0, 0), dim2(1, -40, 1, 0))
+    if o.risky then lbl.RichText = true end
+    local valLbl = label(top, "", "text", nil, dim2(0, 40, 1, 0), ARight)
+    valLbl.AnchorPoint = v2(1, 0)
+    valLbl.Position = dim2(1, 0, 0, 0)
+
+    local trackOuter = hotFrame(row, dim2(1, 0, 0, 8), off(0, 16))
+    local trackInner = new("Frame", { Parent = trackOuter, Position = off(1, 1), Size = dim2(1, -2, 1, -2), BackgroundColor3 = T("field_bot") })
+    local fill = new("Frame", { Parent = trackInner, Size = dim2(0, 0, 1, 0), BackgroundColor3 = T("accent") })
+    new("UIGradient", { Parent = fill, Rotation = 90, Color = ColorSequence.new(WHITE, rgb(150, 150, 150)) })
+
+    local function round(v)
+        if interval <= 0 then return v end
+        return math.floor(v / interval + 0.5) * interval
+    end
+
+    local function render()
+        local t = (cfg.value - min) / math.max(max - min, 1e-9)
+        fill.Size = dim2(clamp(t, 0, 1), 0, 1, 0)
+        local s
+        if interval >= 1 then
+            s = tostring(floor(cfg.value + 0.5))
+        else
+            local decimals = 0
+            local x = interval
+            while x < 1 and decimals < 4 do
+                x = x * 10
+                decimals += 1
+            end
+            s = string.format("%." .. decimals .. "f", cfg.value)
+        end
+        valLbl.Text = s
+    end
+
+    function cfg.set(v, silent)
+        cfg.value = clamp(round(v), min, max)
+        lib:setFlag(cfg.flag, cfg.value)
+        render()
+        if not silent then cfg.callback(cfg.value) end
+    end
+
+    local dragging = false
+    local function updateFromMouse()
+        local m = lib:mouse()
+        local p = trackInner.AbsolutePosition
+        local s = trackInner.AbsoluteSize
+        local t = clamp((m.X - p.X) / math.max(s.X, 1), 0, 1)
+        cfg.set(min + t * (max - min))
+    end
+
+    local hit = new("TextButton", { Parent = trackOuter, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
+    hit.MouseButton1Down:Connect(function()
+        lib:calibrate(trackInner)
+        dragging = true
+        hot(trackOuter, true)
+        updateFromMouse()
+    end)
+    hit.MouseEnter:Connect(function() hot(trackOuter, true) end)
+    hit.MouseLeave:Connect(function() if not dragging then hot(trackOuter, false) end end)
+
+    lib:connect(UIS.InputEnded, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+            hot(trackOuter, false)
+        end
+    end)
+    lib:connect(UIS.InputChanged, function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            updateFromMouse()
+        end
+    end)
+
+    lib.setters[cfg.flag] = cfg.set
+    cfg.set(cfg.value, true)
+    lib:registerElement(cfg.name, self.tab, row, self)
+    cfg.row = row
+    cfg.section = self
+    cfg.right = makeRight(row)
+    return setmetatable(cfg, Element)
+end
+
+function Column:preview(o)
+    o = o or {}
+    local lib = self.lib
+    local name = o.name or "Preview"
+
+    local container = new("Frame", {
+        Parent = self.holder, Size = dim2(1, 0, 0, 220),
+        BackgroundColor3 = T("body"), LayoutOrder = nxt(lib),
+    })
+    stroke(container, "inline")
+    new("UIListLayout", { Parent = container, SortOrder = Enum.SortOrder.LayoutOrder })
+
+    local header = new("Frame", { Parent = container, Size = dim2(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 1 })
+    local glow = new("Frame", { Parent = header, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent") })
+    new("UIGradient", { Parent = glow, Rotation = 90, Transparency = NumberSequence.new(0.88, 1) })
+    accentLine(header)
+    label(header, name, "text_active", off(8, 2), dim2(1, -16, 1, -2))
+    new("Frame", { Parent = header, AnchorPoint = v2(0, 1), Position = dim2(0, 0, 1, 0), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
+
+    local body = new("Frame", {
+        Parent = container, Size = dim2(1, 0, 1, -24), BackgroundColor3 = T("preview"),
+        LayoutOrder = 2, ClipsDescendants = true,
+    })
+
+    local viewport = new("Frame", {
+        Parent = body, Size = dim2(1, -16, 1, -16), Position = off(8, 8),
+        BackgroundTransparency = 1, ClipsDescendants = true,
+    })
+
+    local lines = {}
+    for i = 1, 16 do
+        lines[i] = newLine(viewport, 5)
+    end
+
+    local angle = 0
+    local running = true
+    local conn
+    conn = RunService.RenderStepped:Connect(function(dt)
+        if not running or not viewport.Parent then
+            if conn then conn:Disconnect() end
+            return
+        end
+        angle = (angle + dt * 0.6) % (math.pi * 2)
+        local w, h = viewport.AbsoluteSize.X, viewport.AbsoluteSize.Y
+        if w < 10 or h < 10 then return end
+        local cx, cy = w * 0.5, h * 0.55
+        local scale = math.min(w, h) * 0.28
+        local cos, sin = math.cos(angle), math.sin(angle)
+
+        local function pt(x, y, z)
+            local rx = x * cos - z * sin
+            local rz = x * sin + z * cos
+            local persp = 1 / (1 + rz * 0.35)
+            return v2(cx + rx * scale * persp, cy - y * scale * persp)
+        end
+
+        local head = pt(0, 1.1, 0)
+        local neck = pt(0, 0.85, 0)
+        local hip  = pt(0, 0.15, 0)
+        local ls   = pt(-0.35, 0.7, 0)
+        local rs   = pt(0.35, 0.7, 0)
+        local lh   = pt(-0.45, 0.35, 0.1)
+        local rh   = pt(0.45, 0.35, -0.1)
+        local lk   = pt(-0.15, -0.35, 0.05)
+        local rk   = pt(0.15, -0.35, -0.05)
+        local lf   = pt(-0.18, -0.85, 0.1)
+        local rf   = pt(0.18, -0.85, -0.1)
+
+        local segs = {
+            {head, neck}, {neck, hip}, {neck, ls}, {neck, rs},
+            {ls, lh}, {rs, rh}, {hip, lk}, {hip, rk},
+            {lk, lf}, {rk, rf},
+        }
+        local accent = Theme.v.accent
+        for i = 1, #lines do
+            if segs[i] then
+                lines[i].color(accent)
+                lines[i].set(segs[i][1], segs[i][2])
+            else
+                lines[i].hide()
+            end
+        end
+    end)
+
+    lib:connect(container.AncestryChanged, function()
+        if not container.Parent then
+            running = false
+            if conn then conn:Disconnect() end
+        end
+    end)
+
+    return container
+end
+
+function Element:gear(o)
+    o = o or {}
+    local lib = self.lib
+    local W = o.width or 226
+
+    local btn = new("TextButton", {
+        Parent = self.right, Size = off(14, 14), BackgroundTransparency = 1,
+        LayoutOrder = 2000, Text = "", ZIndex = 3,
+    })
+    local img = new("ImageLabel", {
+        Parent = btn, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
+        ScaleType = Enum.ScaleType.Fit, ImageColor3 = Theme.v.dim, Visible = false, ZIndex = 4,
+    })
+    local glyph = new("TextLabel", {
+        Parent = btn, Size = dim2(1, 0, 1, 0), TextXAlignment = ACenter, TextYAlignment = YMid,
+        TextColor3 = Theme.v.dim, Visible = false, ZIndex = 4, NoSkin = true,
+    })
+    Icons.bind(function()
+        Icons.apply(img, glyph, Icons.get("settings"), "*")
+    end)
+
+    local hovering = false
+    local P = { level = 1, open = false }
+
+    local function paint()
+        local c = (P.open or hovering) and Theme.v.accent or Theme.v.dim
+        img.ImageColor3 = c
+        glyph.TextColor3 = c
+    end
+    Theme.on({ "accent", "dim" }, paint)
+
+    local outer = new("Frame", {
+        Parent = lib.gui, Size = off(W, 0), AutomaticSize = Enum_Y, BackgroundColor3 = T("outline"),
+        Visible = false, ZIndex = 200, Active = true,
+    })
+    new("UIPadding", { Parent = outer, PaddingTop = dim(0, 1), PaddingBottom = dim(0, 1), PaddingLeft = dim(0, 1), PaddingRight = dim(0, 1) })
+    local mid = new("Frame", { Parent = outer, Size = dim2(1, 0, 0, 0), AutomaticSize = Enum_Y, BackgroundColor3 = T("inline") })
+    new("UIPadding", { Parent = mid, PaddingTop = dim(0, 1), PaddingBottom = dim(0, 1), PaddingLeft = dim(0, 1), PaddingRight = dim(0, 1) })
+    local bg = new("Frame", { Parent = mid, Size = dim2(1, 0, 0, 0), AutomaticSize = Enum_Y, BackgroundColor3 = T("body") })
+    new("UIListLayout", { Parent = bg, SortOrder = Enum.SortOrder.LayoutOrder })
+
+    local header = new("Frame", { Parent = bg, Size = dim2(1, 0, 0, 8), BackgroundTransparency = 1, LayoutOrder = 1 })
+    local hglow = new("Frame", { Parent = header, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent") })
+    new("UIGradient", { Parent = hglow, Rotation = 90, Transparency = NumberSequence.new(0.88, 1) })
+    accentLine(header)
+    new("Frame", { Parent = header, AnchorPoint = v2(0, 1), Position = dim2(0, 0, 1, 0), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
+
+    local content = new("Frame", { Parent = bg, Size = dim2(1, 0, 0, 0), AutomaticSize = Enum_Y, BackgroundTransparency = 1, LayoutOrder = 2 })
+    new("UIPadding", { Parent = content, PaddingTop = dim(0, 8), PaddingBottom = dim(0, 8), PaddingLeft = dim(0, 8), PaddingRight = dim(0, 8) })
+    new("UIListLayout", { Parent = content, Padding = dim(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
+
+    P.frame = outer
+    P.anchor = btn
+
+    function P.show()
+        local h = outer.AbsoluteSize.Y
+        if h < 10 then h = 160 end
+        outer.Position = lib:place(btn, W, h, true)
+        outer.Visible = true
+        P.open = true
+        paint()
+        lib:openPopup(P)
+        task.defer(function()
+            if P.open and outer.AbsoluteSize.Y > 10 then
+                outer.Position = lib:place(btn, W, outer.AbsoluteSize.Y, true)
+            end
+        end)
+    end
+
+    function P.close()
+        outer.Visible = false
+        P.open = false
+        paint()
+    end
+
+    btn.MouseEnter:Connect(function() hovering = true; paint() end)
+    btn.MouseLeave:Connect(function() hovering = false; paint() end)
+    btn.MouseButton1Click:Connect(function()
+        if P.open then
+            lib:closePopup(P)
+        else
+            P.show()
+        end
+    end)
+
+    return setmetatable({ lib = lib, body = content, container = outer, level = 2 }, Section)
 end
 
 function Element:colorpicker(o)
     o = o or {}
     local lib = self.lib
+    local lvl = self.level or 1
     lib.cpCount += 1
 
     local cp = { flag = o.flag or ("color_" .. lib.cpCount), callback = o.callback or function() end, open = false }
@@ -1882,21 +2525,10 @@ function Element:colorpicker(o)
     local PW, PH = 196, 176
     local pb, pop = framed(lib.gui, off(PW, PH), nil, "body")
     pop.Visible = false
-    pop.ZIndex = 200
+    pop.ZIndex = lvl >= 2 and 300 or 200
     pop.Active = true
 
-    local sv = slimBar(pb, off(6, 6), off(154, 108))
-    sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-    sv.ClipsDescendants = true
-    local whiteL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = WHITE })
-    new("UIGradient", { Parent = whiteL, Transparency = NumberSequence.new(0, 1) })
-    local blackL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = rgb(0, 0, 0) })
-    new("UIGradient", { Parent = blackL, Rotation = 90, Transparency = NumberSequence.new(1, 0) })
-    local svBtn = new("TextButton", { Parent = sv, Size = dim2(1, 0, 1, 0), ZIndex = 3 })
-    local svCursor = new("Frame", { Parent = sv, AnchorPoint = v2(0.5, 0.5), Size = off(6, 6), BackgroundColor3 = WHITE, ZIndex = 4 })
-    new("UICorner", { Parent = svCursor, CornerRadius = dim(1, 0) })
-
-    local hueInner = slimBar(pb, off(166, 6), off(18, 108))
+    local hueInner = slimBar(pb, off(6, 6), off(18, 108))
     new("UIGradient", {
         Parent = hueInner, Rotation = 90,
         Color = ColorSequence.new({
@@ -1909,6 +2541,17 @@ function Element:colorpicker(o)
     local hueBtn = new("TextButton", { Parent = hueInner, Size = dim2(1, 0, 1, 0), ZIndex = 3 })
     local hueCursor = new("Frame", { Parent = hueInner, AnchorPoint = v2(0.5, 0.5), Size = dim2(1, 4, 0, 3), BackgroundColor3 = WHITE, ZIndex = 4 })
     stroke(hueCursor, "outline")
+
+    local sv = slimBar(pb, off(30, 6), off(160, 108))
+    sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+    sv.ClipsDescendants = true
+    local whiteL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = WHITE })
+    new("UIGradient", { Parent = whiteL, Transparency = NumberSequence.new(0, 1) })
+    local blackL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = rgb(0, 0, 0) })
+    new("UIGradient", { Parent = blackL, Rotation = 90, Transparency = NumberSequence.new(1, 0) })
+    local svBtn = new("TextButton", { Parent = sv, Size = dim2(1, 0, 1, 0), ZIndex = 3 })
+    local svCursor = new("Frame", { Parent = sv, AnchorPoint = v2(0.5, 0.5), Size = off(6, 6), BackgroundColor3 = WHITE, ZIndex = 4 })
+    new("UICorner", { Parent = svCursor, CornerRadius = dim(1, 0) })
 
     local alphaInner = slimBar(pb, off(6, 120), off(96, 20))
     alphaInner.ClipsDescendants = true
@@ -2010,7 +2653,7 @@ function Element:colorpicker(o)
         end
     end)
 
-    local popup = { frame = pop, anchor = swOuter }
+    local popup = { frame = pop, anchor = swOuter, level = lvl }
     function popup.close()
         pop.Visible = false
         cp.open = false
@@ -2019,7 +2662,7 @@ function Element:colorpicker(o)
 
     swHit.MouseButton1Click:Connect(function()
         if cp.open then
-            lib:closePopups()
+            lib:closePopup(popup)
             return
         end
         cp.open = true
@@ -2047,818 +2690,489 @@ function Element:keybind(o)
     lib.cpCount += 1
 
     local kb = {
-        flag = o.flag or ("keybind_" .. lib.cpCount), mode = o.mode or "Toggle",
-        key = parseKey(o.key), active = false, binding = false,
-        callback = o.callback or function() end, onBind = o.onBind or function() end,
+        flag = o.flag or ("keybind_" .. lib.cpCount),
+        mode = o.mode or "Toggle",
+        key = parseKey(o.key),
+        active = false, binding = false,
+        callback = o.callback or function() end,
+        onBind = o.onBind or function() end,
+        name = o.name or self.name,
     }
 
-    local body, outer = fieldBox(self.right, off(50, 13))
+    local body, outer = fieldBox(self.right, off(54, 13))
     outer.LayoutOrder = 1000 + lib.cpCount
-    local keyLbl = label(body, "None", Theme.v.item, off(0, 0), dim2(1, 0, 1, 0), ACenter)
+    local keyLbl = label(body, "None", "item", off(0, 0), dim2(1, 0, 1, 0), ACenter)
     keyLbl.TextTruncate = Enum.TextTruncate.AtEnd
-    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
 
-    local function paintKey()
+    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 3 })
+
+    local function render()
         keyLbl.Text = kb.binding and "..." or keyText(kb.key)
-        keyLbl.TextColor3 = kb.binding and Theme.v.accent or Theme.v.item
+        keyLbl.TextColor3 = (kb.binding or kb.active) and Theme.v.accent or Theme.v.item
     end
-    Theme.on({ "accent", "item" }, paintKey)
-
-    local displayName = o.name
-    if not displayName and self and self._labelText then displayName = self._labelText end
-    if not displayName then
-        displayName = tostring(kb.flag):gsub("^__", ""):gsub("_", " ")
-    end
-    kb.name = displayName
-    lib.keybinds[kb.flag] = kb
+    Theme.on({ "accent", "item" }, render)
 
     local function refresh()
-        paintKey()
-        lib.flags[kb.flag] = { key = kb.key, mode = kb.mode, active = kb.active }
         if lib.refreshKeybindList then lib.refreshKeybindList() end
     end
 
-    local P = lib:popupList(outer, { "Hold", "Toggle", "Always" }, {
-        alignRight = true,
-        selected = function(item) return kb.mode == item end,
-        pick = function(item)
-            kb.mode = item
-            if item == "Always" then
-                kb.active = true
-            elseif item == "Hold" then
-                kb.active = false
-            end
-            refresh()
-            kb.callback(kb.active)
-        end,
-        onClose = function() hot(outer, false) end,
-    })
-
-    hit.MouseEnter:Connect(function() hot(outer, true) end)
-    hit.MouseLeave:Connect(function() if not kb.binding and not P.open then hot(outer, false) end end)
-
-    hit.MouseButton1Click:Connect(function()
-        lib:closePopups()
-        kb.binding = true
-        lib.binding = true
-        hot(outer, true)
+    function kb.set(k)
+        kb.key = parseKey(k)
+        render()
+        lib:setFlag(kb.flag, kb.key)
         refresh()
-    end)
-    hit.MouseButton2Click:Connect(function()
+    end
+
+    local bindConn
+    local bindPopup = { level = 3, close = function()
+        if bindConn then bindConn:Disconnect() bindConn = nil end
         kb.binding = false
         lib.binding = false
-        refresh()
-        P.toggle()
+        render()
+    end }
+
+    hit.MouseButton1Click:Connect(function()
+        if kb.binding then return end
+        kb.binding = true
+        lib.binding = true
+        render()
+        lib:openPopup(bindPopup)
+        bindConn = UIS.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            local k = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
+            if k then
+                kb.key = parseKey(k)
+                if kb.onBind then kb.onBind(k) end
+                lib:setFlag(kb.flag, kb.key)
+            end
+            bindPopup.close()
+            refresh()
+        end)
     end)
 
-    lib:connect(UIS.InputBegan, function(input, gp)
-        if kb.binding then
-            local k
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                k = input.KeyCode
-            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
-                k = input.UserInputType
-            else
-                return
-            end
-            kb.binding = false
-            lib.binding = false
-            if k == Enum.KeyCode.Escape then k = nil end
-            kb.key = k
-            hot(outer, false)
-            refresh()
-            kb.onBind(k)
-            return
-        end
-        if gp or not kb.key then return end
-        local pressed = (input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == kb.key) or input.UserInputType == kb.key
-        if not pressed then return end
-        if kb.mode == "Toggle" then
-            kb.active = not kb.active
-        elseif kb.mode == "Hold" then
+    local function fire(state)
+        if kb.mode == "Always" then
             kb.active = true
         else
-            return
+            kb.active = state and true or false
         end
-        refresh()
-        kb.callback(kb.active)
-    end)
-
-    lib:connect(UIS.InputEnded, function(input)
-        if kb.mode ~= "Hold" or not kb.key or not kb.active then return end
-        local released = (input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == kb.key) or input.UserInputType == kb.key
-        if released then
-            kb.active = false
-            refresh()
-            kb.callback(false)
-        end
-    end)
-
-    function kb.set(val)
-        if type(val) == "table" then
-            kb.key = parseKey(val.key)
-            kb.mode = val.mode or kb.mode
-            kb.active = kb.mode == "Always" and true or (val.active and true or false)
-        end
+        render()
         refresh()
         kb.callback(kb.active)
     end
 
-    if kb.mode == "Always" then kb.active = true end
+    lib:connect(UIS.InputBegan, function(input, gp)
+        if gp or not kb.key or kb.binding then return end
+        if input.KeyCode == kb.key or input.UserInputType == kb.key then
+            if kb.mode == "Toggle" then
+                fire(not kb.active)
+            else
+                fire(true)
+            end
+        end
+    end)
+
+    lib:connect(UIS.InputEnded, function(input)
+        if not kb.key or kb.binding then return end
+        if input.KeyCode == kb.key or input.UserInputType == kb.key then
+            if kb.mode == "Hold" then fire(false) end
+        end
+    end)
+
+    lib.keybinds[kb.flag] = kb
     lib.setters[kb.flag] = kb.set
+    render()
     refresh()
 
     return self
 end
 
-function Section:dropdown(o)
-    local lib = self.lib
-    local cfg = {
-        lib = lib, name = o.name or "Dropdown", flag = o.flag or o.name or "dropdown",
-        items = o.items or {}, multi = o.multi or false,
-        callback = o.callback or function() end,
-    }
-    local default = o.default
-    if default == nil then default = cfg.multi and {} or cfg.items[1] end
-
-    local holder = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 38), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    label(holder, cfg.name, "text", off(1, 0), dim2(1, -2, 0, 14))
-    local body, outer = fieldBox(holder, dim2(1, 0, 0, 20), off(0, 17))
-    local valLbl = label(body, "", "text", off(6, 0), dim2(1, -24, 1, 0))
-    valLbl.TextTruncate = Enum.TextTruncate.AtEnd
-
-    local arrow = new("Frame", { Parent = body, AnchorPoint = v2(1, 0.5), Position = dim2(1, -6, 0.5, 0), Size = off(7, 4), BackgroundTransparency = 1 })
-    local arrowParts = {}
-    for i = 1, 4 do
-        local w = 9 - 2 * i
-        arrowParts[i] = new("Frame", { Parent = arrow, Position = off((7 - w) / 2, i - 1), Size = off(w, 1), BackgroundColor3 = Theme.v.dim })
-    end
-
-    local P
-    local function setArrow(open)
-        for i, p in ipairs(arrowParts) do
-            local w = 9 - 2 * i
-            p.Position = off((7 - w) / 2, open and (4 - i) or (i - 1))
-            p.BackgroundColor3 = open and Theme.v.accent or Theme.v.dim
-        end
-    end
-    Theme.on({ "accent", "dim" }, function() setArrow(P ~= nil and P.open) end)
-
-    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
-
-    local function isSelected(item)
-        if cfg.multi then
-            for _, x in ipairs(cfg.value or {}) do
-                if x == item then return true end
-            end
-            return false
-        end
-        return cfg.value == item
-    end
-
-    local function build()
-        P = lib:popupList(outer, cfg.items, {
-            multi = cfg.multi,
-            selected = isSelected,
-            pick = function(item)
-                if cfg.multi then
-                    local newSel, found = {}, false
-                    for _, x in ipairs(cfg.value) do
-                        if x == item then found = true else table.insert(newSel, x) end
-                    end
-                    if not found then table.insert(newSel, item) end
-                    cfg.set(newSel)
-                else
-                    cfg.set(item)
-                end
-            end,
-            onOpen = function()
-                setArrow(true)
-                hot(outer, true)
-            end,
-            onClose = function()
-                setArrow(false)
-                hot(outer, false)
-            end,
-        })
-    end
-
-    function cfg.set(val)
-        if cfg.multi then
-            local lookup, sel = {}, {}
-            for _, x in ipairs(type(val) == "table" and val or {}) do lookup[x] = true end
-            for _, item in ipairs(cfg.items) do
-                if lookup[item] then table.insert(sel, item) end
-            end
-            cfg.value = sel
-            local shown = {}
-            for _, x in ipairs(sel) do table.insert(shown, tostring(x)) end
-            valLbl.Text = #shown > 0 and table.concat(shown, ", ") or "None"
-        else
-            cfg.value = val
-            valLbl.Text = tostring(val or "None")
-        end
-        if P then P.refresh() end
-        lib:setFlag(cfg.flag, cfg.value)
-        cfg.callback(cfg.value)
-    end
-
-    function cfg.setItems(items)
-        if P then
-            lib:closePopups()
-            P.destroy()
-        end
-        cfg.items = items
-        build()
-        if cfg.multi then
-            cfg.set(cfg.value or {})
-        else
-            local keep = false
-            for _, x in ipairs(items) do
-                if x == cfg.value then keep = true end
-            end
-            cfg.set(keep and cfg.value or items[1])
-        end
-    end
-
-    hit.MouseEnter:Connect(function() hot(outer, true) end)
-    hit.MouseLeave:Connect(function()
-        if not (P and P.open) then hot(outer, false) end
-    end)
-    hit.MouseButton1Click:Connect(function()
-        if P then P.toggle() end
-    end)
-
-    build()
-    lib.setters[cfg.flag] = cfg.set
-    cfg.set(default)
-    return cfg
-end
-
-function Section:slider(o)
-    local lib = self.lib
-    local cfg = {
-        lib = lib, name = o.name or "Slider", flag = o.flag or o.name or "slider",
-        min = o.min or 0, max = o.max or 100, interval = o.interval or 1,
-        suffix = o.suffix or "", callback = o.callback or function() end, dragging = false,
-    }
-    local decimals = 0
-    if cfg.interval < 1 then
-        decimals = #(tostring(cfg.interval):match("%.(%d+)") or "")
-    end
-
-    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    local nameLbl = label(row, cfg.name, "text", off(1, 0), dim2(1, -90, 0, 13))
-    nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-
-    local valueLbl = label(row, "", "text", dim2(1, -36, 0, 0), dim2(0, 40, 0, 13), ARight)
-    valueLbl.AnchorPoint = v2(1, 0)
-
-    local minus = new("TextButton", {
-        Parent = row, AnchorPoint = v2(1, 0), Position = dim2(1, -18, 0, 0), Size = off(14, 13),
-        Text = "-", TextXAlignment = ACenter, TextColor3 = T("dim"), ZIndex = 3,
-    })
-    local plus = new("TextButton", {
-        Parent = row, AnchorPoint = v2(1, 0), Position = dim2(1, -2, 0, 0), Size = off(14, 13),
-        Text = "+", TextXAlignment = ACenter, TextColor3 = T("dim"), ZIndex = 3,
-    })
-
-    local outer = hotFrame(row, dim2(1, 0, 0, 12), off(0, 15))
-    local inner = new("Frame", { Parent = outer, Position = off(1, 1), Size = dim2(1, -2, 1, -2), BackgroundColor3 = WHITE, ClipsDescendants = true })
-    local ig = new("UIGradient", { Parent = inner, Rotation = 90 })
-    Theme.on({ "field_top", "field_bot" }, function()
-        ig.Color = ColorSequence.new(Theme.v.field_top, Theme.v.field_bot)
-    end)
-    local fill = new("Frame", { Parent = inner, Size = dim2(0, 0, 1, 0), BackgroundColor3 = T("accent") })
-    new("UIGradient", { Parent = fill, Rotation = 90, Color = ColorSequence.new(WHITE, rgb(150, 150, 150)) })
-    local handle = new("Frame", { Parent = inner, AnchorPoint = v2(1, 0.5), Position = dim2(0, 0, 0.5, 0), Size = dim2(0, 2, 1, 4), BackgroundColor3 = T("handle"), ZIndex = 3 })
-    stroke(handle, "outline")
-
-    local function setValue(v, instant)
-        v = clamp(v, cfg.min, cfg.max)
-        v = floor((v - cfg.min) / cfg.interval + 0.5) * cfg.interval + cfg.min
-        if decimals > 0 then
-            v = tonumber(string.format("%." .. decimals .. "f", v))
-        else
-            v = floor(v + 0.5)
-        end
-        cfg.value = v
-        local range = cfg.max - cfg.min
-        local pct = range > 0 and (v - cfg.min) / range or 0
-        local target = dim2(pct, 0, 0.5, 0)
-        if instant == true then
-            fill.Size = dim2(pct, 0, 1, 0)
-            handle.Position = target
-        else
-            tween(fill, { Size = dim2(pct, 0, 1, 0) }, 0.05)
-            tween(handle, { Position = target }, 0.05)
-        end
-        local str
-        if decimals > 0 then str = string.format("%." .. decimals .. "f", v) else str = tostring(floor(v + 0.5)) end
-        valueLbl.Text = str .. cfg.suffix
-        lib:setFlag(cfg.flag, v)
-        cfg.callback(v)
-    end
-    cfg.set = setValue
-
-    local function updateFromMouse()
-        local m = lib:mouse()
-        local p = outer.AbsolutePosition
-        local s = outer.AbsoluteSize
-        if s.X <= 0 then return end
-        local pct = clamp((m.X - p.X) / s.X, 0, 1)
-        setValue(cfg.min + pct * (cfg.max - cfg.min))
-    end
-
-    local barHit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
-    barHit.MouseButton1Down:Connect(function()
-        lib:calibrate(outer)
-        cfg.dragging = true
-        updateFromMouse()
-    end)
-    lib:connect(UIS.InputEnded, function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then cfg.dragging = false end
-    end)
-    lib:connect(UIS.InputChanged, function(i)
-        if cfg.dragging and i.UserInputType == Enum.UserInputType.MouseMovement then updateFromMouse() end
-    end)
-
-    local function step(dir) setValue(cfg.value + dir * cfg.interval) end
-    local function holdStep(btn, dir)
-        local holding = false
-        btn.MouseButton1Down:Connect(function()
-            holding = true
-            step(dir)
-            task.spawn(function()
-                task.wait(0.4)
-                while holding do
-                    step(dir)
-                    task.wait(0.05)
-                end
-            end)
-        end)
-        btn.MouseButton1Up:Connect(function() holding = false end)
-        lib:connect(UIS.InputEnded, function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1 then holding = false end
-        end)
-    end
-    holdStep(minus, -1)
-    holdStep(plus, 1)
-
-    minus.MouseEnter:Connect(function() minus.TextColor3 = Theme.v.accent end)
-    minus.MouseLeave:Connect(function() minus.TextColor3 = Theme.v.dim end)
-    plus.MouseEnter:Connect(function() plus.TextColor3 = Theme.v.accent end)
-    plus.MouseLeave:Connect(function() plus.TextColor3 = Theme.v.dim end)
-
-    lib.setters[cfg.flag] = setValue
-    setValue(o.value or o.default or cfg.min, true)
-    return cfg
-end
-
-function Section:textbox(o)
-    local lib = self.lib
-    local cfg = {
-        lib = lib, name = o.name or "Textbox", flag = o.flag or o.name or "textbox",
-        callback = o.callback or function() end, value = "",
-    }
-    local holder = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 36), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    label(holder, cfg.name, "text", off(1, 0), dim2(1, -2, 0, 14))
-    local body, outer = fieldBox(holder, dim2(1, 0, 0, 18), off(0, 16))
-    local box = new("TextBox", {
-        Parent = body, Size = dim2(1, -8, 1, 0), Position = off(5, 0), ClearTextOnFocus = false,
-        PlaceholderText = o.placeholder or "Enter...", PlaceholderColor3 = T("mute"),
-    })
-    function cfg.set(v)
-        cfg.value = tostring(v or "")
-        box.Text = cfg.value
-        lib:setFlag(cfg.flag, cfg.value)
-        cfg.callback(cfg.value)
-    end
-    box.FocusLost:Connect(function() cfg.set(box.Text) end)
-    lib.setters[cfg.flag] = cfg.set
-    cfg.set(o.default or "")
-    return cfg
-end
-
-function Section:keybind(o)
-    local name = (type(o) == "table" and o.name) or "Keybind"
-    local e = self:label(name)
-    e:keybind(o)
-    return e
-end
-
-function Section:colorpicker(o)
-    local name = (type(o) == "table" and o.name) or "Color"
-    local e = self:label(name)
-    e:colorpicker(o)
-    return e
-end
-
-function Section:preview(o)
-    o = o or {}
-    local lib = self.lib
-    local height = o.height or 220
-    local speed = o.speed or 0.6
-    local showBox = o.showBox ~= false
-    local showBones = o.showBones ~= false
-    local showHead = o.showHead ~= false
-    local showName = o.showName ~= false
-    local displayName = o.label or o.model or "Preview"
-
-    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, height), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    local body, outer = fieldBox(row, dim2(1, 0, 1, 0), nil, "preview")
-
-    local vf = new("ViewportFrame", {
-        Parent = body, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
-        Ambient = rgb(255, 255, 255), LightColor = rgb(255, 255, 255),
-        LightDirection = Vector3.new(-1, -1, -1),
-    })
-
-    local overlay = new("Frame", {
-        Parent = body, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ClipsDescendants = true,
-    })
-
-    local camera = new("Camera", { Parent = vf, FieldOfView = 30 })
-    vf.CurrentCamera = camera
-
-    local pm
-    local loading = true
-
-    task.spawn(function()
-        local assetId = o.assetId or (o.model and MODEL_REGISTRY[o.model])
-        local m
-        if assetId then
-            m = loadModelById(assetId)
-        else
-            m = buildLocal()
-        end
-        if m then
-            pm = prepareModel(m)
-            if pm then
-                pm.model.Parent = vf
-                for part in pairs(pm.tint) do
-                    part.Color = o.partColor or rgb(200, 200, 200)
-                    part.Material = Enum.Material.SmoothPlastic
-                end
-            end
-        end
-        loading = false
-    end)
-
-    local linePool = {}
-    local lineCount = 0
-    local function getLine()
-        lineCount = lineCount + 1
-        local l = linePool[lineCount]
-        if not l then
-            l = newLine(overlay, 10)
-            linePool[lineCount] = l
-        end
-        return l
-    end
-
-    local headDot = new("Frame", {
-        Parent = overlay, AnchorPoint = v2(0.5, 0.5), Size = off(5, 5),
-        BackgroundColor3 = WHITE, Visible = false, ZIndex = 11,
-    })
-    new("UICorner", { Parent = headDot, CornerRadius = dim(1, 0) })
-    stroke(headDot, "outline")
-
-    local nameTag = new("TextLabel", {
-        Parent = overlay, Size = dim2(0, 0, 0, 12), AutomaticSize = Enum_X,
-        AnchorPoint = v2(0.5, 1), BackgroundTransparency = 1, TextColor3 = WHITE,
-        TextStrokeTransparency = 0, TextStrokeColor3 = rgb(0, 0, 0),
-        Visible = false, ZIndex = 12, NoSkin = true, Text = displayName,
-    })
-
-    task.spawn(function()
-        local angle = 0
-        while row.Parent and body.Parent do
-            local dt = task.wait()
-            local w = body.AbsoluteSize.X
-            local h = body.AbsoluteSize.Y
-            if w > 20 and h > 20 and pm then
-                angle = angle + dt * speed
-                local dist = pm.radius * 3 + pm.height * 0.4
-                local look = Vector3.new(0, 0, 0)
-                local camPos = look + Vector3.new(math.sin(angle) * dist, pm.height * 0.15, math.cos(angle) * dist)
-                camera.CFrame = CFrame.lookAt(camPos, look)
-                local camCF = camera.CFrame
-                local tanHalf = math.tan(math.rad(camera.FieldOfView) * 0.5)
-
-                lineCount = 0
-                local accent = o.color or Theme.v.accent
-
-                local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
-                for _, c in ipairs(pm.corners) do
-                    local p = projectPoint(c, camCF, tanHalf, w, h)
-                    if p then
-                        if p.X < minX then minX = p.X end
-                        if p.Y < minY then minY = p.Y end
-                        if p.X > maxX then maxX = p.X end
-                        if p.Y > maxY then maxY = p.Y end
-                    end
-                end
-
-                if showBox and minX ~= math.huge then
-                    local cw = (maxX - minX) * 0.22
-                    local ch = (maxY - minY) * 0.22
-                    local function seg(x1, y1, x2, y2)
-                        local l = getLine()
-                        l.color(accent)
-                        l.set(v2(x1, y1), v2(x2, y2))
-                    end
-                    seg(minX, minY, minX + cw, minY)
-                    seg(minX, minY, minX, minY + ch)
-                    seg(maxX, minY, maxX - cw, minY)
-                    seg(maxX, minY, maxX, minY + ch)
-                    seg(minX, maxY, minX + cw, maxY)
-                    seg(minX, maxY, minX, maxY - ch)
-                    seg(maxX, maxY, maxX - cw, maxY)
-                    seg(maxX, maxY, maxX, maxY - ch)
-                end
-
-                if showBones then
-                    for _, bfn in ipairs(pm.bones) do
-                        local a, b = bfn()
-                        local pa = projectPoint(a, camCF, tanHalf, w, h)
-                        local pb = projectPoint(b, camCF, tanHalf, w, h)
-                        if pa and pb then
-                            local l = getLine()
-                            l.color(accent)
-                            l.set(pa, pb)
-                        end
-                    end
-                end
-
-                if showHead then
-                    local hp = projectPoint(pm.head(), camCF, tanHalf, w, h)
-                    if hp then
-                        headDot.Visible = true
-                        headDot.Position = off(hp.X, hp.Y)
-                        headDot.BackgroundColor3 = accent
-                    else
-                        headDot.Visible = false
-                    end
-                else
-                    headDot.Visible = false
-                end
-
-                if showName and minX ~= math.huge then
-                    nameTag.Visible = true
-                    nameTag.TextColor3 = accent
-                    nameTag.Position = off((minX + maxX) * 0.5, minY - 4)
-                else
-                    nameTag.Visible = false
-                end
-
-                for i = lineCount + 1, #linePool do linePool[i].hide() end
-            else
-                if not loading and not pm then
-                    headDot.Visible = false
-                    nameTag.Visible = false
-                end
-            end
-        end
-    end)
-
-    return outer
-end
-
-function Library:saveConfig(name)
-    if not name or name == "" then name = "default" end
-    local data = {}
-    for flag, value in pairs(self.flags) do
-        data[flag] = encode(value)
-    end
-    local ok = pcall(function()
-        if typeof(isfolder) == "function" and not isfolder(self.folder) then makefolder(self.folder) end
-        writefile(self.folder .. "/" .. name .. ".json", HttpService:JSONEncode(data))
-    end)
-    if ok then
-        self:notify({ title = "Config", text = "Saved: " .. name, kind = "success" })
-    else
-        self:notify({ title = "Config", text = "Save failed", kind = "error" })
-    end
-end
-
-function Library:loadConfig(name)
-    if not name or name == "" then name = "default" end
-    local path = self.folder .. "/" .. name .. ".json"
-    local ok, content = pcall(function()
-        if typeof(isfile) == "function" and isfile(path) then return readfile(path) end
-    end)
-    if not ok or not content then
-        self:notify({ title = "Config", text = "Not found: " .. name, kind = "error" })
-        return
-    end
-    local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
-    if not ok2 or type(data) ~= "table" then
-        self:notify({ title = "Config", text = "Invalid: " .. name, kind = "error" })
-        return
-    end
-    for flag, enc in pairs(data) do
-        local setter = self.setters[flag]
-        if setter then pcall(setter, decode(enc)) end
-    end
-    self:notify({ title = "Config", text = "Loaded: " .. name, kind = "success" })
-end
-
-function Library:deleteConfig(name)
-    if not name or name == "" then name = "default" end
-    local path = self.folder .. "/" .. name .. ".json"
-    pcall(function()
-        if typeof(isfile) == "function" and isfile(path) then delfile(path) end
-    end)
-    self:notify({ title = "Config", text = "Deleted: " .. name, kind = "warn" })
-end
-
-function Library:listConfigs()
+function Library:exportConfig()
     local out = {}
-    pcall(function()
-        if typeof(isfolder) == "function" and isfolder(self.folder) then
-            for _, f in ipairs(listfiles(self.folder)) do
-                local n = f:match("([^/\\]+)%.json$")
-                if n then out[#out + 1] = n end
+    for k, v in pairs(self.flags) do
+        if not isUiFlag(k) or k:match("^__theme_") or k:match("^__ui_") or k:match("^__cfg_") or k:match("^__wm_") or k:match("^__notif") or k:match("^__menu") or k:match("^__kb") or k:match("^__watermark") or k:match("^__notifs") then
+            out[k] = encode(v)
+        end
+    end
+    for k, c in pairs(Theme.v) do
+        out["__theme_" .. k] = encode(c)
+    end
+    out["__ui_font"] = self.flags["__ui_font"] or "Tahoma 8px"
+    out["__ui_size"] = self.flags["__ui_size"] or UI.size
+    return HttpService:JSONEncode(out)
+end
+
+function Library:importConfig(data)
+    if type(data) ~= "string" or data == "" then return false end
+    local ok, decoded = pcall(function() return HttpService:JSONDecode(data) end)
+    if not ok or type(decoded) ~= "table" then return false end
+    for k, v in pairs(decoded) do
+        local val = decode(v)
+        local setter = self.setters[k]
+        if setter then
+            pcall(setter, val)
+        else
+            self.flags[k] = val
+            if k:match("^__theme_") then
+                local key = k:sub(9)
+                if Theme.v[key] ~= nil and typeof(val) == "Color3" then
+                    Theme.set(key, val)
+                end
             end
         end
-    end)
-    table.sort(out)
-    return out
+    end
+    return true
 end
 
 function Library:configTab(tab)
-    local left = tab:column("left")
-    local right = tab:column("right")
-    local cfg = left:section({ name = "Config" })
-    local saveName = "default"
-    cfg:textbox({
-        name = "Name", flag = "_cfgname", placeholder = "default",
-        callback = function(v) saveName = v end,
-    })
-    cfg:button({ name = "Save", callback = function() self:saveConfig(saveName) end })
-    cfg:button({ name = "Load", callback = function() self:loadConfig(saveName) end })
-    cfg:button({ name = "Delete", callback = function() self:deleteConfig(saveName) end })
-    cfg:button({ name = "List", callback = function()
-        local list = self:listConfigs()
-        self:notify({ title = "Configs", text = #list > 0 and table.concat(list, ", ") or "None", kind = "info" })
-    end })
+    local lib = self
+    local base = (lower(lib.folder):gsub("%W", ""))
+    local cfgFolder = base .. "_configs"
+    local themeFolder = base .. "_themes"
+    local canFs = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(listfiles) == "function"
 
-    local theme = right:section({ name = "Theme" })
-    for _, pname in ipairs(PRESET_NAMES) do
-        local key = lower(pname)
-        theme:button({ name = pname, callback = function()
-            local p = PRESETS[key]
-            if p then for k, v in pairs(p) do Theme.set(k, v) end end
-        end })
+    if canFs and typeof(makefolder) == "function" then
+        for _, f in ipairs({ cfgFolder, themeFolder }) do
+            local exists = typeof(isfolder) == "function" and isfolder(f)
+            if not exists then pcall(makefolder, f) end
+        end
     end
 
-    local accent = right:section({ name = "Accent" })
-    accent:label("Accent Color"):colorpicker({
-        flag = "_accent", color = Theme.v.accent,
-        callback = function(c) Theme.set("accent", c) end,
+    local function listFiles(folder, ext)
+        local out = {}
+        if not canFs then return out end
+        local ok, files = pcall(listfiles, folder)
+        if not ok then return out end
+        for _, f in ipairs(files) do
+            local n = tostring(f):match("([^/\\]+)%." .. ext .. "$")
+            if n then table.insert(out, n) end
+        end
+        table.sort(out)
+        return out
+    end
+
+    local function cfgItems()
+        local out = listFiles(cfgFolder, "cfg")
+        if #out == 0 then out[1] = "default" end
+        return out
+    end
+
+    local function readTxt(path, fallback)
+        if not canFs then return fallback end
+        local ok, data = pcall(readfile, path)
+        if not ok or not data then return fallback end
+        data = (tostring(data):gsub("^%s+", ""):gsub("%s+$", ""))
+        if data == "" then return fallback end
+        return data
+    end
+    local function writeTxt(path, value)
+        if not canFs then return end
+        pcall(writefile, path, tostring(value or ""))
+    end
+
+    local left = tab:column("left")
+    local right = tab:column("right")
+    local cfgSec = left:section({ name = "Config" })
+    local autoSec = left:section({ name = "Auto Config" })
+    local menuSec = right:section({ name = "Menu" })
+    local themeSec, colorSec, fontSec = right:multi_section({ names = { "Theme", "Colors", "Font" }, fills = false })
+
+    local nameBox = cfgSec:textbox({ name = "Config Name", flag = "__cfg_name", placeholder = "Name" })
+    local picker = cfgSec:dropdown({ name = "Saved Configs", flag = "__cfg_list", items = cfgItems() })
+
+    local function cfgTarget()
+        local n = nameBox.value
+        if n == nil or n == "" then n = picker.value end
+        return tostring(n or "default")
+    end
+
+    local savedAutoLoad = readTxt(cfgFolder .. "/autoload_name.txt", "default")
+    local savedAutoSave = readTxt(cfgFolder .. "/autosave_name.txt", "default")
+    local savedAutoLoadOn = readTxt(cfgFolder .. "/autoload_enabled.txt", "true") ~= "false"
+    local savedAutoSaveOn = readTxt(cfgFolder .. "/autosave_enabled.txt", "true") ~= "false"
+
+    local autoLoadDrop, autoSaveDrop
+
+    local function cfgRefresh()
+        local items = cfgItems()
+        picker.setItems(items)
+        if autoLoadDrop then autoLoadDrop.setItems(items) end
+        if autoSaveDrop then autoSaveDrop.setItems(items) end
+    end
+
+    cfgSec:button({ name = "Save", callback = function()
+        if not canFs then lib:notify("Filesystem unavailable") return end
+        local n = cfgTarget()
+        local ok = pcall(writefile, cfgFolder .. "/" .. n .. ".cfg", lib:exportConfig())
+        lib:notify(ok and ("Saved " .. n) or "Save failed")
+        cfgRefresh()
+        if lib.cfgLabel then lib.cfgLabel.Text = n .. ".cfg" end
+    end })
+    cfgSec:button({ name = "Load", callback = function()
+        if not canFs then lib:notify("Filesystem unavailable") return end
+        local n = cfgTarget()
+        local ok, data = pcall(readfile, cfgFolder .. "/" .. n .. ".cfg")
+        if ok and lib:importConfig(data) then
+            lib:notify("Loaded " .. n)
+            if lib.cfgLabel then lib.cfgLabel.Text = n .. ".cfg" end
+        else
+            lib:notify("Load failed")
+        end
+    end })
+    cfgSec:button({ name = "Delete", callback = function()
+        if not (canFs and typeof(delfile) == "function") then lib:notify("Filesystem unavailable") return end
+        local n = cfgTarget()
+        local ok = pcall(delfile, cfgFolder .. "/" .. n .. ".cfg")
+        lib:notify(ok and ("Deleted " .. n) or "Delete failed")
+        cfgRefresh()
+    end })
+    cfgSec:button({ name = "Refresh", callback = cfgRefresh })
+
+    autoSec:toggle({ name = "Auto Load", flag = "__cfg_autoload", default = savedAutoLoadOn, callback = function(v)
+        writeTxt(cfgFolder .. "/autoload_enabled.txt", v and "true" or "false")
+    end })
+    autoLoadDrop = autoSec:dropdown({
+        name = "Auto Load Config", flag = "__cfg_autoload_name",
+        items = cfgItems(), default = savedAutoLoad,
+        callback = function(v) writeTxt(cfgFolder .. "/autoload_name.txt", v) end,
+    })
+    autoSec:toggle({ name = "Auto Save", flag = "__cfg_autosave", default = savedAutoSaveOn, callback = function(v)
+        writeTxt(cfgFolder .. "/autosave_enabled.txt", v and "true" or "false")
+    end })
+    autoSaveDrop = autoSec:dropdown({
+        name = "Auto Save Config", flag = "__cfg_autosave_name",
+        items = cfgItems(), default = savedAutoSave,
+        callback = function(v) writeTxt(cfgFolder .. "/autosave_name.txt", v) end,
     })
 
-    local misc = right:section({ name = "Misc" })
-    misc:button({ name = "Reset Theme", callback = function()
-        for k, v in pairs(PRESETS.default) do Theme.set(k, v) end
+    local ready = false
+
+    local function applyTheme(t)
+        for k, c in pairs(t) do
+            if k ~= "__ui_font" and k ~= "__ui_size" then
+                local fn = lib.setters["__theme_" .. k]
+                if fn then fn(c) else Theme.set(k, c) end
+            end
+        end
+        if t.__ui_font then
+            local fn = lib.setters["__ui_font"]
+            if fn then fn(t.__ui_font) end
+        end
+        if t.__ui_size then
+            local fn = lib.setters["__ui_size"]
+            if fn then fn(tonumber(t.__ui_size) or UI.size) end
+        end
+    end
+
+    local function themeJson()
+        local out = {}
+        for k, c in pairs(Theme.v) do out[k] = toHex(c) end
+        out.__ui_font = lib.flags["__ui_font"] or "Tahoma 8px"
+        out.__ui_size = lib.flags["__ui_size"] or UI.size
+        return HttpService:JSONEncode(out)
+    end
+
+    local function themeFromJson(s)
+        local ok, d = pcall(function() return HttpService:JSONDecode(s) end)
+        if not ok or type(d) ~= "table" then return nil end
+        local out = {}
+        for k, hx in pairs(d) do
+            if Theme.v[k] ~= nil and type(hx) == "string" then
+                local c = parseHex(hx)
+                if c then out[k] = c end
+            end
+        end
+        out.__ui_font = d.__ui_font
+        out.__ui_size = d.__ui_size
+        return out
+    end
+
+    themeSec:dropdown({
+        name = "Preset", flag = "__theme_preset", items = PRESET_NAMES, default = "Default",
+        callback = function(v)
+            local p = PRESETS[lower(tostring(v))]
+            if ready and p then applyTheme(p) end
+        end,
+    })
+    local themeName = themeSec:textbox({ name = "Theme Name", flag = "__theme_name", placeholder = "Name" })
+    local themePicker = themeSec:dropdown({ name = "Saved Themes", flag = "__theme_list", items = listFiles(themeFolder, "theme") })
+
+    local function themeTarget()
+        local n = themeName.value
+        if n == nil or n == "" then n = themePicker.value end
+        if n == nil or n == "" or n == "None" then return nil end
+        return tostring(n)
+    end
+
+    local function themeRefresh()
+        themePicker.setItems(listFiles(themeFolder, "theme"))
+    end
+
+    themeSec:button({ name = "Save Theme", callback = function()
+        if not canFs then lib:notify("Filesystem unavailable") return end
+        local n = themeTarget()
+        if not n then lib:notify("Enter a theme name") return end
+        local ok = pcall(writefile, themeFolder .. "/" .. n .. ".theme", themeJson())
+        lib:notify(ok and ("Saved theme " .. n) or "Save failed")
+        themeRefresh()
+    end })
+    themeSec:button({ name = "Load Theme", callback = function()
+        if not canFs then lib:notify("Filesystem unavailable") return end
+        local n = themeTarget()
+        if not n then lib:notify("Pick a theme") return end
+        local ok, data = pcall(readfile, themeFolder .. "/" .. n .. ".theme")
+        local t = ok and themeFromJson(data)
+        if t then
+            applyTheme(t)
+            lib:notify("Loaded theme " .. n)
+        else
+            lib:notify("Load failed")
+        end
+    end })
+    themeSec:button({ name = "Delete Theme", callback = function()
+        if not (canFs and typeof(delfile) == "function") then lib:notify("Filesystem unavailable") return end
+        local n = themeTarget()
+        if not n then return end
+        local ok = pcall(delfile, themeFolder .. "/" .. n .. ".theme")
+        lib:notify(ok and ("Deleted theme " .. n) or "Delete failed")
+        themeRefresh()
+    end })
+    themeSec:button({ name = "Set As Default", callback = function()
+        if not canFs then lib:notify("Filesystem unavailable") return end
+        local n = themeTarget()
+        if not n then lib:notify("Pick a theme") return end
+        local ok = pcall(writefile, themeFolder .. "/autoload.txt", n)
+        lib:notify(ok and ("Default theme set to " .. n) or "Failed to set default")
+    end })
+    themeSec:button({ name = "Refresh Themes", callback = themeRefresh })
+    themeSec:button({ name = "Reset To Default", callback = function()
+        applyTheme(PRESETS.default)
+        if canFs and typeof(delfile) == "function" then pcall(delfile, themeFolder .. "/autoload.txt") end
+        lib:notify("Theme reset")
     end })
 
-    return { left = left, right = right }
-end
+    for _, e in ipairs(THEME_KEYS) do
+        local key = e[1]
+        colorSec:label(e[2]):colorpicker({
+            flag = "__theme_" .. key, color = Theme.v[key],
+            callback = function(c) Theme.set(key, c) end,
+        })
+    end
 
-function Column:preview(o)
-    o = o or {}
-    local sec = self:section({ name = o.name or "Preview" })
-    return sec:preview(o)
-end
-
-local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
-
-local win = Library.new({
-    name = "Stardust", version = "Private", config = "default.cfg", folder = "catware",
-    logoIcon = "sparkles", fonts = ESP.Fonts,
-})
-win.onUnload = function() ESP:Stop() end
-
-local combat = win:category("Combat")
-local legit = combat:tab("Legit")
-local Rage = combat:tab("Rage")
-
-local visuals = win:category("Visuals")
-local playersTab = visuals:tab("Players")
-local world = visuals:tab("World")
-
-local other = win:category("Other")
-local misc = other:tab("Misc")
-
-local Settings = win:category("Settings")
-local config = Settings:tab("UI Settings")
-
-local left = playersTab:column("left")
-local right = playersTab:column("right")
-
-local Enemy, Team, AI, Items, Setting = left:multi_section({
-    names = {"Enemy", "Team", "AI", "Items", "Settings"}
-})
-
-local function addESPSection(sec, tbl, prefix)
-    sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
-    sec:toggle({name = "Box", default = tbl.BoxEnabled, flag = prefix.."_box", callback = function(v) tbl.BoxEnabled = v end})
-        :colorpicker({flag = prefix.."_box_color", color = tbl.LineColor, callback = function(c) tbl.LineColor = c end})
-    sec:dropdown({name = "Box Type", items = {"Corner", "Full", "3D"}, default = tbl.BoxType, flag = prefix.."_box_type", callback = function(v) tbl.BoxType = v end})
-    sec:slider({name = "Box Thickness", min = 1, max = 5, default = tbl.Thickness, interval = 1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
-    sec:toggle({name = "Box Glow", default = tbl.BoxGlow, flag = prefix.."_box_glow", callback = function(v) tbl.BoxGlow = v end})
-    sec:toggle({name = "Box Fill", default = tbl.BoxFill, flag = prefix.."_boxfill", callback = function(v) tbl.BoxFill = v end})
-        :colorpicker({flag = prefix.."_boxfill_c1", color = tbl.BoxFillColor1, callback = function(c) tbl.BoxFillColor1 = c end})
-        :colorpicker({flag = prefix.."_boxfill_c2", color = tbl.BoxFillColor2, callback = function(c) tbl.BoxFillColor2 = c end})
-    sec:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
-    sec:toggle({name = "Chams", default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
-        :colorpicker({flag = prefix.."_chams_color", color = tbl.ChamsColor, callback = function(c) tbl.ChamsColor = c end})
-    sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
-        :colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
-        :colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})
-    sec:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
-    sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
-        :colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
-        :colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
-    sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
-        :colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
-        :colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
-    sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
-        :colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
-        :colorpicker({flag = prefix.."_health_mid", color = tbl.HealthMid, callback = function(c) tbl.HealthMid = c end})
-        :colorpicker({flag = prefix.."_health_low", color = tbl.HealthLow, callback = function(c) tbl.HealthLow = c end})
-    sec:toggle({name = "Health Text", default = tbl.HealthText, flag = prefix.."_healthtext", callback = function(v) tbl.HealthText = v end})
-    sec:toggle({name = "Armor Bar", default = tbl.ArmorBar, flag = prefix.."_armorbar", callback = function(v) tbl.ArmorBar = v end})
-        :colorpicker({flag = prefix.."_armor_high", color = tbl.ArmorHigh, callback = function(c) tbl.ArmorHigh = c end})
-        :colorpicker({flag = prefix.."_armor_mid", color = tbl.ArmorMid, callback = function(c) tbl.ArmorMid = c end})
-        :colorpicker({flag = prefix.."_armor_low", color = tbl.ArmorLow, callback = function(c) tbl.ArmorLow = c end})
-    sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
-        :colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})
-        :colorpicker({flag = prefix.."_skeleton_color2", color = tbl.SkeletonColor2, callback = function(c) tbl.SkeletonColor2 = c end})
-    sec:slider({name = "Skeleton Thickness", min = 1, max = 5, default = tbl.SkeletonThickness, interval = 1, flag = prefix.."_skeleton_thickness", callback = function(v) tbl.SkeletonThickness = v end})
-    sec:toggle({name = "Head Dot", default = tbl.HeadDot, flag = prefix.."_headdot", callback = function(v) tbl.HeadDot = v end})
-        :colorpicker({flag = prefix.."_headdot_color", color = tbl.HeadDotColor, callback = function(c) tbl.HeadDotColor = c end})
-    sec:slider({name = "Head Dot Size", min = 4, max = 40, default = tbl.HeadDotSize, interval = 1, flag = prefix.."_headdot_size", callback = function(v) tbl.HeadDotSize = v end})
-    sec:toggle({name = "Tracers", default = tbl.Tracers, flag = prefix.."_tracers", callback = function(v) tbl.Tracers = v end})
-        :colorpicker({flag = prefix.."_tracer_color", color = tbl.TracerColor, callback = function(c) tbl.TracerColor = c end})
-    sec:slider({name = "Text Size", min = 8, max = 20, default = tbl.TextSize, interval = 1, flag = prefix.."_textsize", callback = function(v) tbl.TextSize = v end})
-end
-
-addESPSection(Enemy, ESP.Settings.Enemy, "enemy")
-addESPSection(Team, ESP.Settings.Teammate, "team")
-addESPSection(AI, ESP.Settings.AI, "ai")
-
-Items:toggle({name = "Enabled", default = ESP.Settings.Items.Enabled, flag = "items_enabled", callback = function(v) ESP.Settings.Items.Enabled = v end})
-Items:slider({name = "Max Distance", min = 50, max = 1000, default = ESP.Settings.Items.MaxDistance, interval = 10, flag = "items_maxdist", callback = function(v) ESP.Settings.Items.MaxDistance = v end})
-Items:toggle({name = "Show Names", default = ESP.Settings.Items.ShowNames, flag = "items_names", callback = function(v) ESP.Settings.Items.ShowNames = v end})
-Items:toggle({name = "Show Distance", default = ESP.Settings.Items.ShowDistance, flag = "items_dist", callback = function(v) ESP.Settings.Items.ShowDistance = v end})
-Items:toggle({name = "Chams", default = ESP.Settings.Items.Chams, flag = "items_chams", callback = function(v) ESP.Settings.Items.Chams = v end})
-Items:divider()
-
-local itemList = {
-    {"Safe", "Safe"}, {"Civilian Airdrop", "CivilianAirdrop"}, {"Abandoned Car", "AbandonedCar"},
-    {"Duffel Bag", "DuffelBag"}, {"Food Crate", "FoodCrate"}, {"Leather Pouch", "LeatherPouch"},
-    {"Supply Crate", "SupplyCrate"}, {"Medical Pouch", "MedicalPouch"}, {"Dropped Item Container", "DroppedItemContainer"},
-    {"T.C.R Supply Crate", "TCRCrate"}, {"Metal Crate", "MetalCrate"}, {"Specops Supply Crate", "SpecopsCrate"},
-    {"Tall Metal Crate", "TallMetalCrate"}, {"Wooden Crate", "WoodenCrate"}, {"Ammo Box", "AmmoBox"},
-    {"Dead Body", "Dead"}
-}
-
-for _, item in ipairs(itemList) do
-    local displayName, key = item[1], item[2]
-    Items:toggle({
-        name = displayName,
-        default = ESP.Settings.Items[key] and ESP.Settings.Items[key].Enabled or false,
-        flag = "items_" .. string.lower(key),
-        callback = function(v)
-            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Enabled = v end
-        end
-    }):colorpicker({
-        flag = "items_" .. string.lower(key) .. "_color",
-        color = ESP.Settings.Items[key] and ESP.Settings.Items[key].Color or Color3.fromRGB(255, 255, 255),
-        callback = function(c)
-            if ESP.Settings.Items[key] then ESP.Settings.Items[key].Color = c end
-        end
+    menuSec:label("Menu Key"):keybind({
+        flag = "__menu_key", key = lib.toggleKey, mode = "Always",
+        onBind = function(k)
+            if k and k.EnumType == Enum.KeyCode then lib.toggleKey = k end
+        end,
     })
+
+    local wmToggle = menuSec:toggle({ name = "Watermark", flag = "__watermark", default = true, callback = function(v)
+        if lib.watermarkFrame then lib.watermarkFrame.Visible = v end
+    end })
+    local wmPop = wmToggle:gear({ title = "Watermark Options" })
+    wmPop:dropdown({
+        name = "Watermark Parts", flag = "__wm_parts", multi = true,
+        items = { "Name", "User", "FPS", "Time", "Ping" },
+        default = { "Name", "User", "FPS", "Time" },
+        callback = function(sel)
+            if not lib.wmOpts then return end
+            local set = {}
+            for _, x in ipairs(sel or {}) do set[x] = true end
+            lib.wmOpts.showName = set["Name"] == true
+            lib.wmOpts.showUser = set["User"] == true
+            lib.wmOpts.showFps = set["FPS"] == true
+            lib.wmOpts.showTime = set["Time"] == true
+            lib.wmOpts.showPing = set["Ping"] == true
+            if lib.wmRender then lib.wmRender(60) end
+        end,
+    })
+    wmPop:textbox({ name = "WM Custom", flag = "__wm_custom", placeholder = "Extra text", callback = function(t)
+        if lib.wmOpts then lib.wmOpts.custom = t or "" end
+        if lib.wmRender then lib.wmRender(60) end
+    end })
+
+    menuSec:toggle({ name = "Keybind List", flag = "__kb_list", default = false, callback = function(v)
+        if lib.kbListFrame then lib.kbListFrame.Visible = v end
+        if v and lib.refreshKeybindList then lib.refreshKeybindList() end
+    end })
+
+    local notifToggle = menuSec:toggle({ name = "Notifications", flag = "__notifs", default = true, callback = function(v)
+        lib.notifyEnabled = v
+    end })
+    local notifPop = notifToggle:gear({ title = "Notification Options" })
+    notifPop:dropdown({
+        name = "Notif Position", flag = "__notif_pos",
+        items = { "Bottom Left", "Bottom Right", "Top Left", "Top Right" },
+        default = "Bottom Left",
+        callback = function(v)
+            if lib.setNotifPos then lib:setNotifPos(v) end
+        end,
+    })
+    notifPop:button({ name = "Test Notification", callback = function()
+        lib:notify({ title = "Notification", text = "This is a test notification.", kind = "info" })
+    end })
+
+    menuSec:button({ name = "Unload", callback = function() lib:unload() end })
+
+    local fontDrop = fontSec:dropdown({
+        name = "UI Font", flag = "__ui_font", items = FontBank.list(), default = "Tahoma 8px",
+        callback = function(v)
+            local f = FontBank.map[v]
+            if f then
+                UI.font = f
+                applyFont()
+            end
+        end,
+    })
+    if not FontBank.done then
+        FontBank.waiting[#FontBank.waiting + 1] = function()
+            fontDrop.setItems(FontBank.list())
+        end
+    end
+    fontSec:slider({
+        name = "Text Size", flag = "__ui_size", min = 10, max = 15, default = UI.size, interval = 1,
+        callback = function(v)
+            UI.size = v
+            applyFont()
+        end,
+    })
+
+    ready = true
+    if canFs then
+        local ok, name = pcall(readfile, themeFolder .. "/autoload.txt")
+        if ok and name then
+            name = (tostring(name):gsub("^%s+", ""):gsub("%s+$", ""))
+            if name ~= "" then
+                local ok2, data = pcall(readfile, themeFolder .. "/" .. name .. ".theme")
+                local t = ok2 and themeFromJson(data)
+                if t then applyTheme(t) end
+            end
+        end
+        if readTxt(cfgFolder .. "/autoload_enabled.txt", "true") ~= "false" then
+            local cn = readTxt(cfgFolder .. "/autoload_name.txt", "default")
+            if cn == "" or cn == "None" then cn = "default" end
+            local okC, data = pcall(readfile, cfgFolder .. "/" .. cn .. ".cfg")
+            if okC and data then
+                pcall(function() lib:importConfig(data) end)
+                lib:notify({ title = "Config", text = "Auto loaded " .. cn, kind = "success" })
+            end
+        end
+    end
+
+    local lastSave = 0
+    lib:connect(RunService.Heartbeat, function()
+        if not canFs then return end
+        if tick() - lastSave < 8 then return end
+        lastSave = tick()
+        local saveOn = lib.flags["__cfg_autosave"]
+        if saveOn == nil then
+            saveOn = readTxt(cfgFolder .. "/autosave_enabled.txt", "true") ~= "false"
+        end
+        if saveOn == false then return end
+        local n = tostring(lib.flags["__cfg_autosave_name"] or readTxt(cfgFolder .. "/autosave_name.txt", "default"))
+        if n == "" or n == "None" then n = "default" end
+        pcall(writefile, cfgFolder .. "/" .. n .. ".cfg", lib:exportConfig())
+    end)
 end
-
-local fontList = {}
-for _, e in ipairs(FONT_LIST) do fontList[#fontList + 1] = e[1] end
-
-Setting:dropdown({name = "Text Font", items = fontList, default = ESP.Settings.TextFont or "Tahoma", flag = "esp_text_font", callback = function(v) ESP.Settings.TextFont = v end})
-Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.FlagsFont or "Tahoma", flag = "esp_flags_font", callback = function(v) ESP.Settings.FlagsFont = v end})
-Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont or "Tahoma", flag = "esp_health_font", callback = function(v) ESP.Settings.HealthFont = v end})
-Setting:dropdown({name = "Text Gradient", items = {"Static", "Animated"}, default = ESP.Settings.TextGradientAnimated and "Animated" or "Static", flag = "esp_text_gradient", callback = function(v) ESP.Settings.TextGradientAnimated = (v == "Animated") end})
-Setting:slider({name = "Refresh Rate", min = 60, max = 240, default = ESP.Settings.RefreshRate, flag = "esp_refresh_rate", callback = function(v) ESP.Settings.RefreshRate = v end})
-
-right:preview({ name = "Preview" })
-
-win:configTab(config)
-
-playersTab:open()
-ESP:Start()
-win:notify({ title = "Stardust", text = "Loaded successfully.", kind = "success" })
 
 return Library

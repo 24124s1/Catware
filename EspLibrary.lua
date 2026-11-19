@@ -1,4 +1,4 @@
-print('1')
+print('3')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -1008,7 +1008,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
             if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
                 ang = (view.angle * (cfg.BoxFillSpeed / 100) + ang) % 360
             end
-            renderer:Fill(rec, x, y, w, h, cfg.BoxFillColor1, cfg.BoxFillColor2, ang, 1 - ((1 - cfg.BoxFillTransparency) * view.fade))
+            renderer:Fill("boxfill", x, y, w, h, cfg.BoxFillColor1, cfg.BoxFillColor2, ang, 1 - ((1 - cfg.BoxFillTransparency) * view.fade))
         end
     else
         if rec.fillHl then rec.fillHl.Enabled = false end
@@ -1038,7 +1038,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if cfg.BoxEnabled then
         if cfg.BoxGlow then
-            renderer:Glow(rec, x, y, w, h, cfg.LineColor, 1 - (0.65 * view.fade))
+            renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * view.fade))
         end
 
         local thick = math.max(1, cfg.Thickness or 1)
@@ -1075,13 +1075,13 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if head then
             local hx, hy = project(head.Position.X, head.Position.Y, head.Position.Z)
             if hx then
-                renderer:Dot(rec, hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
+                renderer:Dot("headdot", hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
             end
         end
     end
 
     if cfg.HealthBar and d.health then
-        renderer:Bar(rec, x - 4, y, 1, h, d.health, true, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow, tr)
+        renderer:Bar("health", x - 4, y, 1, h, d.health, true, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow, tr)
         if cfg.HealthText then
             local fillH = h * d.health
             local ty = math.clamp(y + h - fillH - 5, y - 2, y + h - 10)

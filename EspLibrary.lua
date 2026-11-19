@@ -1,4 +1,4 @@
-print('2')
+print('1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -945,13 +945,13 @@ local function render(rec, cfg, rx, ry, rz, dist)
         return
     end
 
-    local b = boundsFromParts(parts)
-    if not b then
+    local minX, minY, minZ, maxX, maxY, maxZ = boundsFromParts(parts)
+    if not minX then
         hideRecord(rec)
         return
     end
 
-    local sx1, sy1, sx2, sy2, pts = screenBox(b[1], b[2], b[3], b[4], b[5], b[6])
+    local sx1, sy1, sx2, sy2, pts = screenBox(minX, minY, minZ, maxX, maxY, maxZ)
     if not sx1 then
         hideRecord(rec)
         return

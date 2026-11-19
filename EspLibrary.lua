@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local espModule = {}
 
@@ -26,7 +26,6 @@ local GRAY = Color3.fromRGB(200, 200, 200)
 local rgb = Color3.fromRGB
 local abs, floor, max, min, clamp, huge = math.abs, math.floor, math.max, math.min, math.clamp, math.huge
 
-local STUDS_PER_METER = 2.81
 local OPERATION_ONE = 72920620366355
 local STEP_NAME = "CatwareESP"
 local IS_OPERATION_ONE = game.PlaceId == OPERATION_ONE
@@ -1396,7 +1395,7 @@ local function ProcessEntity(entity, options, ownerName)
     ctx.Camera = Camera
     ctx.x, ctx.y, ctx.sx, ctx.sy = x, y, sx, sy
     ctx.adornee = character
-    ctx.meters = floor(studs / STUDS_PER_METER + 0.5)
+    ctx.meters = floor(studs)
 
     ctx.health, ctx.healthValue = nil, nil
     if humanoid then
@@ -1756,7 +1755,7 @@ local function DrawItem(item, name, entry, itemCfg, cfg, Camera, camPos, limit, 
                 label = tostring(custom)
             end
         end
-        local meters = floor(dist / STUDS_PER_METER + 0.5)
+        local meters = floor(dist)
         if cfg.ShowNames and cfg.ShowDistance then
             text = label .. " [" .. meters .. "m]"
         elseif cfg.ShowNames then
@@ -1841,7 +1840,7 @@ end
 local function ProcessItems(Camera, now)
     local cfg = espModule.Settings.Items
     local camPos = Camera.CFrame.Position
-    local limit = cfg.MaxDistance * STUDS_PER_METER
+    local limit = cfg.MaxDistance
     for name, entry in pairs(espModule.CustomItems) do
         local itemCfg = cfg[name]
         if type(itemCfg) == "table" and itemCfg.Enabled then

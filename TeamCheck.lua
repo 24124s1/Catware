@@ -18,7 +18,8 @@ local GameNames = {
     [142823291] = "MurderMystery2",
     [17625359962] = "Rivals",
     [6035872082] = "Rivals",
-    [13197060622] = "Strike Force"
+    [13197060622] = "Strike Force",
+    [72920620366355] = "OperationOne",
 }
 
 local currentGame = GameNames[game.PlaceId] or "Unknown"
@@ -124,7 +125,7 @@ local IsTeam = function(plr)
         return false
     end
 
-    if currentGame == "TacticalShooterA" or currentGame == "Kontra" then
+    if currentGame == "TacticalShooterA" or currentGame == "Kontra" or currentGame == "OperationOne" then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
     end
 

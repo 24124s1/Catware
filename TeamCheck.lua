@@ -125,8 +125,12 @@ local IsTeam = function(plr)
         return false
     end
 
-    if currentGame == "TacticalShooterA" or currentGame == "Kontra" or currentGame == "OperationOne" then
+    if currentGame == "TacticalShooterA" or currentGame == "Kontra" then
         return LocalPlayer:GetAttribute("Team") == plr:GetAttribute("Team")
+    end
+
+    if currentGame == "OperationOne" then
+        return (LocalPlayer:GetAttribute("Team") or (LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")) or (LocalPlayer.Team and LocalPlayer.Team.Name)) == (plr:GetAttribute("Team") or (plr.Character and plr.Character:GetAttribute("Team")) or (plr.Team and plr.Team.Name))
     end
 
     if currentGame == "PORTALS" then

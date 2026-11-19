@@ -19,7 +19,7 @@ local GameNames = {
     [17625359962] = "Rivals",
     [6035872082] = "Rivals",
     [13197060622] = "Strike Force",
-    [72920620366355] = "OperationOne",
+    [72920620366355] = "Operation One",
 }
 
 local currentGame = GameNames[game.PlaceId] or "Unknown"

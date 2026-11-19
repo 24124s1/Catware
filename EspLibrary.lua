@@ -1,4 +1,4 @@
-print('4')
+print('-1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -1193,7 +1193,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if cfg.ArmorBar and d.armor then
         local armRatio = math.clamp(d.armor / 100, 0, 1)
-        renderer:Bar("armor", x, y + h + 6, w, 1, armRatio, false, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
+        renderer:Bar("armor", x, y + h + 4, w, 1, armRatio, false, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
     end
 
     if cfg.Names and d.name then
@@ -1205,7 +1205,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     end
 
     if cfg.Tool and d.tool then
-        local toolOffset = cfg.ArmorBar and 8 or 2
+        local toolOffset = cfg.ArmorBar and 6 or 2
         renderer:Text("tool", d.tool, x + w * 0.5, y + h + toolOffset, 0.5, 0, textFont, cfg.TextSize, cfg.ToolColor, cfg.ToolColor2, tr, settings.TextGradientAnimated)
     end
 

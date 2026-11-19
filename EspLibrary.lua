@@ -1,4 +1,4 @@
-print('3')
+print('4')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -399,15 +399,82 @@ function Renderer.new(parent)
     root.BorderSizePixel = 0
     root.Size = UDim2.fromScale(1, 1)
     root.Parent = parent
-    return setmetatable({
+    
+    local self = setmetatable({
         root = root, rects = {}, lines = {}, keyed = {}, keyList = {},
         nRect = 0, nLine = 0, hiRect = 0, hiLine = 0, frame = 0,
+        cornerBox = Instance.new("Frame"),
+        fullBox = Instance.new("Frame"),
+        cornerBars = {},
+        fullBars = {}
     }, Renderer)
+
+    local BLACK = Color3.new(0,0,0)
+    local WHITE = Color3.new(1,1,1)
+
+    local function createBar(parent, size, pos, anchor, color, radius, zIndex)
+        local bar = Instance.new("Frame")
+        bar.Size = size
+        bar.Position = pos
+        bar.AnchorPoint = anchor
+        bar.BackgroundColor3 = color
+        bar.BorderSizePixel = 0
+        bar.ZIndex = zIndex
+        bar.Parent = parent
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = radius
+        corner.Parent = bar
+        return bar
+    end
+
+    self.cornerBox.Name = "CornerBox"
+    self.cornerBox.BackgroundTransparency = 1
+    self.cornerBox.Visible = false
+    self.cornerBox.ZIndex = 2
+    self.cornerBox.Parent = root
+
+    for _, signs in ipairs({ {0,0}, {1,0}, {0,1}, {1,1} }) do
+        local xSign, ySign = signs[1], signs[2]
+        local anchor = Vector2.new(xSign, ySign)
+        local pos = UDim2.fromScale(xSign, ySign)
+        local one = UDim2.fromOffset(1, 1)
+        table.insert(self.cornerBars, {
+            outlineH = createBar(self.cornerBox, one, pos, anchor, BLACK, UDim.new(0, 3), 1),
+            outlineV = createBar(self.cornerBox, one, pos, anchor, BLACK, UDim.new(0, 3), 1),
+            colorH = createBar(self.cornerBox, one, pos, anchor, WHITE, UDim.new(0, 3), 2),
+            colorV = createBar(self.cornerBox, one, pos, anchor, WHITE, UDim.new(0, 3), 2),
+            xSign = xSign, ySign = ySign,
+        })
+    end
+
+    self.fullBox.Name = "FullBox"
+    self.fullBox.BackgroundTransparency = 1
+    self.fullBox.Visible = false
+    self.fullBox.ZIndex = 2
+    self.fullBox.Parent = root
+
+    local function createFullSide(isHorizontal, isStart)
+        local one = UDim2.fromOffset(1, 1)
+        local zero = UDim2.fromScale(0, 0)
+        table.insert(self.fullBars, {
+            outline = createBar(self.fullBox, one, zero, Vector2.new(0, 0), BLACK, UDim.new(0, 3), 1),
+            color = createBar(self.fullBox, one, zero, Vector2.new(0, 0), WHITE, UDim.new(0, 3), 2),
+            isHorizontal = isHorizontal, isStart = isStart,
+        })
+    end
+    createFullSide(true, true)
+    createFullSide(true, false)
+    createFullSide(false, true)
+    createFullSide(false, false)
+
+    return self
 end
 
 function Renderer:Begin()
     self.frame += 1
     self.nRect, self.nLine = 0, 0
+    self.cornerBox.Visible = false
+    self.fullBox.Visible = false
 end
 
 function Renderer:End()
@@ -1043,10 +1110,25 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
         local thick = math.max(1, cfg.Thickness or 1)
         if cfg.BoxType == "Full" then
-            renderer:Rect(x, y, w, thick, cfg.LineColor, tr)
-            renderer:Rect(x, y + h - thick, w, thick, cfg.LineColor, tr)
-            renderer:Rect(x, y, thick, h, cfg.LineColor, tr)
-            renderer:Rect(x + w - thick, y, thick, h, cfg.LineColor, tr)
+            renderer.fullBox.Visible = true
+            renderer.fullBox.Position = UDim2.fromOffset(x, y)
+            renderer.fullBox.Size = UDim2.fromOffset(w, h)
+            for _, b in ipairs(renderer.fullBars) do
+                if b.isHorizontal then
+                    b.color.Size = UDim2.fromOffset(w, thick)
+                    b.color.Position = UDim2.fromOffset(0, b.isStart and 0 or (h - thick))
+                    b.outline.Size = UDim2.fromOffset(w + 2, thick + 2)
+                    b.outline.Position = UDim2.fromOffset(-1, b.isStart and -1 or (h - thick - 1))
+                else
+                    b.color.Size = UDim2.fromOffset(thick, h)
+                    b.color.Position = UDim2.fromOffset(b.isStart and 0 or (w - thick), 0)
+                    b.outline.Size = UDim2.fromOffset(thick + 2, h + 2)
+                    b.outline.Position = UDim2.fromOffset(b.isStart and -1 or (w - thick - 1), -1)
+                end
+                b.color.BackgroundColor3 = cfg.LineColor
+                b.color.BackgroundTransparency = tr
+                b.outline.BackgroundTransparency = tr
+            end
         elseif cfg.BoxType == "3D" and pts then
             local edges = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
             for i = 1, 12 do
@@ -1057,16 +1139,35 @@ local function render(rec, cfg, rx, ry, rz, dist)
                 end
             end
         else
+            renderer.cornerBox.Visible = true
+            renderer.cornerBox.Position = UDim2.fromOffset(x, y)
+            renderer.cornerBox.Size = UDim2.fromOffset(w, h)
             local maxAllowed = math.min(50, math.floor(math.min(w, h) * 0.42))
             local lineLen = math.clamp(40, 6, math.max(6, maxAllowed))
-            renderer:Rect(x, y, lineLen, thick, cfg.LineColor, tr)
-            renderer:Rect(x, y, thick, lineLen, cfg.LineColor, tr)
-            renderer:Rect(x + w - lineLen, y, lineLen, thick, cfg.LineColor, tr)
-            renderer:Rect(x + w - thick, y, thick, lineLen, cfg.LineColor, tr)
-            renderer:Rect(x, y + h - thick, lineLen, thick, cfg.LineColor, tr)
-            renderer:Rect(x, y + h - lineLen, thick, lineLen, cfg.LineColor, tr)
-            renderer:Rect(x + w - lineLen, y + h - thick, lineLen, thick, cfg.LineColor, tr)
-            renderer:Rect(x + w - thick, y + h - lineLen, thick, lineLen, cfg.LineColor, tr)
+            
+            for _, c in ipairs(renderer.cornerBars) do
+                local sx, sy = c.xSign, c.ySign
+                local ox = sx == 0 and -1 or 1
+                local oy = sy == 0 and -1 or 1
+                
+                c.colorH.Size = UDim2.fromOffset(lineLen, thick)
+                c.colorH.Position = UDim2.fromScale(sx, sy)
+                c.colorH.BackgroundColor3 = cfg.LineColor
+                c.colorH.BackgroundTransparency = tr
+                
+                c.outlineH.Size = UDim2.fromOffset(lineLen + 2, thick + 2)
+                c.outlineH.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
+                c.outlineH.BackgroundTransparency = tr
+                
+                c.colorV.Size = UDim2.fromOffset(thick, lineLen)
+                c.colorV.Position = UDim2.fromScale(sx, sy)
+                c.colorV.BackgroundColor3 = cfg.LineColor
+                c.colorV.BackgroundTransparency = tr
+                
+                c.outlineV.Size = UDim2.fromOffset(thick + 2, lineLen + 2)
+                c.outlineV.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
+                c.outlineV.BackgroundTransparency = tr
+            end
         end
     end
 

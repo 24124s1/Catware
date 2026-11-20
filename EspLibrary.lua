@@ -1205,7 +1205,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     end
 
     if cfg.Tool and d.tool then
-        local toolOffset = cfg.ArmorBar and 6 or 2
+        local toolOffset = cfg.ArmorBar and 8 or 2
         renderer:Text("tool", d.tool, x + w * 0.5, y + h + toolOffset, 0.5, 0, textFont, cfg.TextSize, cfg.ToolColor, cfg.ToolColor2, tr, settings.TextGradientAnimated)
     end
 

@@ -213,11 +213,26 @@ local function loadFonts()
     table.clear(fontListeners)
 end
 
+local function getTeamValue(plr)
+    if not plr then return nil end
+    local t = plr:GetAttribute("Team")
+    if t ~= nil then return t end
+    local char = plr.Character
+    if char then
+        t = char:GetAttribute("Team")
+        if t ~= nil then return t end
+    end
+    if plr.Team then return plr.Team.Name end
+    return nil
+end
+
 espModule.IsTeam = function(plr)
     if not plr or plr == LocalPlayer then return false end
     if game.PlaceId == 72920620366355 then
-        return (LocalPlayer:GetAttribute("Team") or (LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")) or (LocalPlayer.Team and LocalPlayer.Team.Name))
-            == (plr:GetAttribute("Team") or (plr.Character and plr.Character:GetAttribute("Team")) or (plr.Team and plr.Team.Name))
+        local myTeam = getTeamValue(LocalPlayer)
+        local theirTeam = getTeamValue(plr)
+        if myTeam == nil or theirTeam == nil then return false end
+        return myTeam == theirTeam
     end
     if plr.Team and LocalPlayer.Team and plr.Team == LocalPlayer.Team then return true end
     local character = plr.Character
@@ -232,7 +247,19 @@ task.spawn(function()
     local ok, fn = pcall(function()
         return loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/TeamCheck.lua"))()
     end)
-    if ok and type(fn) == "function" then espModule.IsTeam = fn end
+    if ok and type(fn) == "function" then
+        local original = fn
+        espModule.IsTeam = function(plr)
+            if not plr or plr == LocalPlayer then return false end
+            if game.PlaceId == 72920620366355 then
+                local myTeam = getTeamValue(LocalPlayer)
+                local theirTeam = getTeamValue(plr)
+                if myTeam == nil or theirTeam == nil then return false end
+                return myTeam == theirTeam
+            end
+            return original(plr)
+        end
+    end
 end)
 
 function espModule.HealthColor(t, high, mid, low)
@@ -1388,7 +1415,7 @@ local function processEntity(entity, isPlayer, options, ownerKey)
 end
 
 local function teamOf(plr)
-    return plr:GetAttribute("Team") or (plr.Character and plr.Character:GetAttribute("Team")) or (plr.Team and plr.Team.Name)
+    return getTeamValue(plr)
 end
 
 local function resolveOwner(rec, pos)
@@ -1402,12 +1429,12 @@ local function resolveOwner(rec, pos)
     if owner and owner.Parent then
         local char = owner.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp and (hrp.Position - pos).Magnitude < 10 then return owner end
+        if hrp and (hrp.Position - pos).Magnitude < 12 then return owner end
     end
-    if now - rec.searchAt < 0.25 then return nil end
+    if now - rec.searchAt < 0.2 then return nil end
     rec.searchAt = now
 
-    local best, bestDist = nil, 8
+    local best, bestDist = nil, 10
     for _, plr in ipairs(state.players) do
         local char = plr.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1426,14 +1453,16 @@ local function viewmodelIsTeam(rec, owner)
     local now = view.time
     if owner then
         local mine, theirs = teamOf(LocalPlayer), teamOf(owner)
-        if mine and theirs then
+        if mine ~= nil and theirs ~= nil then
             rec.verdict = theirs == mine and "team" or "enemy"
             rec.verdictAt = now
             return theirs == mine
         end
     end
-    if rec.verdict and now - rec.verdictAt < 3 then return rec.verdict == "team" end
-    return true
+    if rec.verdict and now - rec.verdictAt < 2.5 then
+        return rec.verdict == "team"
+    end
+    return false
 end
 
 local function processViewmodel(vm)
@@ -1468,7 +1497,8 @@ local function processViewmodel(vm)
 
     local tp = root.Position
     local owner = resolveOwner(rec, tp)
-    local cfg = viewmodelIsTeam(rec, owner) and settings.Teammate or settings.Enemy
+    local isTeam = viewmodelIsTeam(rec, owner)
+    local cfg = isTeam and settings.Teammate or settings.Enemy
     if not cfg.Enabled then
         hideRecord(rec)
         return
@@ -1489,11 +1519,12 @@ local function processViewmodel(vm)
     local ownerHum = rec.ownerHum
 
     local d = rec.d
-    if ownerHum then
+    if ownerHum and ownerHum.Health > 0 then
         d.health = math.clamp(ownerHum.Health / math.max(ownerHum.MaxHealth, 1), 0, 1)
         d.healthValue = math.floor(ownerHum.Health + 0.5)
     else
         d.health = nil
+        d.healthValue = nil
     end
 
     d.armor = (cfg.ArmorBar and ownerChar) and currentArmor(rec, ownerChar) or nil
@@ -1504,8 +1535,10 @@ local function processViewmodel(vm)
         if owner then
             d.name = playerName(rec, owner, cfg.NameType)
             rec.lastName = d.name
-        else
+        elseif rec.lastName then
             d.name = rec.lastName
+        else
+            d.name = "Player"
         end
     end
 

@@ -1,6 +1,13 @@
 local cloneref = cloneref or function(o) return o end
 local function svc(n) return cloneref(game:GetService(n)) end
 
+local env = (typeof(getgenv) == "function" and getgenv()) or _G
+if type(env.Stardust) == "table" and type(env.Stardust.unload) == "function" then
+    pcall(env.Stardust.unload)
+end
+
+local Stardust = {}
+
 local Players       = svc("Players")
 local UIS           = svc("UserInputService")
 local TweenService  = svc("TweenService")
@@ -3822,7 +3829,10 @@ local win = Library.new({
     name = "Stardust", version = "Private", folder = "catware",
     logoIcon = "sparkles", fonts = ESP.Fonts,
 })
-win.onUnload = function() ESP:Stop() end
+win.onUnload = function()
+    ESP:Stop()
+    if env.Stardust == Stardust then env.Stardust = nil end
+end
 
 local combat = win:category("Combat")
 local legit = combat:tab("Legit")
@@ -3972,7 +3982,7 @@ ensureFont(ESP.Settings.TextFont or "Tahoma")
 ensureFont(ESP.Settings.FlagsFont or "Tahoma")
 ensureFont(ESP.Settings.HealthFont or "Tahoma")
 
-Setting:dropdown({name="Box Type",items={"Dynamic","Bounding"},default=ESP.Settings.BoxMode or"Dynamic",flag="box_type",callback=function(v)ESP.Settings.BoxMode=v end})
+Setting:dropdown({name = "Box Mode", items = {"Dynamic", "Bounding"}, default = ESP.Settings.BoxMode or "Dynamic", flag = "esp_box_mode", callback = function(v) ESP.Settings.BoxMode = v end})
 Setting:dropdown({name = "Text Font", items = fontList, default = ESP.Settings.TextFont or "Tahoma", flag = "esp_text_font", callback = function(v) ensureFont(v) ESP.Settings.TextFont = v end})
 Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.FlagsFont or "Tahoma", flag = "esp_flags_font", callback = function(v) ensureFont(v) ESP.Settings.FlagsFont = v end})
 Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont or "Tahoma", flag = "esp_health_font", callback = function(v) ensureFont(v) ESP.Settings.HealthFont = v end})
@@ -3986,4 +3996,27 @@ playersTab:open()
 ESP:Start()
 win:notify({ title = "Stardust", text = "Loaded successfully.", kind = "success" })
 
-setfpscap(0)
+if typeof(setfpscap) == "function" then setfpscap(0) end
+
+Stardust.win = win
+Stardust.Library = Library
+Stardust.ESP = ESP
+Stardust.Theme = Theme
+Stardust.tabs = {
+    legit = legit, rage = Rage, players = playersTab, world = world, misc = misc, config = config,
+}
+Stardust.categories = {
+    combat = combat, visuals = visuals, other = other, settings = Settings,
+}
+
+function Stardust.notify(...)
+    return win:notify(...)
+end
+
+function Stardust.unload()
+    win:unload()
+end
+
+env.Stardust = Stardust
+
+return Stardust

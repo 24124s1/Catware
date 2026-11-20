@@ -49,8 +49,9 @@ local MODEL_REGISTRY = {
     ["Tung Tung"] = 83138270236341,
     ["Patrick"] = 111307113439135,
     ["Spongebob"] = 4759134675,
-    ["Furry"] = 16222492664,
-    ["Cat In The Hat"] = 104234111421514,
+    ["Squidward"] = 4991325603,
+    ["Obama"] = 11412932396,
+    ["Peter Griffin"] = 11757639639,
 }
 
 local KEYS = {
@@ -441,7 +442,7 @@ local function makeRight(row)
     })
     new("UIListLayout", {
         Parent = r, FillDirection = Enum.FillDirection.Horizontal,
-        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         Padding = dim(0, 4), SortOrder = Enum.SortOrder.LayoutOrder,
     })
@@ -566,8 +567,12 @@ local function newText(parent, ax, ay, z)
     local ya = ay == 0 and YTop or (ay == 1 and YBot or YMid)
     local lbl = new("TextLabel", {
         Parent = parent, AutomaticSize = Enum_XY, Size = off(0, 0), AnchorPoint = v2(ax, ay),
-        TextColor3 = WHITE, TextStrokeTransparency = 0, TextStrokeColor3 = rgb(0, 0, 0),
+        TextColor3 = WHITE, TextStrokeTransparency = 1,
         Visible = false, ZIndex = z, TextXAlignment = xa, TextYAlignment = ya, NoSkin = true,
+    })
+    new("UIStroke", {
+        Parent = lbl, Color = rgb(0, 0, 0), Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual, LineJoinMode = Enum.LineJoinMode.Round,
     })
     local grad = new("UIGradient", { Parent = lbl })
     return { label = lbl, grad = grad }
@@ -851,6 +856,10 @@ function Library.new(opts)
     self.sideLabels = {}
     self.sideBgLabels = {}
     self.stack = {}
+    self.index = {}
+    self.boxes = {}
+    self.query = ""
+    self.searchMode = "Tab"
     self.order = 0
     self.cpCount = 0
     self.currentTab = nil
@@ -860,11 +869,6 @@ function Library.new(opts)
     self.binding = false
     self.notifyEnabled = true
     self.sideExpanded = false
-    self.searchIndex = {}
-    self.allTabs = {}
-    self.searchQuery = ""
-    self.searchAll = false
-    self._searching = false
     self.accent = Theme.v.accent
     Theme.on("accent", function() self.accent = Theme.v.accent end)
     if typeof(opts.accent) == "Color3" then Theme.set("accent", opts.accent) end
@@ -886,17 +890,6 @@ function Library.new(opts)
         Position = off(floor(vp.X / 2 - self.size.X / 2), floor(vp.Y / 2 - self.size.Y / 2)),
     })
 
-    for i = 1, 3 do
-        new("Frame", {
-            Parent = self.root,
-            Size = dim2(1, i * 10, 1, i * 10),
-            Position = off(-i * 5, -i * 5),
-            BackgroundColor3 = T("accent"),
-            BackgroundTransparency = 0.80 + i * 0.04,
-            ZIndex = 1,
-        })
-    end
-
     function self:applySize()
         local extraNow = self.sideExpanded and extra or 0
         self.root.Size = off(self.size.X + extraNow, self.size.Y)
@@ -916,11 +909,30 @@ function Library.new(opts)
     self.catcher2.MouseButton1Down:Connect(function() self:closeLevel(2) end)
     self.catcher2.MouseButton2Down:Connect(function() self:closeLevel(2) end)
 
-    local win, winOuter = framed(self.root, dim2(1, 0, 1, 0))
-    winOuter.ZIndex = 2
-    win.ZIndex = 2
+    self.glow = new("ImageLabel", {
+        Parent = self.root, Position = off(-21, -21), Size = dim2(1, 42, 1, 42),
+        BackgroundTransparency = 1, Image = "rbxassetid://110204605000367",
+        ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(v2(21, 21), v2(79, 79)),
+        ImageColor3 = T("accent"), ImageTransparency = 0.55, ZIndex = 0,
+    })
+
+    local win = framed(self.root, dim2(1, 0, 1, 0))
     topGlow(win).ZIndex = 15
-    accentLine(win).ZIndex = 30
+    local topBar = new("Frame", { Parent = win, Size = dim2(1, 0, 0, 2), BackgroundColor3 = WHITE, ZIndex = 30 })
+    local topBarGrad = new("UIGradient", { Parent = topBar })
+    local barSteps = 12
+    self:connect(RunService.RenderStepped, function()
+        if not self.root.Visible then return end
+        local t = (tick() * 0.35) % 1
+        local a, b = Theme.v.accent, Theme.v.panel
+        local keys = {}
+        for i = 0, barSteps do
+            local p = i / barSteps
+            local mix = 0.5 - 0.5 * math.cos(2 * math.pi * (p - t))
+            keys[#keys + 1] = ColorSequenceKeypoint.new(p, a:Lerp(b, mix))
+        end
+        topBarGrad.Color = ColorSequence.new(keys)
+    end)
 
     local content = new("Frame", {
         Parent = win, Position = off(sideCollapsed, 0), Size = dim2(1, -sideCollapsed, 1, 0),
@@ -932,10 +944,6 @@ function Library.new(opts)
         ZIndex = 10, ClipsDescendants = true, Active = true,
     })
     self.side = side
-    local sideGrad = new("UIGradient", { Parent = side, Rotation = 90 })
-    Theme.on({ "accent", "panel" }, function()
-        sideGrad.Color = ColorSequence.new(Theme.v.accent:Lerp(rgb(0, 0, 0), 0.6), Theme.v.panel)
-    end)
     new("Frame", {
         Parent = side, AnchorPoint = v2(1, 0), Position = dim2(1, 0, 0, 0), Size = dim2(0, 1, 1, 0),
         BackgroundColor3 = T("inline"), ZIndex = 12,
@@ -1028,42 +1036,155 @@ function Library.new(opts)
     side.MouseLeave:Connect(function() self:setSideExpanded(false) end)
 
     local header = new("Frame", { Parent = content, Position = off(0, 2), Size = dim2(1, 0, 0, 28), BackgroundTransparency = 1, Active = true })
-    local crumbs = new("Frame", { Parent = header, Position = off(8, 0), Size = dim2(0.5, 0, 1, 0), BackgroundTransparency = 1 })
+    local dragArea = new("Frame", { Parent = header, Size = dim2(1, -210, 1, 0), BackgroundTransparency = 1, Active = true })
+    local crumbs = new("Frame", { Parent = header, Position = off(8, 0), Size = dim2(1, -218, 1, 0), BackgroundTransparency = 1 })
     new("UIListLayout", {
         Parent = crumbs, FillDirection = Enum.FillDirection.Horizontal,
         VerticalAlignment = Enum.VerticalAlignment.Center, Padding = dim(0, 4),
     })
     self.crumbCat = label(crumbs, "", "mute", nil, dim2(0, 0, 1, 0)); self.crumbCat.AutomaticSize = Enum_X
     self.crumbTab = label(crumbs, "", "text_active", nil, dim2(0, 0, 1, 0)); self.crumbTab.AutomaticSize = Enum_X
+    new("Frame", { Parent = content, Position = off(0, 31), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
 
-    local filterBody, filterOuter = fieldBox(header, off(58, 18), nil, "panel")
-    filterOuter.AnchorPoint = v2(1, 0.5)
-    filterOuter.Position = dim2(1, -8, 0.5, 0)
-    filterOuter.ZIndex = 6
-    local filterLbl = label(filterBody, "This Tab", "text", off(0, 0), dim2(1, 0, 1, 0), ACenter)
-    local filterHit = new("TextButton", { Parent = filterOuter, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 7 })
+    local modeOuter, modeLbl, modeHit = miniButton(header, "This Tab", UDim2.new(), off(56, 18))
+    modeOuter.AnchorPoint = v2(1, 0.5)
+    modeOuter.Position = dim2(1, -6, 0.5, 0)
 
-    local searchBody, searchOuter = fieldBox(header, off(130, 18), nil, "panel")
+    local searchBody, searchOuter = fieldBox(header, off(140, 18))
     searchOuter.AnchorPoint = v2(1, 0.5)
-    searchOuter.Position = dim2(1, -70, 0.5, 0)
-    searchOuter.ZIndex = 6
-    local searchInput = new("TextBox", {
+    searchOuter.Position = dim2(1, -66, 0.5, 0)
+    local searchBox = new("TextBox", {
         Parent = searchBody, Size = dim2(1, -10, 1, 0), Position = off(5, 0),
-        PlaceholderText = "Search...", PlaceholderColor3 = T("mute"),
-        ClearTextOnFocus = false, ZIndex = 7,
+        PlaceholderText = "Search features", PlaceholderColor3 = T("mute"), ClearTextOnFocus = false,
+        TextTruncate = Enum.TextTruncate.AtEnd,
     })
 
-    filterHit.MouseButton1Click:Connect(function()
-        self.searchAll = not self.searchAll
-        filterLbl.Text = self.searchAll and "All Tabs" or "This Tab"
-        self:applySearch()
-    end)
-    searchInput:GetPropertyChangedSignal("Text"):Connect(function()
-        self.searchQuery = searchInput.Text
-        self:applySearch()
-    end)
+    local RW, RH = 232, 30
+    local resBody, resOuter = fieldBox(self.gui, off(RW, 40))
+    resOuter.Visible = false
+    resOuter.ZIndex = 200
+    resOuter.Active = true
+    local resScroll = new("ScrollingFrame", {
+        Parent = resBody, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
+        AutomaticCanvasSize = Enum_Y, ScrollBarThickness = 2,
+    })
+    new("UIListLayout", { Parent = resScroll, SortOrder = Enum.SortOrder.LayoutOrder })
+    new("UIPadding", { Parent = resScroll, PaddingTop = dim(0, 3), PaddingBottom = dim(0, 3) })
+    local resP = { frame = resOuter, level = 1, open = false }
+    function resP.close()
+        resOuter.Visible = false
+        resP.open = false
+    end
 
-    new("Frame", { Parent = content, Position = off(0, 31), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
+    local function goTo(e)
+        self:closePopup(resP)
+        e.tab:open()
+        if e.sec.select then e.sec.select() end
+        task.delay(0.06, function()
+            if not e.row.Parent then return end
+            local sf = e.row:FindFirstAncestorWhichIsA("ScrollingFrame")
+            if sf then
+                local y = e.row.AbsolutePosition.Y - sf.AbsolutePosition.Y + sf.CanvasPosition.Y - 30
+                sf.CanvasPosition = v2(0, math.max(0, y))
+            end
+            local fl = new("Frame", {
+                Parent = e.row, Size = dim2(1, 6, 1, 4), Position = off(-3, -2),
+                BackgroundColor3 = Theme.v.accent, BackgroundTransparency = 0.55, ZIndex = 0,
+            })
+            TweenService:Create(fl, TweenInfo.new(1.2), { BackgroundTransparency = 1 }):Play()
+            task.delay(1.3, function() fl:Destroy() end)
+        end)
+    end
+
+    local function rebuildResults()
+        for _, c in ipairs(resScroll:GetChildren()) do
+            if c:IsA("GuiObject") then c:Destroy() end
+        end
+        local q = self.query
+        local first, rest = {}, {}
+        for _, e in ipairs(self.index) do
+            local at = string.find(e.key, q, 1, true)
+            if at == 1 then
+                first[#first + 1] = e
+            elseif at then
+                rest[#rest + 1] = e
+            end
+        end
+        local list = {}
+        for _, e in ipairs(first) do
+            if #list < 40 then list[#list + 1] = e end
+        end
+        for _, e in ipairs(rest) do
+            if #list < 40 then list[#list + 1] = e end
+        end
+        if #list == 0 then
+            new("TextLabel", {
+                Parent = resScroll, Size = dim2(1, 0, 0, RH), Text = "No results",
+                TextColor3 = T("mute"), TextXAlignment = ACenter,
+            })
+        end
+        for i, e in ipairs(list) do
+            local b = new("TextButton", {
+                Parent = resScroll, Size = dim2(1, 0, 0, RH), LayoutOrder = i,
+                BackgroundColor3 = T("tab_active"), BackgroundTransparency = 1,
+            })
+            new("TextLabel", {
+                Parent = b, Position = off(8, 3), Size = dim2(1, -12, 0, 12), Text = e.name,
+                TextColor3 = T("text"), TextTruncate = Enum.TextTruncate.AtEnd,
+            })
+            new("TextLabel", {
+                Parent = b, Position = off(8, 16), Size = dim2(1, -12, 0, 11),
+                Text = e.tab.name .. " / " .. tostring(e.sec.name or ""),
+                TextColor3 = T("mute"), TextTruncate = Enum.TextTruncate.AtEnd,
+            })
+            b.MouseEnter:Connect(function() tween(b, { BackgroundTransparency = 0.3 }, 0.08) end)
+            b.MouseLeave:Connect(function() tween(b, { BackgroundTransparency = 1 }, 0.08) end)
+            b.MouseButton1Click:Connect(function() goTo(e) end)
+        end
+        local h = math.min(math.max(#list, 1), 8) * RH + 6
+        resScroll.CanvasPosition = Vector2.zero
+        resOuter.Size = off(RW, h)
+        resOuter.Position = self:place(searchOuter, RW, h, true)
+    end
+
+    local function showResults()
+        rebuildResults()
+        if not resP.open then
+            resOuter.Visible = true
+            resP.open = true
+            self:openPopup(resP)
+        end
+    end
+
+    local function refreshSearch()
+        self:applySearch()
+        if self.searchMode == "All" and self.query ~= "" then
+            showResults()
+        else
+            self:closePopup(resP)
+        end
+    end
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        self.query = lower((searchBox.Text:gsub("^%s+", ""):gsub("%s+$", "")))
+        refreshSearch()
+    end)
+    searchBox.Focused:Connect(function()
+        hot(searchOuter, true)
+        if self.searchMode == "All" and self.query ~= "" then showResults() end
+    end)
+    searchBox.FocusLost:Connect(function() hot(searchOuter, false) end)
+
+    modeHit.MouseButton1Click:Connect(function()
+        if self.searchMode == "Tab" then
+            self.searchMode = "All"
+            modeLbl.Text = "All Tabs"
+        else
+            self.searchMode = "Tab"
+            modeLbl.Text = "This Tab"
+        end
+        refreshSearch()
+    end)
 
     self.pageHolder = new("Frame", { Parent = content, Position = off(0, 32), Size = dim2(1, 0, 1, -32), BackgroundTransparency = 1 })
 
@@ -1139,7 +1260,7 @@ function Library.new(opts)
     end
 
     self:drag(sideHeader, self.root)
-    self:drag(header, self.root)
+    self:drag(dragArea, self.root)
     self:watermark()
     self:keybindList()
 
@@ -1150,55 +1271,54 @@ function Library.new(opts)
         end
     end)
 
-    self.cfgLabel = label(header, "default.cfg", "mute", nil, dim2(0, 0, 1, 0))
-    self.cfgLabel.AutomaticSize = Enum_X
-    self.cfgLabel.LayoutOrder = 99
-
     return self
-end
-
-function Library:registerElement(name, tab, row, section)
-    self.searchIndex[#self.searchIndex + 1] = { name = tostring(name or ""), tab = tab, row = row, section = section }
-end
-
-function Library:applySearch()
-    if self._searching then return end
-    self._searching = true
-    local q = lower(self.searchQuery or "")
-    local cur = self.currentTab
-    local all = self.searchAll
-    local matchingTabs = {}
-    for _, e in ipairs(self.searchIndex) do
-        local match = q == "" or string.find(lower(e.name), q, 1, true) ~= nil
-        e.match = match
-        if match and q ~= "" and e.tab then matchingTabs[e.tab] = true end
-    end
-    if q ~= "" and all and cur and not matchingTabs[cur] then
-        for _, t in ipairs(self.allTabs) do
-            if matchingTabs[t] then t:open() break end
-        end
-    end
-    cur = self.currentTab
-    local vis = {}
-    for _, e in ipairs(self.searchIndex) do
-        if e.tab == cur then
-            local show = q == "" or e.match
-            e.row.Visible = show
-            if show and e.section then vis[e.section] = true end
-        end
-    end
-    for _, e in ipairs(self.searchIndex) do
-        if e.tab == cur and e.section and e.section.container then
-            e.section.container.Visible = (q == "") or vis[e.section] or false
-        end
-    end
-    self._searching = false
 end
 
 function Library:connect(signal, fn)
     local c = signal:Connect(fn)
     table.insert(self.connections, c)
     return c
+end
+
+function Library:register(sec, name, row)
+    if sec.level == 2 or not sec.box then return end
+    self.index[#self.index + 1] = {
+        name = tostring(name), key = lower(tostring(name)), row = row, sec = sec, tab = sec.tab,
+    }
+    sec.box.total = (sec.box.total or 0) + 1
+end
+
+function Library:applySearch()
+    local q = self.query or ""
+    local cur = self.currentTab
+    local filtering = q ~= "" and self.searchMode == "Tab" and cur ~= nil
+    local secCount, boxCount = {}, {}
+    for _, e in ipairs(self.index) do
+        local show = true
+        if filtering and e.tab == cur then
+            show = string.find(e.key, q, 1, true) ~= nil
+        end
+        if e.row.Visible ~= show then e.row.Visible = show end
+        if show then
+            secCount[e.sec] = (secCount[e.sec] or 0) + 1
+            boxCount[e.sec.box] = (boxCount[e.sec.box] or 0) + 1
+        end
+    end
+    for _, b in ipairs(self.boxes) do
+        local vis = true
+        if filtering and b.tab == cur and (b.total or 0) > 0 then
+            vis = (boxCount[b] or 0) > 0
+        end
+        if b.frame.Visible ~= vis then b.frame.Visible = vis end
+        if filtering and b.sections and b.tab == cur and b.current and (secCount[b.current] or 0) == 0 then
+            for _, s in ipairs(b.sections) do
+                if (secCount[s] or 0) > 0 then
+                    s.select()
+                    break
+                end
+            end
+        end
+    end
 end
 
 function Library:offsetY()
@@ -1685,7 +1805,6 @@ function Category:tab(name, iconName)
     local lib = self.lib
     local tab = setmetatable({ lib = lib, name = name, category = self }, Tab)
     iconName = iconName or ICON_NAMES[name] or ICON_NAMES[self.name]
-    lib.allTabs[#lib.allTabs + 1] = tab
 
     local body, outer = fieldBox(lib.sideList, dim2(1, -12, 0, 32))
     outer.LayoutOrder = nxt(lib)
@@ -1740,6 +1859,7 @@ function Category:tab(name, iconName)
             PaddingRight = dim(0, 4), PaddingBottom = dim(0, 8),
         })
         tab[sideName] = col
+        lib:guard(col)
     end
 
     local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 6 })
@@ -1811,7 +1931,12 @@ function Column:section(o)
     new("UIPadding", { Parent = body, PaddingTop = dim(0, 8), PaddingBottom = dim(0, 8), PaddingLeft = dim(0, 8), PaddingRight = dim(0, 8) })
     new("UIListLayout", { Parent = body, Padding = dim(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
 
-    return setmetatable({ lib = lib, body = body, container = container, tab = self.tab }, Section)
+    local box = { frame = container, tab = self.tab }
+    lib.boxes[#lib.boxes + 1] = box
+
+    return setmetatable({
+        lib = lib, body = body, container = container, tab = self.tab, box = box, name = o.name or "Section",
+    }, Section)
 end
 
 function Column:multi_section(o)
@@ -1820,11 +1945,12 @@ function Column:multi_section(o)
     local tab = self.tab
     local names = o.names or { "Section" }
     local fills = o.fills ~= false
+    local fixedH = o.height
     local colFrame = self.holder
 
     local container = new("Frame", {
         Parent = colFrame,
-        Size = fills and dim2(1, 0, 0, 300) or dim2(1, 0, 0, 0),
+        Size = fills and dim2(1, 0, 0, fixedH or 300) or dim2(1, 0, 0, 0),
         AutomaticSize = fills and Enum.AutomaticSize.None or Enum_Y,
         BackgroundColor3 = T("inline"),
         LayoutOrder = nxt(lib),
@@ -1841,6 +1967,12 @@ function Column:multi_section(o)
     })
     if not fills then
         new("UIListLayout", { Parent = inner, SortOrder = Enum.SortOrder.LayoutOrder })
+    elseif not fixedH then
+        local function fit()
+            container.Size = dim2(1, 0, 0, math.max(120, colFrame.AbsoluteSize.Y - 12))
+        end
+        colFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+        fit()
     end
 
     local header = new("Frame", {
@@ -1867,6 +1999,9 @@ function Column:multi_section(o)
         BackgroundTransparency = 1, LayoutOrder = 2,
     })
 
+    local box = { frame = container, tab = tab, sections = {} }
+    lib.boxes[#lib.boxes + 1] = box
+
     local sections = {}
     local current = nil
 
@@ -1880,6 +2015,7 @@ function Column:multi_section(o)
     local function select(sec)
         local old = current
         current = sec
+        box.current = sec
         if old then
             old.page.Visible = false
             paint(old)
@@ -1921,8 +2057,13 @@ function Column:multi_section(o)
         new("UIPadding", { Parent = page, PaddingTop = dim(0, 9), PaddingBottom = dim(0, 9), PaddingLeft = dim(0, 8), PaddingRight = dim(0, 10) })
         new("UIListLayout", { Parent = page, Padding = dim(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
 
-        local sec = setmetatable({ lib = lib, body = page, page = page, name = name, btn = btn, lbl = lbl, mark = mark, tab = tab }, Section)
+        local sec = setmetatable({
+            lib = lib, body = page, page = page, name = name, btn = btn, lbl = lbl, mark = mark,
+            tab = tab, box = box,
+        }, Section)
+        sec.select = function() select(sec) end
         sections[i] = sec
+        box.sections[i] = sec
 
         Theme.on({ "tab_active", "text_active", "dim" }, function() paint(sec) end)
 
@@ -1946,10 +2087,10 @@ function Section:label(text)
     local lbl = label(row, tostring(text or "Label"), "text", off(0, 0), dim2(1, -30, 1, 0))
     local e = setmetatable({
         lib = lib, right = makeRight(row), lbl = lbl, level = self.level,
-        _labelText = tostring(text or "Label"), name = tostring(text or "Label"), row = row, section = self,
+        _labelText = tostring(text or "Label"), name = tostring(text or "Label"),
     }, Element)
     function e.set(t) lbl.Text = tostring(t) end
-    lib:registerElement(tostring(text or "Label"), self.tab, row, self)
+    lib:register(self, e.name, row)
     return e
 end
 
@@ -1970,7 +2111,7 @@ function Section:button(o)
         tween(lbl, { TextColor3 = Theme.v.text }, 0.3)
         if o.callback then o.callback() end
     end)
-    lib:registerElement(o.name or "Button", self.tab, outer, self)
+    lib:register(self, o.name or "Button", outer)
     return outer
 end
 
@@ -2025,395 +2166,10 @@ function Section:toggle(o)
 
     lib.setters[cfg.flag] = cfg.set
     cfg.set(o.default or false, true)
-    lib:registerElement(cfg.name, self.tab, row, self)
-    cfg.row = row
-    cfg.section = self
+
+    lib:register(self, cfg.name, row)
 
     return setmetatable(cfg, Element)
-end
-
-function Section:textbox(o)
-    local lib = self.lib
-    o = o or {}
-    local cfg = {
-        lib = lib, name = o.name or "Textbox", flag = o.flag or o.name or "textbox",
-        callback = o.callback or function() end, value = tostring(o.default or ""),
-        level = self.level,
-    }
-
-    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    local lbl = label(row, nameText(cfg.name, o.risky), "item", off(0, 0), dim2(1, 0, 0, 14))
-    if o.risky then lbl.RichText = true end
-
-    local body, outer = fieldBox(row, dim2(1, 0, 0, 18), off(0, 16))
-    local box = new("TextBox", {
-        Parent = body, Size = dim2(1, -10, 1, 0), Position = off(5, 0),
-        Text = cfg.value, PlaceholderText = o.placeholder or "", PlaceholderColor3 = T("mute"),
-        ClearTextOnFocus = false, TextXAlignment = ALeft, ZIndex = 3,
-    })
-
-    function cfg.set(v)
-        cfg.value = tostring(v or "")
-        if not box:IsFocused() then box.Text = cfg.value end
-        lib:setFlag(cfg.flag, cfg.value)
-        cfg.callback(cfg.value)
-    end
-
-    box.FocusLost:Connect(function()
-        cfg.set(box.Text)
-    end)
-    box:GetPropertyChangedSignal("Text"):Connect(function()
-        if box:IsFocused() then
-            cfg.value = box.Text
-            lib:setFlag(cfg.flag, cfg.value)
-        end
-    end)
-
-    lib.setters[cfg.flag] = cfg.set
-    lib:setFlag(cfg.flag, cfg.value)
-    lib:registerElement(cfg.name, self.tab, row, self)
-    cfg.row = row
-    cfg.section = self
-    cfg.right = makeRight(row)
-    return setmetatable(cfg, Element)
-end
-
-function Section:dropdown(o)
-    local lib = self.lib
-    o = o or {}
-    local items = o.items or {}
-    local multi = o.multi == true
-    local cfg = {
-        lib = lib, name = o.name or "Dropdown", flag = o.flag or o.name or "dropdown",
-        callback = o.callback or function() end, multi = multi, level = self.level,
-        items = items,
-    }
-
-    if multi then
-        local def = o.default
-        if type(def) ~= "table" then def = {} end
-        cfg.value = {}
-        for _, v in ipairs(def) do cfg.value[v] = true end
-        cfg.list = {}
-        for _, v in ipairs(def) do cfg.list[#cfg.list + 1] = v end
-    else
-        cfg.value = o.default or (items[1] or "None")
-    end
-
-    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    local lbl = label(row, nameText(cfg.name, o.risky), "item", off(0, 0), dim2(1, 0, 0, 14))
-    if o.risky then lbl.RichText = true end
-
-    local body, outer = fieldBox(row, dim2(1, 0, 0, 18), off(0, 16))
-    local valLbl = label(body, "", "text", off(6, 0), dim2(1, -20, 1, 0), ALeft)
-    valLbl.TextTruncate = Enum.TextTruncate.AtEnd
-    local arrow = label(body, "v", "mute", nil, dim2(0, 14, 1, 0), ACenter)
-    arrow.AnchorPoint = v2(1, 0)
-    arrow.Position = dim2(1, -2, 0, 0)
-
-    local function display()
-        if multi then
-            local parts = {}
-            for _, v in ipairs(cfg.list or {}) do
-                if cfg.value[v] then parts[#parts + 1] = tostring(v) end
-            end
-            valLbl.Text = #parts > 0 and table.concat(parts, ", ") or "None"
-        else
-            valLbl.Text = tostring(cfg.value or "None")
-        end
-    end
-    display()
-
-    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
-    hit.MouseEnter:Connect(function() hot(outer, true) end)
-    hit.MouseLeave:Connect(function() if not (cfg._popup and cfg._popup.open) then hot(outer, false) end end)
-
-    local function selected(item)
-        if multi then
-            return cfg.value[item] == true
-        end
-        return cfg.value == item
-    end
-
-    local function pick(item)
-        if multi then
-            if cfg.value[item] then
-                cfg.value[item] = nil
-                for i, v in ipairs(cfg.list) do
-                    if v == item then table.remove(cfg.list, i) break end
-                end
-            else
-                cfg.value[item] = true
-                cfg.list[#cfg.list + 1] = item
-            end
-            local out = {}
-            for _, v in ipairs(cfg.list) do if cfg.value[v] then out[#out + 1] = v end end
-            lib:setFlag(cfg.flag, out)
-            cfg.callback(out)
-        else
-            cfg.value = item
-            lib:setFlag(cfg.flag, item)
-            cfg.callback(item)
-        end
-        display()
-    end
-
-    local P
-    hit.MouseButton1Click:Connect(function()
-        if P and P.open then
-            lib:closePopup(P)
-            return
-        end
-        P = lib:popupList(outer, cfg.items, {
-            multi = multi,
-            selected = selected,
-            pick = pick,
-            alignRight = false,
-            onClose = function() hot(outer, false) end,
-        })
-        cfg._popup = P
-        P.show()
-        hot(outer, true)
-    end)
-
-    function cfg.set(v)
-        if multi then
-            cfg.value = {}
-            cfg.list = {}
-            if type(v) == "table" then
-                for _, x in ipairs(v) do
-                    cfg.value[x] = true
-                    cfg.list[#cfg.list + 1] = x
-                end
-            end
-            local out = {}
-            for _, x in ipairs(cfg.list) do out[#out + 1] = x end
-            lib:setFlag(cfg.flag, out)
-            cfg.callback(out)
-        else
-            cfg.value = v
-            lib:setFlag(cfg.flag, v)
-            cfg.callback(v)
-        end
-        display()
-    end
-
-    function cfg.setItems(list)
-        cfg.items = list or {}
-        if not multi then
-            local found = false
-            for _, it in ipairs(cfg.items) do
-                if it == cfg.value then found = true break end
-            end
-            if not found and cfg.items[1] then
-                cfg.set(cfg.items[1])
-            end
-        end
-        display()
-    end
-
-    if multi then
-        local out = {}
-        for _, v in ipairs(cfg.list) do out[#out + 1] = v end
-        lib:setFlag(cfg.flag, out)
-    else
-        lib:setFlag(cfg.flag, cfg.value)
-    end
-    lib.setters[cfg.flag] = cfg.set
-    lib:registerElement(cfg.name, self.tab, row, self)
-    cfg.row = row
-    cfg.section = self
-    cfg.right = makeRight(row)
-    return setmetatable(cfg, Element)
-end
-
-function Section:slider(o)
-    local lib = self.lib
-    o = o or {}
-    local min = o.min or 0
-    local max = o.max or 100
-    local interval = o.interval or 1
-    local cfg = {
-        lib = lib, name = o.name or "Slider", flag = o.flag or o.name or "slider",
-        callback = o.callback or function() end, min = min, max = max, interval = interval,
-        value = o.default ~= nil and o.default or min, level = self.level,
-    }
-
-    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
-    local top = new("Frame", { Parent = row, Size = dim2(1, 0, 0, 14), BackgroundTransparency = 1 })
-    local lbl = label(top, nameText(cfg.name, o.risky), "item", off(0, 0), dim2(1, -40, 1, 0))
-    if o.risky then lbl.RichText = true end
-    local valLbl = label(top, "", "text", nil, dim2(0, 40, 1, 0), ARight)
-    valLbl.AnchorPoint = v2(1, 0)
-    valLbl.Position = dim2(1, 0, 0, 0)
-
-    local trackOuter = hotFrame(row, dim2(1, 0, 0, 8), off(0, 16))
-    local trackInner = new("Frame", { Parent = trackOuter, Position = off(1, 1), Size = dim2(1, -2, 1, -2), BackgroundColor3 = T("field_bot") })
-    local fill = new("Frame", { Parent = trackInner, Size = dim2(0, 0, 1, 0), BackgroundColor3 = T("accent") })
-    new("UIGradient", { Parent = fill, Rotation = 90, Color = ColorSequence.new(WHITE, rgb(150, 150, 150)) })
-
-    local function round(v)
-        if interval <= 0 then return v end
-        return math.floor(v / interval + 0.5) * interval
-    end
-
-    local function render()
-        local t = (cfg.value - min) / math.max(max - min, 1e-9)
-        fill.Size = dim2(clamp(t, 0, 1), 0, 1, 0)
-        local s
-        if interval >= 1 then
-            s = tostring(floor(cfg.value + 0.5))
-        else
-            local decimals = 0
-            local x = interval
-            while x < 1 and decimals < 4 do
-                x = x * 10
-                decimals += 1
-            end
-            s = string.format("%." .. decimals .. "f", cfg.value)
-        end
-        valLbl.Text = s
-    end
-
-    function cfg.set(v, silent)
-        cfg.value = clamp(round(v), min, max)
-        lib:setFlag(cfg.flag, cfg.value)
-        render()
-        if not silent then cfg.callback(cfg.value) end
-    end
-
-    local dragging = false
-    local function updateFromMouse()
-        local m = lib:mouse()
-        local p = trackInner.AbsolutePosition
-        local s = trackInner.AbsoluteSize
-        local t = clamp((m.X - p.X) / math.max(s.X, 1), 0, 1)
-        cfg.set(min + t * (max - min))
-    end
-
-    local hit = new("TextButton", { Parent = trackOuter, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
-    hit.MouseButton1Down:Connect(function()
-        lib:calibrate(trackInner)
-        dragging = true
-        hot(trackOuter, true)
-        updateFromMouse()
-    end)
-    hit.MouseEnter:Connect(function() hot(trackOuter, true) end)
-    hit.MouseLeave:Connect(function() if not dragging then hot(trackOuter, false) end end)
-
-    lib:connect(UIS.InputEnded, function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-            hot(trackOuter, false)
-        end
-    end)
-    lib:connect(UIS.InputChanged, function(i)
-        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-            updateFromMouse()
-        end
-    end)
-
-    lib.setters[cfg.flag] = cfg.set
-    cfg.set(cfg.value, true)
-    lib:registerElement(cfg.name, self.tab, row, self)
-    cfg.row = row
-    cfg.section = self
-    cfg.right = makeRight(row)
-    return setmetatable(cfg, Element)
-end
-
-function Column:preview(o)
-    o = o or {}
-    local lib = self.lib
-    local name = o.name or "Preview"
-
-    local container = new("Frame", {
-        Parent = self.holder, Size = dim2(1, 0, 0, 220),
-        BackgroundColor3 = T("body"), LayoutOrder = nxt(lib),
-    })
-    stroke(container, "inline")
-    new("UIListLayout", { Parent = container, SortOrder = Enum.SortOrder.LayoutOrder })
-
-    local header = new("Frame", { Parent = container, Size = dim2(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 1 })
-    local glow = new("Frame", { Parent = header, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent") })
-    new("UIGradient", { Parent = glow, Rotation = 90, Transparency = NumberSequence.new(0.88, 1) })
-    accentLine(header)
-    label(header, name, "text_active", off(8, 2), dim2(1, -16, 1, -2))
-    new("Frame", { Parent = header, AnchorPoint = v2(0, 1), Position = dim2(0, 0, 1, 0), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
-
-    local body = new("Frame", {
-        Parent = container, Size = dim2(1, 0, 1, -24), BackgroundColor3 = T("preview"),
-        LayoutOrder = 2, ClipsDescendants = true,
-    })
-
-    local viewport = new("Frame", {
-        Parent = body, Size = dim2(1, -16, 1, -16), Position = off(8, 8),
-        BackgroundTransparency = 1, ClipsDescendants = true,
-    })
-
-    local lines = {}
-    for i = 1, 16 do
-        lines[i] = newLine(viewport, 5)
-    end
-
-    local angle = 0
-    local running = true
-    local conn
-    conn = RunService.RenderStepped:Connect(function(dt)
-        if not running or not viewport.Parent then
-            if conn then conn:Disconnect() end
-            return
-        end
-        angle = (angle + dt * 0.6) % (math.pi * 2)
-        local w, h = viewport.AbsoluteSize.X, viewport.AbsoluteSize.Y
-        if w < 10 or h < 10 then return end
-        local cx, cy = w * 0.5, h * 0.55
-        local scale = math.min(w, h) * 0.28
-        local cos, sin = math.cos(angle), math.sin(angle)
-
-        local function pt(x, y, z)
-            local rx = x * cos - z * sin
-            local rz = x * sin + z * cos
-            local persp = 1 / (1 + rz * 0.35)
-            return v2(cx + rx * scale * persp, cy - y * scale * persp)
-        end
-
-        local head = pt(0, 1.1, 0)
-        local neck = pt(0, 0.85, 0)
-        local hip  = pt(0, 0.15, 0)
-        local ls   = pt(-0.35, 0.7, 0)
-        local rs   = pt(0.35, 0.7, 0)
-        local lh   = pt(-0.45, 0.35, 0.1)
-        local rh   = pt(0.45, 0.35, -0.1)
-        local lk   = pt(-0.15, -0.35, 0.05)
-        local rk   = pt(0.15, -0.35, -0.05)
-        local lf   = pt(-0.18, -0.85, 0.1)
-        local rf   = pt(0.18, -0.85, -0.1)
-
-        local segs = {
-            {head, neck}, {neck, hip}, {neck, ls}, {neck, rs},
-            {ls, lh}, {rs, rh}, {hip, lk}, {hip, rk},
-            {lk, lf}, {rk, rf},
-        }
-        local accent = Theme.v.accent
-        for i = 1, #lines do
-            if segs[i] then
-                lines[i].color(accent)
-                lines[i].set(segs[i][1], segs[i][2])
-            else
-                lines[i].hide()
-            end
-        end
-    end)
-
-    lib:connect(container.AncestryChanged, function()
-        if not container.Parent then
-            running = false
-            if conn then conn:Disconnect() end
-        end
-    end)
-
-    return container
 end
 
 function Element:gear(o)
@@ -2423,7 +2179,7 @@ function Element:gear(o)
 
     local btn = new("TextButton", {
         Parent = self.right, Size = off(14, 14), BackgroundTransparency = 1,
-        LayoutOrder = 2000, Text = "", ZIndex = 3,
+        LayoutOrder = -1, Text = "", ZIndex = 3,
     })
     local img = new("ImageLabel", {
         Parent = btn, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
@@ -2457,10 +2213,11 @@ function Element:gear(o)
     local bg = new("Frame", { Parent = mid, Size = dim2(1, 0, 0, 0), AutomaticSize = Enum_Y, BackgroundColor3 = T("body") })
     new("UIListLayout", { Parent = bg, SortOrder = Enum.SortOrder.LayoutOrder })
 
-    local header = new("Frame", { Parent = bg, Size = dim2(1, 0, 0, 8), BackgroundTransparency = 1, LayoutOrder = 1 })
+    local header = new("Frame", { Parent = bg, Size = dim2(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 1 })
     local hglow = new("Frame", { Parent = header, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent") })
     new("UIGradient", { Parent = hglow, Rotation = 90, Transparency = NumberSequence.new(0.88, 1) })
     accentLine(header)
+    label(header, o.title or ((self.name or "Settings") .. " Options"), "text_active", off(8, 2), dim2(1, -16, 1, -2))
     new("Frame", { Parent = header, AnchorPoint = v2(0, 1), Position = dim2(0, 0, 1, 0), Size = dim2(1, 0, 0, 1), BackgroundColor3 = T("line") })
 
     local content = new("Frame", { Parent = bg, Size = dim2(1, 0, 0, 0), AutomaticSize = Enum_Y, BackgroundTransparency = 1, LayoutOrder = 2 })
@@ -2528,7 +2285,18 @@ function Element:colorpicker(o)
     pop.ZIndex = lvl >= 2 and 300 or 200
     pop.Active = true
 
-    local hueInner = slimBar(pb, off(6, 6), off(18, 108))
+    local sv = slimBar(pb, off(6, 6), off(154, 108))
+    sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+    sv.ClipsDescendants = true
+    local whiteL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = WHITE })
+    new("UIGradient", { Parent = whiteL, Transparency = NumberSequence.new(0, 1) })
+    local blackL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = rgb(0, 0, 0) })
+    new("UIGradient", { Parent = blackL, Rotation = 90, Transparency = NumberSequence.new(1, 0) })
+    local svBtn = new("TextButton", { Parent = sv, Size = dim2(1, 0, 1, 0), ZIndex = 3 })
+    local svCursor = new("Frame", { Parent = sv, AnchorPoint = v2(0.5, 0.5), Size = off(6, 6), BackgroundColor3 = WHITE, ZIndex = 4 })
+    new("UICorner", { Parent = svCursor, CornerRadius = dim(1, 0) })
+
+    local hueInner = slimBar(pb, off(166, 6), off(18, 108))
     new("UIGradient", {
         Parent = hueInner, Rotation = 90,
         Color = ColorSequence.new({
@@ -2541,17 +2309,6 @@ function Element:colorpicker(o)
     local hueBtn = new("TextButton", { Parent = hueInner, Size = dim2(1, 0, 1, 0), ZIndex = 3 })
     local hueCursor = new("Frame", { Parent = hueInner, AnchorPoint = v2(0.5, 0.5), Size = dim2(1, 4, 0, 3), BackgroundColor3 = WHITE, ZIndex = 4 })
     stroke(hueCursor, "outline")
-
-    local sv = slimBar(pb, off(30, 6), off(160, 108))
-    sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-    sv.ClipsDescendants = true
-    local whiteL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = WHITE })
-    new("UIGradient", { Parent = whiteL, Transparency = NumberSequence.new(0, 1) })
-    local blackL = new("Frame", { Parent = sv, Size = dim2(1, 0, 1, 0), BackgroundColor3 = rgb(0, 0, 0) })
-    new("UIGradient", { Parent = blackL, Rotation = 90, Transparency = NumberSequence.new(1, 0) })
-    local svBtn = new("TextButton", { Parent = sv, Size = dim2(1, 0, 1, 0), ZIndex = 3 })
-    local svCursor = new("Frame", { Parent = sv, AnchorPoint = v2(0.5, 0.5), Size = off(6, 6), BackgroundColor3 = WHITE, ZIndex = 4 })
-    new("UICorner", { Parent = svCursor, CornerRadius = dim(1, 0) })
 
     local alphaInner = slimBar(pb, off(6, 120), off(96, 20))
     alphaInner.ClipsDescendants = true
@@ -2687,137 +2444,1012 @@ end
 function Element:keybind(o)
     o = o or {}
     local lib = self.lib
+    local lvl = self.level or 1
     lib.cpCount += 1
 
     local kb = {
-        flag = o.flag or ("keybind_" .. lib.cpCount),
-        mode = o.mode or "Toggle",
-        key = parseKey(o.key),
-        active = false, binding = false,
-        callback = o.callback or function() end,
-        onBind = o.onBind or function() end,
-        name = o.name or self.name,
+        flag = o.flag or ("keybind_" .. lib.cpCount), mode = o.mode or "Toggle",
+        key = parseKey(o.key), active = false, binding = false,
+        callback = o.callback or function() end, onBind = o.onBind or function() end,
     }
 
-    local body, outer = fieldBox(self.right, off(54, 13))
+    local body, outer = fieldBox(self.right, off(50, 13))
     outer.LayoutOrder = 1000 + lib.cpCount
-    local keyLbl = label(body, "None", "item", off(0, 0), dim2(1, 0, 1, 0), ACenter)
+    local keyLbl = label(body, "None", Theme.v.item, off(0, 0), dim2(1, 0, 1, 0), ACenter)
     keyLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
 
-    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 3 })
-
-    local function render()
+    local function paintKey()
         keyLbl.Text = kb.binding and "..." or keyText(kb.key)
-        keyLbl.TextColor3 = (kb.binding or kb.active) and Theme.v.accent or Theme.v.item
+        keyLbl.TextColor3 = kb.binding and Theme.v.accent or Theme.v.item
     end
-    Theme.on({ "accent", "item" }, render)
+    Theme.on({ "accent", "item" }, paintKey)
+
+    local displayName = o.name
+    if not displayName and self and self._labelText then displayName = self._labelText end
+    if not displayName then
+        displayName = tostring(kb.flag):gsub("^__", ""):gsub("_", " ")
+    end
+    kb.name = displayName
+    lib.keybinds[kb.flag] = kb
 
     local function refresh()
+        paintKey()
+        lib.flags[kb.flag] = { key = kb.key, mode = kb.mode, active = kb.active }
         if lib.refreshKeybindList then lib.refreshKeybindList() end
     end
 
-    function kb.set(k)
-        kb.key = parseKey(k)
-        render()
-        lib:setFlag(kb.flag, kb.key)
-        refresh()
-    end
+    local P = lib:popupList(outer, { "Hold", "Toggle", "Always" }, {
+        alignRight = true, level = lvl,
+        selected = function(item) return kb.mode == item end,
+        pick = function(item)
+            kb.mode = item
+            if item == "Always" then
+                kb.active = true
+            elseif item == "Hold" then
+                kb.active = false
+            end
+            refresh()
+            kb.callback(kb.active)
+        end,
+        onClose = function() hot(outer, false) end,
+    })
 
-    local bindConn
-    local bindPopup = { level = 3, close = function()
-        if bindConn then bindConn:Disconnect() bindConn = nil end
-        kb.binding = false
-        lib.binding = false
-        render()
-    end }
+    hit.MouseEnter:Connect(function() hot(outer, true) end)
+    hit.MouseLeave:Connect(function() if not kb.binding and not P.open then hot(outer, false) end end)
 
     hit.MouseButton1Click:Connect(function()
-        if kb.binding then return end
+        lib:closeLevel(lvl)
         kb.binding = true
         lib.binding = true
-        render()
-        lib:openPopup(bindPopup)
-        bindConn = UIS.InputBegan:Connect(function(input, gp)
-            if gp then return end
-            local k = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
-            if k then
-                kb.key = parseKey(k)
-                if kb.onBind then kb.onBind(k) end
-                lib:setFlag(kb.flag, kb.key)
-            end
-            bindPopup.close()
-            refresh()
-        end)
+        hot(outer, true)
+        refresh()
+    end)
+    hit.MouseButton2Click:Connect(function()
+        kb.binding = false
+        lib.binding = false
+        refresh()
+        P.toggle()
     end)
 
-    local function fire(state)
-        if kb.mode == "Always" then
+    lib:connect(UIS.InputBegan, function(input, gp)
+        if kb.binding then
+            local k
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                k = input.KeyCode
+            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+                k = input.UserInputType
+            else
+                return
+            end
+            kb.binding = false
+            lib.binding = false
+            if k == Enum.KeyCode.Escape then k = nil end
+            kb.key = k
+            hot(outer, false)
+            refresh()
+            kb.onBind(k)
+            return
+        end
+        if gp or not kb.key then return end
+        local pressed = (input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == kb.key) or input.UserInputType == kb.key
+        if not pressed then return end
+        if kb.mode == "Toggle" then
+            kb.active = not kb.active
+        elseif kb.mode == "Hold" then
             kb.active = true
         else
-            kb.active = state and true or false
+            return
         end
-        render()
+        refresh()
+        kb.callback(kb.active)
+    end)
+
+    lib:connect(UIS.InputEnded, function(input)
+        if kb.mode ~= "Hold" or not kb.key or not kb.active then return end
+        local released = (input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == kb.key) or input.UserInputType == kb.key
+        if released then
+            kb.active = false
+            refresh()
+            kb.callback(false)
+        end
+    end)
+
+    function kb.set(val)
+        if type(val) == "table" then
+            kb.key = parseKey(val.key)
+            kb.mode = val.mode or kb.mode
+            kb.active = kb.mode == "Always" and true or (val.active and true or false)
+        end
         refresh()
         kb.callback(kb.active)
     end
 
-    lib:connect(UIS.InputBegan, function(input, gp)
-        if gp or not kb.key or kb.binding then return end
-        if input.KeyCode == kb.key or input.UserInputType == kb.key then
-            if kb.mode == "Toggle" then
-                fire(not kb.active)
-            else
-                fire(true)
-            end
-        end
-    end)
-
-    lib:connect(UIS.InputEnded, function(input)
-        if not kb.key or kb.binding then return end
-        if input.KeyCode == kb.key or input.UserInputType == kb.key then
-            if kb.mode == "Hold" then fire(false) end
-        end
-    end)
-
-    lib.keybinds[kb.flag] = kb
+    if kb.mode == "Always" then kb.active = true end
     lib.setters[kb.flag] = kb.set
-    render()
     refresh()
 
     return self
 end
 
+function Section:dropdown(o)
+    local lib = self.lib
+    local lvl = self.level or 1
+    local cfg = {
+        lib = lib, name = o.name or "Dropdown", flag = o.flag or o.name or "dropdown",
+        items = o.items or {}, multi = o.multi or false,
+        callback = o.callback or function() end,
+    }
+    local default = o.default
+    if default == nil then default = cfg.multi and {} or cfg.items[1] end
+
+    local holder = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 38), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
+    local nl = label(holder, nameText(cfg.name, o.risky), "text", off(1, 0), dim2(1, -2, 0, 14))
+    if o.risky then nl.RichText = true end
+    local body, outer = fieldBox(holder, dim2(1, 0, 0, 20), off(0, 17))
+    local valLbl = label(body, "", "text", off(6, 0), dim2(1, -24, 1, 0))
+    valLbl.TextTruncate = Enum.TextTruncate.AtEnd
+
+    local arrow = new("Frame", { Parent = body, AnchorPoint = v2(1, 0.5), Position = dim2(1, -6, 0.5, 0), Size = off(7, 4), BackgroundTransparency = 1 })
+    local arrowParts = {}
+    for i = 1, 4 do
+        local w = 9 - 2 * i
+        arrowParts[i] = new("Frame", { Parent = arrow, Position = off((7 - w) / 2, i - 1), Size = off(w, 1), BackgroundColor3 = Theme.v.dim })
+    end
+
+    local P
+    local function setArrow(open)
+        for i, p in ipairs(arrowParts) do
+            local w = 9 - 2 * i
+            p.Position = off((7 - w) / 2, open and (4 - i) or (i - 1))
+            p.BackgroundColor3 = open and Theme.v.accent or Theme.v.dim
+        end
+    end
+    Theme.on({ "accent", "dim" }, function() setArrow(P ~= nil and P.open) end)
+
+    local hit = new("TextButton", { Parent = outer, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 5 })
+
+    local function isSelected(item)
+        if cfg.multi then
+            for _, x in ipairs(cfg.value or {}) do
+                if x == item then return true end
+            end
+            return false
+        end
+        return cfg.value == item
+    end
+
+    local function build()
+        P = lib:popupList(outer, cfg.items, {
+            multi = cfg.multi, level = lvl,
+            selected = isSelected,
+            pick = function(item)
+                if cfg.multi then
+                    local newSel, found = {}, false
+                    for _, x in ipairs(cfg.value) do
+                        if x == item then found = true else table.insert(newSel, x) end
+                    end
+                    if not found then table.insert(newSel, item) end
+                    cfg.set(newSel)
+                else
+                    cfg.set(item)
+                end
+            end,
+            onOpen = function()
+                setArrow(true)
+                hot(outer, true)
+            end,
+            onClose = function()
+                setArrow(false)
+                hot(outer, false)
+            end,
+        })
+    end
+
+    function cfg.set(val)
+        if cfg.multi then
+            local lookup, sel = {}, {}
+            for _, x in ipairs(type(val) == "table" and val or {}) do lookup[x] = true end
+            for _, item in ipairs(cfg.items) do
+                if lookup[item] then table.insert(sel, item) end
+            end
+            cfg.value = sel
+            local shown = {}
+            for _, x in ipairs(sel) do table.insert(shown, tostring(x)) end
+            valLbl.Text = #shown > 0 and table.concat(shown, ", ") or "None"
+        else
+            cfg.value = val
+            valLbl.Text = tostring(val or "None")
+        end
+        if P then P.refresh() end
+        lib:setFlag(cfg.flag, cfg.value)
+        cfg.callback(cfg.value)
+    end
+
+    function cfg.setItems(items)
+        if P then P.destroy() end
+        cfg.items = items
+        build()
+        if cfg.multi then
+            cfg.set(cfg.value or {})
+        else
+            local keep = false
+            for _, x in ipairs(items) do
+                if x == cfg.value then keep = true end
+            end
+            cfg.set(keep and cfg.value or items[1])
+        end
+    end
+
+    hit.MouseEnter:Connect(function() hot(outer, true) end)
+    hit.MouseLeave:Connect(function()
+        if not (P and P.open) then hot(outer, false) end
+    end)
+    hit.MouseButton1Click:Connect(function()
+        if P then P.toggle() end
+    end)
+
+    build()
+    lib.setters[cfg.flag] = cfg.set
+    cfg.set(default)
+    lib:register(self, cfg.name, holder)
+    return cfg
+end
+
+function Section:slider(o)
+    local lib = self.lib
+    local lvl = self.level or 1
+    local cfg = {
+        lib = lib, name = o.name or "Slider", flag = o.flag or o.name or "slider",
+        min = o.min or 0, max = o.max or 100, interval = o.interval or 1,
+        suffix = o.suffix or "", callback = o.callback or function() end, dragging = false, token = 0,
+    }
+    local decimals = 0
+    if cfg.interval < 1 then
+        decimals = #(tostring(cfg.interval):match("%.(%d+)") or "")
+    end
+
+    local row = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
+    local nl = label(row, nameText(cfg.name, o.risky), "text", off(1, 0), dim2(1, -36, 0, 13))
+    if o.risky then nl.RichText = true end
+
+    local minus = new("TextButton", {
+        Parent = row, AnchorPoint = v2(1, 0), Position = dim2(1, -18, 0, 0), Size = off(14, 13),
+        Text = "-", TextXAlignment = ACenter, TextColor3 = T("dim"), ZIndex = 3,
+    })
+    local plus = new("TextButton", {
+        Parent = row, AnchorPoint = v2(1, 0), Position = dim2(1, -2, 0, 0), Size = off(14, 13),
+        Text = "+", TextXAlignment = ACenter, TextColor3 = T("dim"), ZIndex = 3,
+    })
+
+    local outer = hotFrame(row, dim2(1, 0, 0, 12), off(0, 15))
+    local inner = new("Frame", { Parent = outer, Position = off(1, 1), Size = dim2(1, -2, 1, -2), BackgroundColor3 = WHITE, ClipsDescendants = true })
+    local ig = new("UIGradient", { Parent = inner, Rotation = 90 })
+    Theme.on({ "field_top", "field_bot" }, function()
+        ig.Color = ColorSequence.new(Theme.v.field_top, Theme.v.field_bot)
+    end)
+
+    local track = new("Frame", { Parent = inner, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ClipsDescendants = true })
+    local fill = new("Frame", { Parent = track, Size = dim2(0, 0, 1, 0), BackgroundColor3 = T("accent"), BackgroundTransparency = 0.1 })
+    new("UIGradient", { Parent = fill, Rotation = 90, Color = ColorSequence.new(WHITE, rgb(150, 150, 150)) })
+    local valLbl = label(track, "", "text_active", off(0, 0), dim2(1, 0, 1, 0), ACenter)
+    valLbl.ZIndex = 3
+    valLbl.TextSize = 11
+    local hit = new("TextButton", { Parent = track, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 4 })
+
+    function cfg.set(val)
+        val = clamp(floor(val / cfg.interval + 0.5) * cfg.interval, cfg.min, cfg.max)
+        val = tonumber(string.format("%." .. decimals .. "f", val))
+        cfg.value = val
+        local frac = (val - cfg.min) / (cfg.max - cfg.min)
+        fill.Size = dim2(frac, 0, 1, 0)
+        valLbl.Text = string.format("%." .. decimals .. "f", val) .. cfg.suffix
+        lib:setFlag(cfg.flag, val)
+        cfg.callback(val)
+    end
+
+    local function stepper(btn, dir)
+        btn.MouseEnter:Connect(function()
+            btn.TextColor3 = Theme.v.accent
+            hot(outer, true)
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.TextColor3 = Theme.v.dim
+            if not cfg.dragging then hot(outer, false) end
+        end)
+        btn.MouseButton1Down:Connect(function()
+            lib:closeLevel(lvl)
+            cfg.token += 1
+            local my = cfg.token
+            cfg.set(cfg.value + dir * cfg.interval)
+            task.spawn(function()
+                task.wait(0.35)
+                while cfg.token == my do
+                    local nv = clamp(cfg.value + dir * cfg.interval, cfg.min, cfg.max)
+                    if nv == cfg.value then break end
+                    cfg.set(nv)
+                    task.wait(0.05)
+                end
+            end)
+        end)
+    end
+    stepper(minus, -1)
+    stepper(plus, 1)
+
+    local function fromMouse()
+        local m = lib:mouse()
+        local frac = clamp((m.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        cfg.set(cfg.min + (cfg.max - cfg.min) * frac)
+    end
+
+    hit.MouseEnter:Connect(function() hot(outer, true) end)
+    hit.MouseLeave:Connect(function()
+        if not cfg.dragging then hot(outer, false) end
+    end)
+    hit.MouseButton1Down:Connect(function()
+        lib:closeLevel(lvl)
+        lib:calibrate(track)
+        cfg.dragging = true
+        fromMouse()
+    end)
+    lib:connect(UIS.InputChanged, function(i)
+        if cfg.dragging and i.UserInputType == Enum.UserInputType.MouseMovement then fromMouse() end
+    end)
+    lib:connect(UIS.InputEnded, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            cfg.token += 1
+            if cfg.dragging then
+                cfg.dragging = false
+                hot(outer, false)
+            end
+        end
+    end)
+
+    lib.setters[cfg.flag] = cfg.set
+    cfg.set(o.default or cfg.min)
+    lib:register(self, cfg.name, row)
+    return cfg
+end
+
+function Section:textbox(o)
+    local lib = self.lib
+    local cfg = {
+        lib = lib, name = o.name or "Textbox", flag = o.flag or o.name or "textbox",
+        callback = o.callback or function() end,
+    }
+
+    local holder = new("Frame", { Parent = self.body, Size = dim2(1, 0, 0, 38), BackgroundTransparency = 1, LayoutOrder = nxt(lib) })
+    label(holder, cfg.name, "text", off(1, 0), dim2(1, -2, 0, 14))
+    local body, outer = fieldBox(holder, dim2(1, 0, 0, 20), off(0, 17))
+    local box = new("TextBox", {
+        Parent = body, Size = dim2(1, -12, 1, 0), Position = off(6, 0), ClearTextOnFocus = false,
+        PlaceholderText = o.placeholder or "Type here", PlaceholderColor3 = T("mute"),
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    })
+
+    box.Focused:Connect(function() hot(outer, true) end)
+    box.FocusLost:Connect(function()
+        hot(outer, false)
+        cfg.set(box.Text)
+    end)
+
+    function cfg.set(text)
+        text = tostring(text or "")
+        box.Text = text
+        cfg.value = text
+        lib:setFlag(cfg.flag, text)
+        cfg.callback(text)
+    end
+
+    lib.setters[cfg.flag] = cfg.set
+    cfg.set(o.default or "")
+    lib:register(self, cfg.name, holder)
+    return cfg
+end
+
+function Column:preview(o)
+    o = o or {}
+    local lib = self.lib
+    local tab = self.tab
+    local sec = self:section({ name = o.name or "Preview" })
+
+    local area = new("Frame", { Parent = sec.body, Size = dim2(1, 0, 0, 250), BackgroundColor3 = T("preview"), LayoutOrder = nxt(lib), ClipsDescendants = true })
+    stroke(area, "line")
+
+    local viewport = new("ViewportFrame", {
+        Parent = area, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
+        Ambient = rgb(190, 190, 190), LightColor = WHITE, ZIndex = 1,
+    })
+    local cam = Instance.new("Camera")
+    cam.FieldOfView = 40
+    cam.CFrame = CFrame.lookAt(Vector3.new(0, 0, 14), Vector3.new(0, 0, 0))
+    cam.Parent = viewport
+    viewport.CurrentCamera = cam
+    local worldModel = Instance.new("WorldModel")
+    worldModel.Parent = viewport
+
+    local ov = new("Frame", { Parent = area, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 2 })
+
+    local glow = new("ImageLabel", {
+        Parent = ov, Image = "rbxassetid://110204605000367", ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(v2(21, 21), v2(79, 79)), BackgroundTransparency = 1,
+        ImageTransparency = 0.35, Visible = false, ZIndex = 0,
+    })
+    local boxFill = new("Frame", { Parent = ov, BackgroundColor3 = WHITE, Visible = false, ZIndex = 1 })
+    local boxFillGrad = new("UIGradient", { Parent = boxFill })
+
+    local BLACK = rgb(0, 0, 0)
+    local function createBar(parent, sz, pos, anchor, color, z)
+        local bar = new("Frame", { Parent = parent, Size = sz, Position = pos, AnchorPoint = anchor, BackgroundColor3 = color, ZIndex = z })
+        new("UICorner", { Parent = bar, CornerRadius = dim(0, 3) })
+        return bar
+    end
+
+    local cornerBox = new("Frame", { Parent = ov, BackgroundTransparency = 1, Visible = false, ZIndex = 2 })
+    local cornerBars = {}
+    for _, sg in ipairs({ {0, 0}, {1, 0}, {0, 1}, {1, 1} }) do
+        local xs, ys = sg[1], sg[2]
+        local anchor = v2(xs, ys)
+        local pos = dim2(xs, 0, ys, 0)
+        local one = off(1, 1)
+        cornerBars[#cornerBars + 1] = {
+            outlineH = createBar(cornerBox, one, pos, anchor, BLACK, 1),
+            outlineV = createBar(cornerBox, one, pos, anchor, BLACK, 1),
+            colorH = createBar(cornerBox, one, pos, anchor, WHITE, 2),
+            colorV = createBar(cornerBox, one, pos, anchor, WHITE, 2),
+            xs = xs, ys = ys,
+        }
+    end
+
+    local fullBox = new("Frame", { Parent = ov, BackgroundTransparency = 1, Visible = false, ZIndex = 2 })
+    local fullBars = {}
+    for _, sd in ipairs({ {true, true}, {true, false}, {false, true}, {false, false} }) do
+        fullBars[#fullBars + 1] = {
+            outline = createBar(fullBox, off(1, 1), dim2(0, 0, 0, 0), v2(0, 0), BLACK, 1),
+            color = createBar(fullBox, off(1, 1), dim2(0, 0, 0, 0), v2(0, 0), WHITE, 2),
+            isHorizontal = sd[1], isStart = sd[2],
+        }
+    end
+
+    local box3d, bones = {}, {}
+    for i = 1, 12 do box3d[i] = newLine(ov, 3) end
+    for i = 1, 10 do bones[i] = newLine(ov, 3) end
+    local tracer = newLine(ov, 3)
+
+    local hpBack = new("Frame", { Parent = ov, BackgroundColor3 = rgb(15, 15, 15), Visible = false, ZIndex = 3 })
+    stroke(hpBack, rgb(0, 0, 0))
+    local hpFill = new("Frame", { Parent = hpBack, BackgroundColor3 = WHITE, AnchorPoint = v2(0, 1), Position = dim2(0, 0, 1, 0), Size = dim2(1, 0, 1, 0), ZIndex = 4 })
+    local hpGrad = new("UIGradient", { Parent = hpFill, Rotation = 90 })
+
+    local arBack = new("Frame", { Parent = ov, BackgroundColor3 = rgb(15, 15, 15), Visible = false, ZIndex = 3 })
+    stroke(arBack, rgb(0, 0, 0))
+    local arFill = new("Frame", { Parent = arBack, BackgroundColor3 = WHITE, Size = dim2(1, 0, 1, 0), ZIndex = 4 })
+    local arGrad = new("UIGradient", { Parent = arFill })
+
+    local headDot = new("Frame", { Parent = ov, BackgroundColor3 = WHITE, AnchorPoint = v2(0.5, 0.5), Visible = false, ZIndex = 6 })
+    new("UICorner", { Parent = headDot, CornerRadius = dim(1, 0) })
+    new("UIStroke", {
+        Parent = headDot, Color = rgb(0, 0, 0), Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
+
+    local nameT = newText(ov, 0.5, 1, 5)
+    local distT = newText(ov, 0, 0, 5)
+    local toolT = newText(ov, 0.5, 0, 5)
+    local hpT   = newText(ov, 1, 0, 5)
+
+    local statusLbl = label(ov, "Loading", "mute", dim2(0, 6, 0.5, -6), dim2(1, -12, 0, 12), ACenter)
+    statusLbl.ZIndex = 5
+    local errLbl = new("TextLabel", {
+        Parent = ov, AnchorPoint = v2(0, 1), Position = dim2(0, 5, 1, -4), Size = dim2(1, -10, 0, 0),
+        AutomaticSize = Enum_Y, TextWrapped = true, TextYAlignment = YBot, TextColor3 = rgb(230, 90, 90),
+        Visible = false, ZIndex = 5, Text = "",
+    })
+
+    local rotBtn = new("TextButton", { Parent = area, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 20 })
+
+    local last = "enemy"
+    local records = {}
+    local failMsg = {}
+    local current, currentName = nil, nil
+    local loading = false
+    local tintedRec, tintedColor, tintedTr = nil, nil, nil
+    local rot = math.pi
+    local dragging, lastX, lastDrag = false, 0, 0
+    local hpKey, arKey = nil, nil
+
+    rotBtn.MouseButton1Down:Connect(function()
+        dragging = true
+        lastX = UIS:GetMouseLocation().X
+        lastDrag = tick()
+    end)
+    lib:connect(UIS.InputEnded, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+
+    local function on(k) return lib.flags[last .. "_" .. k] == true end
+    local function num(k, fb)
+        local val = lib.flags[last .. "_" .. k]
+        if type(val) == "number" then return val end
+        return fb
+    end
+    local function col(k, fb)
+        local val = lib.flags[last .. "_" .. k]
+        if typeof(val) == "Color3" then return val end
+        return fb
+    end
+    local function str(k, fb)
+        local val = lib.flags[last .. "_" .. k]
+        if type(val) == "string" then return val end
+        return fb
+    end
+
+    local function espFont(name)
+        local f = (lib.espFonts and lib.espFonts[name]) or FontBank.map[name]
+        return f or UI.font, f ~= nil
+    end
+
+    local function putText(t, text, fontName, size, c1, c2, rotation, px, py)
+        local lbl = t.label
+        if t.text ~= text then lbl.Text = text; t.text = text end
+        local f, loaded = espFont(fontName)
+        local key = fontName .. (loaded and "1" or "0")
+        if t.fontKey ~= key then lbl.FontFace = f; t.fontKey = key end
+        if lbl.TextSize ~= size then lbl.TextSize = size end
+        if t.c1 ~= c1 or t.c2 ~= c2 then
+            t.grad.Color = ColorSequence.new(c1, c2)
+            t.c1, t.c2 = c1, c2
+        end
+        t.grad.Rotation = rotation
+        lbl.Position = off(px, py)
+        lbl.Visible = true
+    end
+
+    local function applyTint(want, fillTr)
+        if not current then return end
+        if tintedRec == current and tintedColor == want and tintedTr == fillTr then return end
+        tintedRec, tintedColor, tintedTr = current, want, fillTr
+        for part, orig in pairs(current.tint) do
+            if part and part.Parent then
+                if want then
+                    part.Color = orig.c:Lerp(want, clamp(1 - (fillTr or 0.3), 0, 1))
+                    part.Material = Enum.Material.Neon
+                    if part:IsA("MeshPart") then part.TextureID = "" end
+                    if orig.sm and orig.sm.Parent then orig.sm.TextureId = "" end
+                else
+                    part.Color = orig.c
+                    part.Material = orig.m
+                    if part:IsA("MeshPart") and orig.tex ~= nil then part.TextureID = orig.tex end
+                    if orig.sm and orig.sm.Parent and orig.smtex ~= nil then orig.sm.TextureId = orig.smtex end
+                end
+            end
+        end
+    end
+
+    local function hideAll()
+        glow.Visible = false
+        boxFill.Visible = false
+        cornerBox.Visible = false
+        fullBox.Visible = false
+        hideGroup(box3d)
+        hideGroup(bones)
+        tracer.hide()
+        hpBack.Visible = false
+        arBack.Visible = false
+        headDot.Visible = false
+        nameT.label.Visible = false
+        distT.label.Visible = false
+        toolT.label.Visible = false
+        hpT.label.Visible = false
+    end
+
+    local ensure
+    function ensure(name)
+        if records[name] then return records[name] end
+        local m
+        local assetId = MODEL_REGISTRY[name]
+        if assetId then
+            local info
+            m, info = loadModelById(assetId)
+            if not m then
+                failMsg[name] = info or "load failed"
+                lib:notify({ title = "Preview", text = name .. " failed to load", kind = "error" })
+                records[name] = ensure("Local Player")
+                return records[name]
+            end
+            failMsg[name] = nil
+        else
+            m = buildLocal()
+        end
+        if not m then return nil end
+        local rec = prepareModel(m)
+        if not rec then
+            if assetId then
+                failMsg[name] = "prepare failed"
+                pcall(function() m:Destroy() end)
+                records[name] = ensure("Local Player")
+                return records[name]
+            end
+            return nil
+        end
+        records[name] = rec
+        return rec
+    end
+
+    local function switchTo(name)
+        if loading then return end
+        loading = true
+        task.spawn(function()
+            local ok, rec = pcall(ensure, name)
+            if not ok then
+                failMsg[name] = tostring(rec)
+                rec = records["Local Player"]
+            end
+            if current and current.model then current.model.Parent = nil end
+            current = rec
+            currentName = name
+            tintedRec = nil
+            if rec then rec.model.Parent = worldModel end
+            loading = false
+        end)
+    end
+
+    local function render(dt)
+        if not (lib.root.Visible and tab.page.Visible) then return end
+
+        local want = lib.flags.preview_model or "Local Player"
+        if want ~= currentName and not loading then switchTo(want) end
+
+        local fail = failMsg[want]
+        if fail and want ~= "Local Player" then
+            local msg = want .. " failed, showing Local Player. " .. fail
+            if errLbl.Text ~= msg then errLbl.Text = msg end
+            errLbl.Visible = true
+        else
+            errLbl.Visible = false
+        end
+
+        statusLbl.Visible = current == nil
+        statusLbl.Text = loading and "Loading" or "No model"
+        if not current then
+            hideAll()
+            return
+        end
+
+        if dragging then
+            local mx = UIS:GetMouseLocation().X
+            rot = rot + (mx - lastX) * 0.012
+            lastX = mx
+            lastDrag = tick()
+        elseif tick() - lastDrag > 2 then
+            rot = rot + dt * 0.9
+        end
+        current.model:PivotTo(CFrame.Angles(0, rot, 0) * current.pivot0)
+
+        local w, h = area.AbsoluteSize.X, area.AbsoluteSize.Y
+        if w < 20 or h < 20 then return end
+
+        local tanHalf = math.tan(math.rad(cam.FieldOfView) / 2)
+        local distV = (current.height * 0.5) / (0.8 * tanHalf)
+        local distH = current.radius / (0.85 * tanHalf * (w / h))
+        local dist = math.max(distV, distH) + current.radius
+        cam.CFrame = CFrame.lookAt(Vector3.new(0, 0, dist), Vector3.new(0, 0, 0))
+        local camCF = cam.CFrame
+
+        local mm = tab.activeMulti
+        local nm = mm and lower(mm.name) or "enemy"
+        if nm == "enemy" or nm == "team" or nm == "ai" then last = nm end
+
+        if not on("enabled") then
+            hideAll()
+            applyTint(nil)
+            return
+        end
+
+        local pc = {}
+        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+        for i = 1, 8 do
+            local pt = projectPoint(current.corners[i], camCF, tanHalf, w, h)
+            pc[i] = pt
+            if pt then
+                if pt.X < minX then minX = pt.X end
+                if pt.Y < minY then minY = pt.Y end
+                if pt.X > maxX then maxX = pt.X end
+                if pt.Y > maxY then maxY = pt.Y end
+            end
+        end
+        if minX == math.huge then hideAll() return end
+
+        local pad = 4
+        local x = floor(minX - pad + 0.5)
+        local y = floor(minY - pad + 0.5)
+        local sx = math.max(floor(maxX - minX + pad * 2 + 0.5), 8)
+        local sy = math.max(floor(maxY - minY + pad * 2 + 0.5), 8)
+
+        local showBox = on("box")
+        local boxType = str("box_type", "Corner")
+        local thick = math.max(1, num("box_thickness", 1))
+        local lineCol = col("box_color", WHITE)
+        local fillOn = showBox and on("boxfill")
+        local fillC1 = col("boxfill_c1", rgb(255, 80, 80))
+        local fillC2 = col("boxfill_c2", rgb(255, 40, 40))
+        local fillTrans = num("boxfill_trans", 0.7)
+
+        if fillOn and boxType ~= "3D" then
+            boxFill.Position = off(x, y)
+            boxFill.Size = off(sx, sy)
+            boxFill.BackgroundTransparency = fillTrans
+            boxFillGrad.Color = ColorSequence.new(fillC1, fillC2)
+            boxFillGrad.Rotation = (((tick() * 100) % 360) * 0.02) % 360
+            boxFill.Visible = true
+        else
+            boxFill.Visible = false
+        end
+
+        if showBox and on("box_glow") then
+            glow.Position = off(x - 21, y - 21)
+            glow.Size = off(sx + 42, sy + 41)
+            glow.ImageColor3 = lineCol
+            glow.Visible = true
+        else
+            glow.Visible = false
+        end
+
+        if showBox then
+            if boxType == "Full" then
+                cornerBox.Visible = false
+                hideGroup(box3d)
+                fullBox.Visible = true
+                fullBox.Position = off(x, y)
+                fullBox.Size = off(sx, sy)
+                for _, b in ipairs(fullBars) do
+                    if b.isHorizontal then
+                        b.color.Size = off(sx, thick)
+                        b.color.Position = off(0, b.isStart and 0 or (sy - thick))
+                        b.outline.Size = off(sx + 2, thick + 2)
+                        b.outline.Position = off(-1, b.isStart and -1 or (sy - thick - 1))
+                    else
+                        b.color.Size = off(thick, sy)
+                        b.color.Position = off(b.isStart and 0 or (sx - thick), 0)
+                        b.outline.Size = off(thick + 2, sy + 2)
+                        b.outline.Position = off(b.isStart and -1 or (sx - thick - 1), -1)
+                    end
+                    b.color.BackgroundColor3 = lineCol
+                end
+            elseif boxType == "3D" then
+                cornerBox.Visible = false
+                fullBox.Visible = false
+                for i = 1, 12 do
+                    local e = EDGES_3D[i]
+                    local pa, pb = pc[e[1]], pc[e[2]]
+                    if pa and pb then
+                        box3d[i].thickness = thick
+                        box3d[i].color(lineCol)
+                        box3d[i].set(pa, pb)
+                    else
+                        box3d[i].hide()
+                    end
+                end
+            else
+                fullBox.Visible = false
+                hideGroup(box3d)
+                cornerBox.Visible = true
+                cornerBox.Position = off(x, y)
+                cornerBox.Size = off(sx, sy)
+                local maxAllowed = math.min(50, math.floor(math.min(sx, sy) * 0.42))
+                local lineLen = math.clamp(40, 6, math.max(6, maxAllowed))
+                for _, c in ipairs(cornerBars) do
+                    local ox = c.xs == 0 and -1 or 1
+                    local oy = c.ys == 0 and -1 or 1
+                    local base = dim2(c.xs, 0, c.ys, 0)
+                    c.colorH.Size = off(lineLen, thick)
+                    c.colorH.Position = base
+                    c.colorH.BackgroundColor3 = lineCol
+                    c.outlineH.Size = off(lineLen + 2, thick + 2)
+                    c.outlineH.Position = base + off(ox, oy)
+                    c.colorV.Size = off(thick, lineLen)
+                    c.colorV.Position = base
+                    c.colorV.BackgroundColor3 = lineCol
+                    c.outlineV.Size = off(thick + 2, lineLen + 2)
+                    c.outlineV.Position = base + off(ox, oy)
+                end
+            end
+        else
+            cornerBox.Visible = false
+            fullBox.Visible = false
+            hideGroup(box3d)
+        end
+
+        local tintWant, tintTr = nil, 0.3
+        if on("chams") then
+            tintWant = col("chams_color", Theme.v.accent)
+            tintTr = num("chams_fill", 0.3)
+        elseif fillOn and boxType == "3D" then
+            tintWant = fillC1
+            tintTr = fillTrans
+        end
+        applyTint(tintWant, tintTr)
+
+        local size = floor(num("textsize", 12))
+        local animated = lib.flags.esp_text_gradient == "Animated"
+        local rotG = animated and (tick() * 100) % 360 or 0
+        local textFont = lib.flags.esp_text_font or "Gojiberry Quibble"
+        local flagsFont = lib.flags.esp_flags_font or "Gojiberry Quibble"
+        local healthFont = lib.flags.esp_health_font or "Gojiberry Quibble"
+
+        local hpRatio = 0.55 + 0.45 * math.sin(tick() * 1.2)
+        local hi = col("health_high", rgb(0, 255, 100))
+        local mid = col("health_mid", rgb(255, 255, 0))
+        local lo = col("health_low", rgb(255, 40, 40))
+        local armorOn = on("armorbar")
+
+        if on("healthbar") then
+            hpBack.Position = off(x - 4, y)
+            hpBack.Size = off(1, sy)
+            hpBack.Visible = true
+            hpFill.Size = dim2(1, 0, hpRatio, 0)
+            local key = tostring(hi) .. tostring(mid) .. tostring(lo)
+            if hpKey ~= key then
+                hpGrad.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, hi),
+                    ColorSequenceKeypoint.new(0.5, mid),
+                    ColorSequenceKeypoint.new(1, lo),
+                })
+                hpKey = key
+            end
+            if on("healthtext") then
+                local t2 = clamp(hpRatio, 0, 1)
+                local hc = t2 >= 0.5 and mid:Lerp(hi, (t2 - 0.5) * 2) or lo:Lerp(mid, t2 * 2)
+                local ty = clamp(y + sy - sy * hpRatio - 5, y - 2, y + sy - 10)
+                putText(hpT, tostring(floor(hpRatio * 100 + 0.5)), healthFont, size, hc, hc, 0, x - 7, ty)
+            else
+                hpT.label.Visible = false
+            end
+        else
+            hpBack.Visible = false
+            hpT.label.Visible = false
+        end
+
+        if armorOn then
+            arBack.Position = off(x, y + sy + 4)
+            arBack.Size = off(sx, 1)
+            arBack.Visible = true
+            arFill.Size = dim2(1, 0, 1, 0)
+            local ah = col("armor_high", rgb(0, 255, 0))
+            local am = col("armor_mid", rgb(255, 255, 0))
+            local al = col("armor_low", rgb(255, 0, 0))
+            local key = tostring(ah) .. tostring(am) .. tostring(al)
+            if arKey ~= key then
+                arGrad.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, ah),
+                    ColorSequenceKeypoint.new(0.5, am),
+                    ColorSequenceKeypoint.new(1, al),
+                })
+                arKey = key
+            end
+        else
+            arBack.Visible = false
+        end
+
+        if on("names") then
+            local nt = str("name_type", "Display")
+            local txt = lp.DisplayName
+            if nt == "Username" then
+                txt = lp.Name
+            elseif nt == "Both" then
+                txt = lp.DisplayName .. " (@" .. lp.Name .. ")"
+            end
+            putText(nameT, txt, textFont, size, col("name_color", WHITE), col("name_color2", WHITE), rotG, x + sx * 0.5, y - 4)
+        else
+            nameT.label.Visible = false
+        end
+
+        if on("distance") then
+            putText(distT, "[45m]", flagsFont, size, col("dist_color", WHITE), col("dist_color2", WHITE), rotG, x + sx + 4, y - 1)
+        else
+            distT.label.Visible = false
+        end
+
+        if on("tool") then
+            putText(toolT, "Weapon", textFont, size, col("tool_color", WHITE), col("tool_color2", WHITE), rotG, x + sx * 0.5, y + sy + (armorOn and 6 or 2))
+        else
+            toolT.label.Visible = false
+        end
+
+        if on("headdot") and current.head then
+            local hp = projectPoint(current.head(), camCF, tanHalf, w, h)
+            if hp then
+                local ds = math.max(2, floor(num("headdot_size", 20)))
+                headDot.Size = off(ds, ds)
+                headDot.Position = off(hp.X, hp.Y)
+                headDot.BackgroundColor3 = col("headdot_color", WHITE)
+                headDot.Visible = true
+            else
+                headDot.Visible = false
+            end
+        else
+            headDot.Visible = false
+        end
+
+        if on("tracers") then
+            local origin = str("tracer_origin", "Bottom")
+            local from
+            if origin == "Top" then
+                from = v2(w * 0.5, 0)
+            elseif origin == "Bottom" then
+                from = v2(w * 0.5, h)
+            else
+                from = v2(w * 0.5, h * 0.5)
+            end
+            tracer.thickness = num("tracer_thickness", 1)
+            tracer.color(col("tracer_color", WHITE))
+            tracer.set(from, v2(x + sx * 0.5, y + sy))
+        else
+            tracer.hide()
+        end
+
+        if on("skeleton") then
+            local c1 = col("skeleton_color", WHITE)
+            local c2 = col("skeleton_color2", WHITE)
+            local sth = num("skeleton_thickness", 1)
+            for i = 1, 10 do
+                local fn = current.bones[i]
+                if fn then
+                    local wa, wb = fn()
+                    local pa = projectPoint(wa, camCF, tanHalf, w, h)
+                    local pb = projectPoint(wb, camCF, tanHalf, w, h)
+                    if pa and pb then
+                        bones[i].thickness = sth
+                        bones[i].color(c1, c2)
+                        bones[i].set(pa, pb)
+                    else
+                        bones[i].hide()
+                    end
+                else
+                    bones[i].hide()
+                end
+            end
+        else
+            hideGroup(bones)
+        end
+    end
+
+    lib:connect(RunService.RenderStepped, render)
+
+    local modelItems = { "Local Player" }
+    for name in pairs(MODEL_REGISTRY) do
+        modelItems[#modelItems + 1] = name
+    end
+    table.sort(modelItems)
+    sec:dropdown({
+        name = "Model", flag = "preview_model", items = modelItems, default = "Local Player",
+    })
+
+    return sec
+end
+
 function Library:exportConfig()
     local out = {}
     for k, v in pairs(self.flags) do
-        if not isUiFlag(k) or k:match("^__theme_") or k:match("^__ui_") or k:match("^__cfg_") or k:match("^__wm_") or k:match("^__notif") or k:match("^__menu") or k:match("^__kb") or k:match("^__watermark") or k:match("^__notifs") then
-            out[k] = encode(v)
-        end
+        if not isUiFlag(k) then out[k] = encode(v) end
     end
-    for k, c in pairs(Theme.v) do
-        out["__theme_" .. k] = encode(c)
-    end
-    out["__ui_font"] = self.flags["__ui_font"] or "Tahoma 8px"
-    out["__ui_size"] = self.flags["__ui_size"] or UI.size
     return HttpService:JSONEncode(out)
 end
 
-function Library:importConfig(data)
-    if type(data) ~= "string" or data == "" then return false end
-    local ok, decoded = pcall(function() return HttpService:JSONDecode(data) end)
-    if not ok or type(decoded) ~= "table" then return false end
+function Library:importConfig(json)
+    local ok, data = pcall(function() return HttpService:JSONDecode(json) end)
+    if not ok or type(data) ~= "table" then return false end
+    local decoded = {}
+    for k, v in pairs(data) do
+        if not isUiFlag(k) then decoded[k] = decode(v) end
+    end
     for k, v in pairs(decoded) do
-        local val = decode(v)
-        local setter = self.setters[k]
-        if setter then
-            pcall(setter, val)
-        else
-            self.flags[k] = val
-            if k:match("^__theme_") then
-                local key = k:sub(9)
-                if Theme.v[key] ~= nil and typeof(val) == "Color3" then
-                    Theme.set(key, val)
-                end
+        local fn = self.setters[k]
+        if fn then
+            if typeof(v) == "Color3" then
+                pcall(fn, v, decoded[k .. "_alpha"])
+            else
+                pcall(fn, v)
             end
         end
     end
@@ -2906,7 +3538,6 @@ function Library:configTab(tab)
         local ok = pcall(writefile, cfgFolder .. "/" .. n .. ".cfg", lib:exportConfig())
         lib:notify(ok and ("Saved " .. n) or "Save failed")
         cfgRefresh()
-        if lib.cfgLabel then lib.cfgLabel.Text = n .. ".cfg" end
     end })
     cfgSec:button({ name = "Load", callback = function()
         if not canFs then lib:notify("Filesystem unavailable") return end
@@ -2914,7 +3545,6 @@ function Library:configTab(tab)
         local ok, data = pcall(readfile, cfgFolder .. "/" .. n .. ".cfg")
         if ok and lib:importConfig(data) then
             lib:notify("Loaded " .. n)
-            if lib.cfgLabel then lib.cfgLabel.Text = n .. ".cfg" end
         else
             lib:notify("Load failed")
         end
@@ -3091,6 +3721,17 @@ function Library:configTab(tab)
         if lib.wmRender then lib.wmRender(60) end
     end })
 
+    local glowToggle = menuSec:toggle({ name = "UI Glow", flag = "__ui_glow", default = true, callback = function(v)
+        if lib.glow then lib.glow.Visible = v end
+    end })
+    local glowPop = glowToggle:gear({ title = "Glow Options" })
+    glowPop:slider({
+        name = "Glow Transparency", flag = "__ui_glow_trans", min = 0, max = 1, default = 0.55, interval = 0.05,
+        callback = function(v)
+            if lib.glow then lib.glow.ImageTransparency = v end
+        end,
+    })
+
     menuSec:toggle({ name = "Keybind List", flag = "__kb_list", default = false, callback = function(v)
         if lib.kbListFrame then lib.kbListFrame.Visible = v end
         if v and lib.refreshKeybindList then lib.refreshKeybindList() end
@@ -3175,4 +3816,174 @@ function Library:configTab(tab)
     end)
 end
 
-return Library
+local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/EspLibrary.lua"))()
+
+local win = Library.new({
+    name = "Stardust", version = "Private", folder = "catware",
+    logoIcon = "sparkles", fonts = ESP.Fonts,
+})
+win.onUnload = function() ESP:Stop() end
+
+local combat = win:category("Combat")
+local legit = combat:tab("Legit")
+local Rage = combat:tab("Rage")
+
+local visuals = win:category("Visuals")
+local playersTab = visuals:tab("Players")
+local world = visuals:tab("World")
+
+local other = win:category("Other")
+local misc = other:tab("Misc")
+
+local Settings = win:category("Settings")
+local config = Settings:tab("UI Settings")
+
+local left = playersTab:column("left")
+local right = playersTab:column("right")
+
+local Enemy, Team, Setting = left:multi_section({
+    names = {"Enemy", "Team", "Settings"},
+    fills = false,
+})
+
+local function addESPSection(sec, tbl, prefix)
+    sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
+
+    local box = sec:toggle({name = "Box", default = tbl.BoxEnabled, flag = prefix.."_box", callback = function(v) tbl.BoxEnabled = v end})
+    box:colorpicker({flag = prefix.."_box_color", color = tbl.LineColor, callback = function(c) tbl.LineColor = c end})
+    local boxPop = box:gear({title = "Box Options"})
+    boxPop:dropdown({name = "Box Type", items = {"Corner", "Full", "3D"}, default = tbl.BoxType, flag = prefix.."_box_type", callback = function(v) tbl.BoxType = v end})
+    boxPop:slider({name = "Box Thickness", min = 1, max = 5, default = tbl.Thickness, interval = 1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
+    boxPop:toggle({name = "Box Glow", default = tbl.BoxGlow, flag = prefix.."_box_glow", callback = function(v) tbl.BoxGlow = v end})
+
+    local fill = sec:toggle({name = "Box Fill", default = tbl.BoxFill, flag = prefix.."_boxfill", callback = function(v) tbl.BoxFill = v end})
+    fill:colorpicker({flag = prefix.."_boxfill_c1", color = tbl.BoxFillColor1, callback = function(c) tbl.BoxFillColor1 = c end})
+    fill:colorpicker({flag = prefix.."_boxfill_c2", color = tbl.BoxFillColor2, callback = function(c) tbl.BoxFillColor2 = c end})
+    local fillPop = fill:gear({title = "Box Fill Options"})
+    fillPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
+
+    local chams = sec:toggle({name = "Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
+    chams:colorpicker({flag = prefix.."_chams_color", color = tbl.ChamsColor, callback = function(c) tbl.ChamsColor = c end})
+    local chamsPop = chams:gear({title = "Chams Options"})
+    chamsPop:toggle({name = "Chams Glow", default = tbl.ChamsGlow, flag = prefix.."_chams_glow", callback = function(v) tbl.ChamsGlow = v end})
+    chamsPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.ChamsFillTransparency or 0.3, interval = 0.05, flag = prefix.."_chams_fill", callback = function(v) tbl.ChamsFillTransparency = v end})
+
+    local names = sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
+    names:colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
+    names:colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})
+    local namePop = names:gear({title = "Name Options"})
+    namePop:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
+
+    local dist = sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
+    dist:colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
+    dist:colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
+
+    local tool = sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
+    tool:colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
+    tool:colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
+
+    local hp = sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
+    hp:colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
+    hp:colorpicker({flag = prefix.."_health_mid", color = tbl.HealthMid, callback = function(c) tbl.HealthMid = c end})
+    hp:colorpicker({flag = prefix.."_health_low", color = tbl.HealthLow, callback = function(c) tbl.HealthLow = c end})
+    local hpPop = hp:gear({title = "Health Bar Options"})
+    hpPop:toggle({name = "Health Text", default = tbl.HealthText, flag = prefix.."_healthtext", callback = function(v) tbl.HealthText = v end})
+
+    local armor = sec:toggle({name = "Armor Bar", default = tbl.ArmorBar, flag = prefix.."_armorbar", callback = function(v) tbl.ArmorBar = v end})
+    armor:colorpicker({flag = prefix.."_armor_high", color = tbl.ArmorHigh, callback = function(c) tbl.ArmorHigh = c end})
+    armor:colorpicker({flag = prefix.."_armor_mid", color = tbl.ArmorMid, callback = function(c) tbl.ArmorMid = c end})
+    armor:colorpicker({flag = prefix.."_armor_low", color = tbl.ArmorLow, callback = function(c) tbl.ArmorLow = c end})
+
+    local skel = sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
+    skel:colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})
+    skel:colorpicker({flag = prefix.."_skeleton_color2", color = tbl.SkeletonColor2, callback = function(c) tbl.SkeletonColor2 = c end})
+    local skelPop = skel:gear({title = "Skeleton Options"})
+    skelPop:slider({name = "Skeleton Thickness", min = 1, max = 5, default = tbl.SkeletonThickness, interval = 1, flag = prefix.."_skeleton_thickness", callback = function(v) tbl.SkeletonThickness = v end})
+
+    local head = sec:toggle({name = "Head Dot", default = tbl.HeadDot, flag = prefix.."_headdot", callback = function(v) tbl.HeadDot = v end})
+    head:colorpicker({flag = prefix.."_headdot_color", color = tbl.HeadDotColor, callback = function(c) tbl.HeadDotColor = c end})
+    local headPop = head:gear({title = "Head Dot Options"})
+    headPop:slider({name = "Head Dot Size", min = 4, max = 40, default = tbl.HeadDotSize, interval = 1, flag = prefix.."_headdot_size", callback = function(v) tbl.HeadDotSize = v end})
+
+    local tr = sec:toggle({name = "Tracers", default = tbl.Tracers, flag = prefix.."_tracers", callback = function(v) tbl.Tracers = v end})
+    tr:colorpicker({flag = prefix.."_tracer_color", color = tbl.TracerColor, callback = function(c) tbl.TracerColor = c end})
+    local trPop = tr:gear({title = "Tracer Options"})
+    trPop:dropdown({name = "Tracer Origin", items = {"Bottom", "Top", "Center", "Mouse"}, default = tbl.TracerOrigin or "Bottom", flag = prefix.."_tracer_origin", callback = function(v) tbl.TracerOrigin = v end})
+    trPop:slider({name = "Tracer Thickness", min = 1, max = 5, default = tbl.TracerThickness or 1, interval = 1, flag = prefix.."_tracer_thickness", callback = function(v) tbl.TracerThickness = v end})
+
+    sec:slider({name = "Text Size", min = 8, max = 20, default = tbl.TextSize, interval = 1, flag = prefix.."_textsize", callback = function(v) tbl.TextSize = v end})
+end
+
+addESPSection(Enemy, ESP.Settings.Enemy, "enemy")
+addESPSection(Team, ESP.Settings.Teammate, "team")
+
+local FONT_LOOKUP = {}
+local fontList = {}
+local seen = {}
+
+for i = 1, #FONT_LIST do
+    local entry = FONT_LIST[i]
+    FONT_LOOKUP[entry[1]] = entry
+    fontList[#fontList + 1] = entry[1]
+    seen[entry[1]] = true
+end
+
+for name in pairs(ESP.Fonts or {}) do
+    if not seen[name] then
+        fontList[#fontList + 1] = name
+        seen[name] = true
+    end
+end
+
+table.sort(fontList)
+
+local function ensureFont(name)
+    ESP.Fonts = ESP.Fonts or {}
+    if ESP.Fonts[name] then
+        return true
+    end
+    local entry = FONT_LOOKUP[name]
+    if not entry then
+        return false
+    end
+    local fileName, url = entry[2], entry[3]
+    if isfolder and makefolder and not isfolder("StardustFonts") then
+        makefolder("StardustFonts")
+    end
+    local path = "StardustFonts/" .. fileName
+    if isfile and writefile and not isfile(path) then
+        local ok, data = pcall(game.HttpGet, game, url)
+        if ok and data and #data > 0 then
+            writefile(path, data)
+        end
+    end
+    if getcustomasset and isfile and isfile(path) then
+        local asset = getcustomasset(path)
+        local ok, customFont = pcall(Font.new, asset, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+        if ok and customFont then
+            ESP.Fonts[name] = customFont
+            return true
+        end
+    end
+    return false
+end
+
+ensureFont(ESP.Settings.TextFont or "Tahoma")
+ensureFont(ESP.Settings.FlagsFont or "Tahoma")
+ensureFont(ESP.Settings.HealthFont or "Tahoma")
+
+Setting:dropdown({name="Box Type",items={"Dynamic","Bounding"},default=ESP.Settings.BoxMode or"Dynamic",flag="box_type",callback=function(v)ESP.Settings.BoxMode=v end})
+Setting:dropdown({name = "Text Font", items = fontList, default = ESP.Settings.TextFont or "Tahoma", flag = "esp_text_font", callback = function(v) ensureFont(v) ESP.Settings.TextFont = v end})
+Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.FlagsFont or "Tahoma", flag = "esp_flags_font", callback = function(v) ensureFont(v) ESP.Settings.FlagsFont = v end})
+Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont or "Tahoma", flag = "esp_health_font", callback = function(v) ensureFont(v) ESP.Settings.HealthFont = v end})
+Setting:dropdown({name = "Text Gradient", items = {"Static", "Animated"}, default = ESP.Settings.TextGradientAnimated and "Animated" or "Static", flag = "esp_text_gradient", callback = function(v) ESP.Settings.TextGradientAnimated = (v == "Animated") end})
+Setting:slider({name = "Refresh Rate", min = 60, max = 240, default = ESP.Settings.RefreshRate, flag = "esp_refresh_rate", callback = function(v) ESP.Settings.RefreshRate = v end})
+
+right:preview({ name = "Preview" })
+win:configTab(config)
+
+playersTab:open()
+ESP:Start()
+win:notify({ title = "Stardust", text = "Loaded successfully.", kind = "success" })
+
+setfpscap(0)

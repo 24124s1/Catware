@@ -1,4 +1,4 @@
-print('-1')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -852,6 +852,7 @@ local function newRecord(entity)
         seen = 0,
         hidden = true,
         lastName = nil,
+        deathTime = 0,
         d = {},
         box = { x = 0, y = 0, w = 0, h = 0 },
         hl = nil,
@@ -862,7 +863,6 @@ end
 local R15 = {"HumanoidRootPart","Head","UpperTorso","LowerTorso","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand"}
 local R6 = {"HumanoidRootPart","Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
 local VM_PARTS = {"head","torso","arm1","arm2","leg1","leg2","shoulder1","shoulder2","hip1","hip2"}
-local STABLE_VM = {"head","torso"}
 
 local function collectParts(character, names, out)
     for i = 1, #names do
@@ -1072,6 +1072,14 @@ local function render(rec, cfg, rx, ry, rz, dist)
     rec.hidden = false
     rec.seen = view.time
     local tr = 1 - view.fade
+    if rec.deathTime > 0 then
+        local age = view.time - rec.deathTime
+        if age > 1.2 then
+            hideRecord(rec)
+            return
+        end
+        tr = math.min(tr, age / 1.2)
+    end
     local renderer = rec.renderer
     renderer:Begin()
 
@@ -1093,7 +1101,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
             rec.fillHl.Adornee = rec.character
             rec.fillHl.FillColor = cfg.BoxFillColor1
             rec.fillHl.OutlineColor = cfg.LineColor
-            rec.fillHl.FillTransparency = 1 - ((1 - cfg.BoxFillTransparency) * view.fade)
+            rec.fillHl.FillTransparency = 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr))
             rec.fillHl.OutlineTransparency = 1
             rec.fillHl.Enabled = true
         else
@@ -1102,7 +1110,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
             if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
                 ang = (view.angle * (cfg.BoxFillSpeed / 100) + ang) % 360
             end
-            renderer:Fill("boxfill", x, y, w, h, cfg.BoxFillColor1, cfg.BoxFillColor2, ang, 1 - ((1 - cfg.BoxFillTransparency) * view.fade))
+            renderer:Fill("boxfill", x, y, w, h, cfg.BoxFillColor1, cfg.BoxFillColor2, ang, 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr)))
         end
     else
         if rec.fillHl then rec.fillHl.Enabled = false end
@@ -1117,7 +1125,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
         end
         rec.hl.Adornee = rec.character
         rec.hl.FillColor = cfg.ChamsColor
-        rec.hl.FillTransparency = 1 - ((1 - cfg.ChamsFillTransparency) * view.fade)
+        rec.hl.FillTransparency = 1 - ((1 - cfg.ChamsFillTransparency) * (1 - tr))
         if cfg.ChamsGlow then
             rec.hl.OutlineColor = cfg.ChamsColor
             rec.hl.OutlineTransparency = tr
@@ -1132,7 +1140,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if cfg.BoxEnabled then
         if cfg.BoxGlow then
-            renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * view.fade))
+            renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * (1 - tr)))
         end
 
         local thick = math.max(1, cfg.Thickness or 1)
@@ -1349,9 +1357,17 @@ local function processEntity(entity, isPlayer, options, ownerKey)
     end
 
     if humanoid and humanoid.Health <= 0 then
-        hideRecord(rec)
-        return
+        if rec.deathTime == 0 then
+            rec.deathTime = view.time
+        end
+        if view.time - rec.deathTime > 1.2 then
+            hideRecord(rec)
+            return
+        end
+    else
+        rec.deathTime = 0
     end
+
     if options and type(options.Alive) == "function" then
         local ok, alive = pcall(options.Alive, character)
         if ok and not alive then
@@ -1497,6 +1513,23 @@ local function processViewmodel(vm)
 
     local tp = root.Position
     local owner = resolveOwner(rec, tp)
+
+    if owner then
+        local ownerChar = owner.Character
+        local ownerHum = ownerChar and ownerChar:FindFirstChildOfClass("Humanoid")
+        if ownerHum and ownerHum.Health <= 0 then
+            if rec.deathTime == 0 then
+                rec.deathTime = now
+            end
+            if now - rec.deathTime > 1.2 then
+                hideRecord(rec)
+                return
+            end
+        else
+            rec.deathTime = 0
+        end
+    end
+
     local isTeam = viewmodelIsTeam(rec, owner)
     local cfg = isTeam and settings.Teammate or settings.Enemy
     if not cfg.Enabled then

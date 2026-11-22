@@ -1,4 +1,4 @@
-print('1')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -73,15 +73,6 @@ espModule.CustomFlags = {}
 espModule.CustomAIs = {}
 espModule.CustomEntities = espModule.CustomAIs
 espModule.CustomItems = {}
-espModule.PlaceProfiles = {
-    [125269738749167] = {
-        Model = "Runtime",
-        Hitbox = "^Low_",
-        Head = "^Low_Head",
-        Root = {"HumanoidRootPart", "CodBodyRoot", "CodMotionRoot", "Gf2Root"},
-        Ignore = "Root$",
-    },
-}
 
 local registryListeners = {}
 local fontListeners = {}
@@ -121,10 +112,6 @@ function espModule.GetFlagNames()
     local out = {"Walking", "Jumping", "Swimming"}
     for _, name in ipairs(sortedKeys(espModule.CustomFlags)) do out[#out + 1] = name end
     return out
-end
-
-function espModule:SetProfile(placeId, profile)
-    self.PlaceProfiles[placeId] = profile
 end
 
 function espModule:AddFlag(name, func)
@@ -439,7 +426,7 @@ function Renderer.new(parent)
     root.BorderSizePixel = 0
     root.Size = UDim2.fromScale(1, 1)
     root.Parent = parent
-
+    
     local self = setmetatable({
         root = root, rects = {}, lines = {}, keyed = {}, keyList = {},
         nRect = 0, nLine = 0, hiRect = 0, hiLine = 0, frame = 0,
@@ -449,10 +436,10 @@ function Renderer.new(parent)
         fullBars = {}
     }, Renderer)
 
-    local BLACK = Color3.new(0, 0, 0)
-    local WHITE = Color3.new(1, 1, 1)
+    local BLACK = Color3.new(0,0,0)
+    local WHITE = Color3.new(1,1,1)
 
-    local function createBar(barParent, size, pos, anchor, color, radius, zIndex)
+    local function createBar(parent, size, pos, anchor, color, radius, zIndex)
         local bar = Instance.new("Frame")
         bar.Size = size
         bar.Position = pos
@@ -460,7 +447,7 @@ function Renderer.new(parent)
         bar.BackgroundColor3 = color
         bar.BorderSizePixel = 0
         bar.ZIndex = zIndex
-        bar.Parent = barParent
+        bar.Parent = parent
         local corner = Instance.new("UICorner")
         corner.CornerRadius = radius
         corner.Parent = bar
@@ -473,7 +460,7 @@ function Renderer.new(parent)
     self.cornerBox.ZIndex = 2
     self.cornerBox.Parent = root
 
-    for _, signs in ipairs({ {0, 0}, {1, 0}, {0, 1}, {1, 1} }) do
+    for _, signs in ipairs({ {0,0}, {1,0}, {0,1}, {1,1} }) do
         local xSign, ySign = signs[1], signs[2]
         local anchor = Vector2.new(xSign, ySign)
         local pos = UDim2.fromScale(xSign, ySign)
@@ -851,8 +838,6 @@ local function newRecord(entity)
         humanoid = nil,
         root = nil,
         parts = nil,
-        heads = nil,
-        generic = false,
         isR15 = false,
         scanned = -1,
         owner = nil,
@@ -868,8 +853,6 @@ local function newRecord(entity)
         hidden = true,
         lastName = nil,
         deathTime = 0,
-        bbAt = -1,
-        bb = nil,
         d = {},
         box = { x = 0, y = 0, w = 0, h = 0 },
         hl = nil,
@@ -880,48 +863,6 @@ end
 local R15 = {"HumanoidRootPart","Head","UpperTorso","LowerTorso","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand"}
 local R6 = {"HumanoidRootPart","Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
 local VM_PARTS = {"head","torso","arm1","arm2","leg1","leg2","shoulder1","shoulder2","hip1","hip2"}
-
-local function activeProfile()
-    return espModule.PlaceProfiles[game.PlaceId]
-end
-
-local function resolveCharacter(plr)
-    local char = plr.Character
-    local profile = activeProfile()
-    if profile then
-        if type(profile.Resolve) == "function" then
-            local ok, res = pcall(profile.Resolve, plr)
-            if ok and typeof(res) == "Instance" and res:IsA("Model") then return res end
-        end
-        if char and profile.Model and char.Name ~= profile.Model then
-            local inner = char:FindFirstChild(profile.Model)
-            if inner and inner:IsA("Model") then return inner end
-        end
-    end
-    return char
-end
-
-local function collectProfileParts(character, profile, parts, heads)
-    local matched, fallback = {}, {}
-    local ignore, hitbox, headPattern = profile.Ignore, profile.Hitbox, profile.Head
-    for _, d in ipairs(character:GetDescendants()) do
-        if d:IsA("BasePart") then
-            local n = d.Name
-            if not (ignore and n:find(ignore)) then
-                if hitbox and n:find(hitbox) then
-                    matched[#matched + 1] = d
-                else
-                    fallback[#fallback + 1] = d
-                end
-                if headPattern and n:find(headPattern) then
-                    heads[#heads + 1] = d
-                end
-            end
-        end
-    end
-    local use = #matched > 0 and matched or fallback
-    for i = 1, #use do parts[#parts + 1] = use[i] end
-end
 
 local function collectParts(character, names, out)
     for i = 1, #names do
@@ -944,8 +885,6 @@ local function bindCharacter(rec, character, humanoid, isVM)
     rec.character = character
     rec.humanoid = humanoid
     rec.parts = {}
-    rec.heads = {}
-    rec.generic = false
     rec.isR15 = false
     if isVM then
         collectParts(character, VM_PARTS, rec.parts)
@@ -964,77 +903,28 @@ local function bindCharacter(rec, character, humanoid, isVM)
             rec.root = character:FindFirstChildWhichIsA("BasePart", true)
         end
     else
-        local profile = activeProfile()
         rec.isR15 = character:FindFirstChild("UpperTorso") ~= nil
-        local rigged = rec.isR15 or character:FindFirstChild("Torso") ~= nil
-
-        if profile and profile.Hitbox then
-            collectProfileParts(character, profile, rec.parts, rec.heads)
-            rec.generic = true
-            rec.isR15 = false
-        elseif rigged then
-            local names = rec.isR15 and R15 or R6
-            for i = 1, #names do
-                local p = character:FindFirstChild(names[i])
-                if p and p:IsA("BasePart") then rec.parts[#rec.parts + 1] = p end
-            end
-            for _, child in ipairs(character:GetChildren()) do
-                if child:IsA("Accessory") then
-                    local h = child:FindFirstChild("Handle")
-                    if h and h:IsA("BasePart") then rec.parts[#rec.parts + 1] = h end
-                end
+        local names = rec.isR15 and R15 or R6
+        for i = 1, #names do
+            local p = character:FindFirstChild(names[i])
+            if p and p:IsA("BasePart") then rec.parts[#rec.parts + 1] = p end
+        end
+        for _, child in ipairs(character:GetChildren()) do
+            if child:IsA("Accessory") then
+                local h = child:FindFirstChild("Handle")
+                if h and h:IsA("BasePart") then rec.parts[#rec.parts + 1] = h end
             end
         end
-
-        if #rec.parts == 0 then
-            collectProfileParts(character, { Ignore = "Root$" }, rec.parts, rec.heads)
-            rec.generic = true
-            rec.isR15 = false
-        end
-
-        local root
-        if rec.generic and profile and type(profile.Root) == "table" then
-            for _, name in ipairs(profile.Root) do
-                local found = character:FindFirstChild(name)
-                if found and found:IsA("BasePart") then
-                    root = found
-                    break
-                end
-            end
-        end
-        rec.root = root
-            or character:FindFirstChild("HumanoidRootPart")
+        rec.root = character:FindFirstChild("HumanoidRootPart")
             or character:FindFirstChild("Torso")
             or character:FindFirstChild("UpperTorso")
             or character.PrimaryPart
-            or rec.parts[1]
     end
     rec.scanned = view.time
 end
 
 local function rescan(rec, humanoid, isVM)
     bindCharacter(rec, rec.character, humanoid or rec.humanoid, isVM)
-end
-
-local function headPosition(rec)
-    local heads = rec.heads
-    if heads and #heads > 0 then
-        local sx, sy, sz, n = 0, 0, 0, 0
-        for i = 1, #heads do
-            local h = heads[i]
-            if h.Parent then
-                local p = h.Position
-                sx, sy, sz, n = sx + p.X, sy + p.Y, sz + p.Z, n + 1
-            end
-        end
-        if n > 0 then return sx / n, sy / n, sz / n end
-    end
-    local head = rec.character and rec.character:FindFirstChild("Head")
-    if head and head:IsA("BasePart") then
-        local p = head.Position
-        return p.X, p.Y, p.Z
-    end
-    return nil
 end
 
 local function playerName(rec, player, nameType)
@@ -1071,12 +961,12 @@ local function updateFlags(rec, entity, character, humanoid, cfg)
         if table.find(cfg.SelectedFlags, "Walking") and humanoid.MoveDirection.Magnitude > 0 then
             d.flags[#d.flags + 1] = "Walking"
         end
-        local ok, hs = pcall(function() return humanoid:GetState() end)
+        local ok, state = pcall(function() return humanoid:GetState() end)
         if ok then
-            if table.find(cfg.SelectedFlags, "Jumping") and (hs == Enum.HumanoidStateType.Freefall or hs == Enum.HumanoidStateType.Jumping) then
+            if table.find(cfg.SelectedFlags, "Jumping") and (state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping) then
                 d.flags[#d.flags + 1] = "Jumping"
             end
-            if table.find(cfg.SelectedFlags, "Swimming") and hs == Enum.HumanoidStateType.Swimming then
+            if table.find(cfg.SelectedFlags, "Swimming") and state == Enum.HumanoidStateType.Swimming then
                 d.flags[#d.flags + 1] = "Swimming"
             end
         end
@@ -1116,29 +1006,6 @@ local function boundsFromParts(parts)
     return minX, minY, minZ, maxX, maxY, maxZ
 end
 
-local function boundsFromModel(rec)
-    local now = view.time
-    if rec.bb and now - rec.bbAt < 0.1 then
-        local b = rec.bb
-        return b[1], b[2], b[3], b[4], b[5], b[6]
-    end
-    local character = rec.character
-    if not character then return nil end
-    local ok, cf, size = pcall(character.GetBoundingBox, character)
-    if not ok then return nil end
-    local abs = math.abs
-    local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
-    local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
-    local ex = abs(r.X) * hx + abs(u.X) * hy + abs(l.X) * hz
-    local ey = abs(r.Y) * hx + abs(u.Y) * hy + abs(l.Y) * hz
-    local ez = abs(r.Z) * hx + abs(u.Z) * hy + abs(l.Z) * hz
-    local p = cf.Position
-    rec.bb = { p.X - ex, p.Y - ey, p.Z - ez, p.X + ex, p.Y + ey, p.Z + ez }
-    rec.bbAt = now
-    local b = rec.bb
-    return b[1], b[2], b[3], b[4], b[5], b[6]
-end
-
 local function screenBox(minX, minY, minZ, maxX, maxY, maxZ)
     local sx1, sy1, sx2, sy2 = math.huge, math.huge, -math.huge, -math.huge
     local any = false
@@ -1149,7 +1016,7 @@ local function screenBox(minX, minY, minZ, maxX, maxY, maxZ)
     local pts = {}
     for i = 1, 8 do
         local c = corners[i]
-        local sx, sy = project(c[1], c[2], c[3])
+        local sx, sy, depth = project(c[1], c[2], c[3])
         if sx then
             any = true
             pts[i] = {sx, sy, true}
@@ -1172,14 +1039,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
         return
     end
 
-    local settings = espModule.Settings
-    local minX, minY, minZ, maxX, maxY, maxZ
-    if settings.BoxMode == "Bounding" then
-        minX, minY, minZ, maxX, maxY, maxZ = boundsFromModel(rec)
-    end
-    if not minX then
-        minX, minY, minZ, maxX, maxY, maxZ = boundsFromParts(parts)
-    end
+    local minX, minY, minZ, maxX, maxY, maxZ = boundsFromParts(parts)
     if not minX then
         hideRecord(rec)
         return
@@ -1198,7 +1058,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local h = math.max(math.floor(sy2 - sy1 + pad * 2 + 0.5), 8)
 
     local box = rec.box
-    local smooth = settings.BoxSmoothing or 0.35
+    local smooth = espModule.Settings.BoxSmoothing or 0.35
     if box.w == 0 then
         box.x, box.y, box.w, box.h = x, y, w, h
     else
@@ -1223,6 +1083,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local renderer = rec.renderer
     renderer:Begin()
 
+    local settings = espModule.Settings
     local textFont = getFont(settings.TextFont)
     local flagsFont = getFont(settings.FlagsFont)
     local healthFont = getFont(settings.HealthFont)
@@ -1318,26 +1179,26 @@ local function render(rec, cfg, rx, ry, rz, dist)
             renderer.cornerBox.Size = UDim2.fromOffset(w, h)
             local maxAllowed = math.min(50, math.floor(math.min(w, h) * 0.42))
             local lineLen = math.clamp(40, 6, math.max(6, maxAllowed))
-
+            
             for _, c in ipairs(renderer.cornerBars) do
                 local sx, sy = c.xSign, c.ySign
                 local ox = sx == 0 and -1 or 1
                 local oy = sy == 0 and -1 or 1
-
+                
                 c.colorH.Size = UDim2.fromOffset(lineLen, thick)
                 c.colorH.Position = UDim2.fromScale(sx, sy)
                 c.colorH.BackgroundColor3 = cfg.LineColor
                 c.colorH.BackgroundTransparency = tr
-
+                
                 c.outlineH.Size = UDim2.fromOffset(lineLen + 2, thick + 2)
                 c.outlineH.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
                 c.outlineH.BackgroundTransparency = tr
-
+                
                 c.colorV.Size = UDim2.fromOffset(thick, lineLen)
                 c.colorV.Position = UDim2.fromScale(sx, sy)
                 c.colorV.BackgroundColor3 = cfg.LineColor
                 c.colorV.BackgroundTransparency = tr
-
+                
                 c.outlineV.Size = UDim2.fromOffset(thick + 2, lineLen + 2)
                 c.outlineV.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
                 c.outlineV.BackgroundTransparency = tr
@@ -1346,9 +1207,9 @@ local function render(rec, cfg, rx, ry, rz, dist)
     end
 
     if cfg.HeadDot then
-        local hx3, hy3, hz3 = headPosition(rec)
-        if hx3 then
-            local hx, hy = project(hx3, hy3, hz3)
+        local head = rec.character and rec.character:FindFirstChild("Head")
+        if head then
+            local hx, hy = project(head.Position.X, head.Position.Y, head.Position.Z)
             if hx then
                 renderer:Dot("headdot", hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
             end
@@ -1367,7 +1228,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if cfg.ArmorBar and d.armor then
         local armRatio = math.clamp(d.armor / 100, 0, 1)
-        renderer:Bar("armor", x, y + h + 6, w, 1, armRatio, false, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
+        renderer:Bar("armor", x, y + h + 4, w, 1, armRatio, false, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
     end
 
     if cfg.Names and d.name then
@@ -1405,7 +1266,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
         renderer:Line(fromX, fromY, x + w * 0.5, y + h, cfg.TracerThickness or 1, cfg.TracerColor, cfg.TracerColor, tr)
     end
 
-    if cfg.Skeleton and rec.character and not rec.generic then
+    if cfg.Skeleton and rec.character then
         local function bone(a, b)
             local p1 = rec.character:FindFirstChild(a)
             local p2 = rec.character:FindFirstChild(b)
@@ -1443,7 +1304,7 @@ local function processEntity(entity, isPlayer, options, ownerKey)
     local settings = espModule.Settings
     local character
     if isPlayer then
-        character = resolveCharacter(entity)
+        character = entity.Character
     else
         character = entity
     end
@@ -1486,11 +1347,7 @@ local function processEntity(entity, isPlayer, options, ownerKey)
         rec.touched = view.frame
     end
 
-    local source = isPlayer and entity.Character or character
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid and source and source ~= character then
-        humanoid = source:FindFirstChildOfClass("Humanoid")
-    end
     if rec.character ~= character then
         bindCharacter(rec, character, humanoid, false)
     elseif view.time - rec.scanned > 1.5 then
@@ -1550,8 +1407,8 @@ local function processEntity(entity, isPlayer, options, ownerKey)
         d.health = nil
     end
 
-    d.armor = cfg.ArmorBar and currentArmor(rec, source or character, options) or nil
-    d.tool = cfg.Tool and currentTool(rec, source or character, options) or nil
+    d.armor = cfg.ArmorBar and currentArmor(rec, character, options) or nil
+    d.tool = cfg.Tool and currentTool(rec, character, options) or nil
 
     d.name = nil
     if cfg.Names then
@@ -1598,9 +1455,9 @@ local function resolveOwner(rec, pos)
         local char = plr.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
-            local dd = (hrp.Position - pos).Magnitude
-            if dd < bestDist then
-                bestDist, best = dd, plr
+            local d = (hrp.Position - pos).Magnitude
+            if d < bestDist then
+                bestDist, best = d, plr
             end
         end
     end

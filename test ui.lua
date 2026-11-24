@@ -3437,6 +3437,9 @@ end
 
 function Library:exportConfig()
     local out = {}
+    for k, v in pairs(self.pending) do
+        if not isUiFlag(k) then out[k] = encode(v) end
+    end
     for k, v in pairs(self.flags) do
         if not isUiFlag(k) then out[k] = encode(v) end
     end
@@ -3453,11 +3456,14 @@ function Library:importConfig(json)
     for k, v in pairs(decoded) do
         local fn = self.setters[k]
         if fn then
+            self.pending[k] = nil
             if typeof(v) == "Color3" then
                 pcall(fn, v, decoded[k .. "_alpha"])
             else
                 pcall(fn, v)
             end
+        else
+            self.pending[k] = v
         end
     end
     return true
@@ -3466,12 +3472,13 @@ end
 function Library:configTab(tab)
     local lib = self
     local base = (lower(lib.folder):gsub("%W", ""))
-    local cfgFolder = base .. "_configs"
+    local rootFolder = base .. "_configs"
+    local cfgFolder = rootFolder .. "/" .. tostring(game.PlaceId)
     local themeFolder = base .. "_themes"
     local canFs = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(listfiles) == "function"
-
+    
     if canFs and typeof(makefolder) == "function" then
-        for _, f in ipairs({ cfgFolder, themeFolder }) do
+        for _, f in ipairs({ rootFolder, cfgFolder, themeFolder }) do
             local exists = typeof(isfolder) == "function" and isfolder(f)
             if not exists then pcall(makefolder, f) end
         end

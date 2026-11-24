@@ -1789,9 +1789,9 @@ function Library:popupList(anchor, items, o)
 end
 
 function Library:category(name)
-    local cat = setmetatable({ lib = self, name = name }, Category)
+    local cat = setmetatable({ lib = self, name = name, count = 0, base = nxt(self) * 1000 }, Category)
     local row = new("Frame", {
-        Parent = self.sideList, Size = dim2(1, -12, 0, 16), BackgroundTransparency = 1, LayoutOrder = nxt(self),
+        Parent = self.sideList, Size = dim2(1, -12, 0, 16), BackgroundTransparency = 1, LayoutOrder = cat.base,
     })
     new("Frame", {
         Parent = row, AnchorPoint = v2(0, 0.5), Position = dim2(0, 0, 0.5, 0),
@@ -1814,7 +1814,8 @@ function Category:tab(name, iconName)
     iconName = iconName or ICON_NAMES[name] or ICON_NAMES[self.name]
 
     local body, outer = fieldBox(lib.sideList, dim2(1, -12, 0, 32))
-    outer.LayoutOrder = nxt(lib)
+    self.count += 1
+    outer.LayoutOrder = self.base + self.count
     tab.box = outer
 
     tab.glow = new("Frame", { Parent = body, Size = dim2(1, 0, 1, 0), BackgroundColor3 = T("accent"), Visible = false })

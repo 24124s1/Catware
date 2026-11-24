@@ -856,7 +856,26 @@ function Library.new(opts)
     self.folder = opts.folder or "catware"
     self.toggleKey = opts.toggleKey or Enum.KeyCode.Insert
     self.espFonts = opts.fonts or {}
-    self.flags, self.setters = {}, {}
+    self.flags = {}
+    self.pending = {}
+    self.setters = setmetatable({}, {
+        __newindex = function(t, k, fn)
+            rawset(t, k, fn)
+            if self.pending[k] == nil then return end
+            task.defer(function()
+                local cur = self.pending[k]
+                if cur == nil then return end
+                self.pending[k] = nil
+                local alpha = self.pending[k .. "_alpha"]
+                self.pending[k .. "_alpha"] = nil
+                if typeof(cur) == "Color3" then
+                    pcall(fn, cur, alpha)
+                else
+                    pcall(fn, cur)
+                end
+            end)
+        end,
+    })
     self.connections = {}
     self.notifs = {}
     self.keybinds = {}
@@ -3437,6 +3456,7 @@ function Column:preview(o)
 end
 
 function Library:exportConfig()
+    self.pending = self.pending or {}
     local out = {}
     for k, v in pairs(self.pending) do
         if not isUiFlag(k) then out[k] = encode(v) end
@@ -3448,6 +3468,7 @@ function Library:exportConfig()
 end
 
 function Library:importConfig(json)
+    self.pending = self.pending or {}
     local ok, data = pcall(function() return HttpService:JSONDecode(json) end)
     if not ok or type(data) ~= "table" then return false end
     local decoded = {}

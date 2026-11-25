@@ -3935,18 +3935,17 @@ local function addESPSection(sec, tbl, prefix)
     local fillPop = fill:gear({title = "Box Fill Options"})
     fillPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
 
-    local cs = ESP.Settings.ChamsSettings
+    local cs = tbl.ChamsSettings
     local chams = sec:toggle({name = "Shader Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
-    local pickers = {}
-    pickers[1] = chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
-    pickers[2] = chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
-    pickers[3] = chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
+    chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
+    chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
+    chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
     local chamsPop = chams:gear({title = "Chams Options"})
     chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
-        ESP:SetChamsDesign(v)
+        ESP:SetChamsDesign(v, tbl)
         for i = 1, 3 do
-            local p = pickers[i]
-            if p then pcall(function() p:set(cs["Color" .. i]) end) end
+            local setter = win.setters[prefix.."_chams_c"..i]
+            if setter then pcall(setter, cs["Color" .. i]) end
         end
     end})
     chamsPop:slider({name = "Colors", min = 1, max = 3, default = cs.ColorCount, interval = 1, flag = prefix.."_chams_colors", callback = function(v) cs.ColorCount = v end})

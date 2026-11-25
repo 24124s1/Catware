@@ -1,4 +1,4 @@
-print('-2')
+print('-1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -117,7 +117,7 @@ espModule.Settings = {
     Items = {
         Enabled = false, MaxDistance = 200, TextSize = 12,
         ShowNames = false, ShowDistance = false, ShowContents = false,
-        Chams = false, ChamsFillTransparency = 1,
+        Chams = false, ChamsFillTransparency = 0.3,
     },
 }
 
@@ -1698,7 +1698,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local textFont = getFont(settings.TextFont)
     local flagsFont = getFont(settings.FlagsFont)
     local healthFont = getFont(settings.HealthFont)
-    local meters = math.floor(dist / 2.81 + 0.5)
+    local meters = math.floor(dist + 0.5)
     local d = rec.d
     local chamsOn = cfg.Chams and state.shader ~= nil
 
@@ -1871,7 +1871,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if lay.distance then
         local p = lay.distance
-        renderer:Text("dist", "[" .. meters .. "m]", p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
+        renderer:Text("dist", tostring(meters) .. "s", p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
     end
 
     if lay.tool and d.tool then
@@ -2331,7 +2331,7 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
     local color = itemCfg.Color
     local tr = 1 - view.fade
     local size = cfg.TextSize
-    local meters = math.floor(dist / 2.81 + 0.5)
+    local meters = math.floor(dist + 0.5)
 
     if cfg.ShowNames or cfg.ShowDistance then
         if cfg.ShowNames and now - meta.labelAt > 1 then
@@ -2350,11 +2350,11 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
         if meta.text == nil or meta.meters ~= meters or meta.showNames ~= cfg.ShowNames or meta.showDistance ~= cfg.ShowDistance then
             meta.meters, meta.showNames, meta.showDistance = meters, cfg.ShowNames, cfg.ShowDistance
             if cfg.ShowNames and cfg.ShowDistance then
-                meta.text = meta.label .. " [" .. meters .. "m]"
+                meta.text = meta.label .. " " .. meters .. "s"
             elseif cfg.ShowNames then
                 meta.text = meta.label
             else
-                meta.text = "[" .. meters .. "m]"
+                meta.text = meters .. "s"
             end
         end
         renderer:Text(item, meta.text, sx, sy - 12, 0.5, 0.5, getFont(cfg.ShowDistance and settings.FlagsFont or settings.TextFont), size, color, color, tr, false)

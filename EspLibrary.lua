@@ -1,4 +1,4 @@
-print('2')
+print('3')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -387,7 +387,7 @@ function espModule.Layout(cfg, x, y, w, h, o)
 
 	local function placeBar(key, side)
         local rx, ry, rw, rh, vertical
-        local gap = 4
+        local gap = (key == "health") and 2 or 4
         if side == "Left" then
             rx, ry, rw, rh, vertical = x - gap - 1 - off.Left, y, 1, h, true
             off.Left += gap + 1

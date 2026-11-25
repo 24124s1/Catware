@@ -1,4 +1,6 @@
-print('1')
+local hi = 9e9
+
+print(hi)
 
 local cloneref = cloneref or function(o) return o end
 
@@ -19,19 +21,19 @@ local KEY_COLORS = {
 }
 
 local CHAMS_DESIGNS = {
-    Rainbow = { Style = 0, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.5, Scale = 3.0 },
-    Inferno = { Style = 1, Brightness = 1.2, Contrast = 1.0, Bloom = 0.5, BloomSpread = 3.5, Speed = 1.2, Scale = 2.5 },
-    Plasma  = { Style = 2, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 3.0 },
-    Holo    = { Style = 3, Brightness = 1.1, Contrast = 1.0, Bloom = 0.55, BloomSpread = 3.0, Speed = 1.0, Scale = 3.0 },
-    Galaxy  = { Style = 4, Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.8, Scale = 2.2 },
+    Neon = { Style = 0, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.5, Scale = 3.0 },
+    Matrix = { Style = 1, Brightness = 1.2, Contrast = 1.0, Bloom = 0.5, BloomSpread = 3.5, Speed = 1.2, Scale = 2.5 },
+    Frost = { Style = 2, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 3.0 },
+    Lava = { Style = 3, Brightness = 1.1, Contrast = 1.0, Bloom = 0.55, BloomSpread = 3.0, Speed = 1.0, Scale = 3.0 },
+    Cyber = { Style = 4, Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.8, Scale = 2.2 },
 }
 
-local CHAMS_DESIGN_NAMES = {"Rainbow", "Inferno", "Plasma", "Holo", "Galaxy"}
+local CHAMS_DESIGN_NAMES = {"Neon", "Matrix", "Frost", "Lava", "Cyber"}
 
 local function chamsFromDesign(name, into)
-    local d = CHAMS_DESIGNS[name] or CHAMS_DESIGNS.Rainbow
+    local d = CHAMS_DESIGNS[name] or CHAMS_DESIGNS.Neon
     into = into or {}
-    into.Design = CHAMS_DESIGNS[name] and name or "Rainbow"
+    into.Design = CHAMS_DESIGNS[name] and name or "Neon"
     into.Brightness = d.Brightness
     into.Contrast = d.Contrast
     into.Bloom = d.Bloom
@@ -81,21 +83,21 @@ espModule.Settings = {
     HealthFont = "Gojiberry Quibble",
     TextGradientAnimated = true,
     Enemy = entitySettings({
-        key = 0, design = "Rainbow",
+        key = 0, design = "Neon",
         c1 = rgb(255, 80, 80), c2 = rgb(255, 40, 40), c3 = rgb(200, 0, 0),
         main = rgb(255, 80, 80), fill1 = rgb(255, 80, 80), fill2 = rgb(255, 40, 40), skel2 = rgb(200, 200, 200),
         text1 = rgb(255, 255, 255), text2 = rgb(200, 200, 200),
         health = {rgb(0, 255, 100), rgb(255, 255, 0), rgb(255, 40, 40)},
     }),
     Teammate = entitySettings({
-        key = 1, design = "Holo",
+        key = 1, design = "Frost",
         c1 = rgb(0, 180, 255), c2 = rgb(0, 100, 200), c3 = rgb(0, 50, 100),
         main = rgb(0, 180, 255), fill1 = rgb(0, 180, 255), fill2 = rgb(0, 100, 200), skel2 = rgb(100, 150, 200),
         text1 = rgb(180, 230, 255), text2 = rgb(100, 150, 200),
         health = {rgb(0, 200, 255), rgb(100, 200, 255), rgb(30, 80, 140)},
     }),
     AI = entitySettings({
-        key = 2, design = "Inferno",
+        key = 2, design = "Lava",
         c1 = rgb(255, 200, 50), c2 = rgb(255, 150, 0), c3 = rgb(255, 100, 0),
         main = rgb(255, 200, 50), fill1 = rgb(255, 200, 50), fill2 = rgb(255, 150, 0), skel2 = rgb(200, 150, 50),
         text1 = rgb(255, 255, 255), text2 = rgb(200, 200, 200),
@@ -147,13 +149,8 @@ local function sortedKeys(tbl)
     return out
 end
 
-function espModule.GetAINames()
-    return sortedKeys(espModule.CustomAIs)
-end
-
-function espModule.GetItemNames()
-    return sortedKeys(espModule.CustomItems)
-end
+function espModule.GetAINames() return sortedKeys(espModule.CustomAIs) end
+function espModule.GetItemNames() return sortedKeys(espModule.CustomItems) end
 
 function espModule.GetFlagNames()
     local out = {"Walking", "Jumping", "Swimming"}
@@ -161,13 +158,8 @@ function espModule.GetFlagNames()
     return out
 end
 
-function espModule.GetChamsDesignNames()
-    return CHAMS_DESIGN_NAMES
-end
-
-function espModule.GetChamsPresetNames()
-    return CHAMS_DESIGN_NAMES
-end
+function espModule.GetChamsDesignNames() return CHAMS_DESIGN_NAMES end
+function espModule.GetChamsPresetNames() return CHAMS_DESIGN_NAMES end
 
 function espModule:SetChamsDesign(name, target)
     if not CHAMS_DESIGNS[name] then return false end
@@ -386,14 +378,9 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local out = { flagLines = {} }
     local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
     local rows = { Left = 0, Right = 0 }
-    local pad = math.clamp(math.floor(h * 0.08), 2, 10)
+    local pad = 2
 
-    local SIDE_OK = {
-        Top = true,
-        Bottom = true,
-        Left = true,
-        Right = true,
-    }
+    local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
 
     local function pick(v, d)
         if SIDE_OK[v] then return v end
@@ -412,8 +399,8 @@ function espModule.Layout(cfg, x, y, w, h, o)
             rx, ry, rw, rh, vertical = x, y - pad - off.Top, w, 1, false
             off.Top += pad + 1
         else
-            rx, ry, rw, rh, vertical = x, y + h + 10 + off.Bottom, w, 1, false
-            off.Bottom += 10
+            rx, ry, rw, rh, vertical = x, y + h + 16 + off.Bottom, w, 1, false
+            off.Bottom += 16
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
         return rx, ry
@@ -1380,7 +1367,7 @@ local function pushShader()
     for k = 0, 2 do
         local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
         local c = g.ChamsSettings
-        local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Rainbow
+        local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Neon
         local n = PN[k]
         put(n.c1, c.Color1)
         put(n.c2, c.Color2)

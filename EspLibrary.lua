@@ -1,4 +1,4 @@
-print('-12')
+print('-22')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -575,6 +575,12 @@ cbuffer User : register(b1) {
 	float  g2_scale;
 	float  g2_style;
 	float  g2_enabled;
+
+	float  ui_x;
+	float  ui_y;
+	float  ui_w;
+	float  ui_h;
+	float  ui_on;
 };
 
 struct Grp {
@@ -778,6 +784,13 @@ float3 evalPattern(float2 uv, Grp g) {
 
 float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
 	float3 src = Scene.Sample(Linear, uv).rgb;
+	if (ui_on > 0.5) {
+		float px = uv.x * resolution.x;
+		float py = uv.y * resolution.y;
+		if (px >= ui_x && px <= ui_x + ui_w && py >= ui_y && py <= ui_y + ui_h) {
+			return float4(src, 1.0);
+		}
+	}
 	float3 outc = src;
 
 	for (int k = 0; k < 3; k++) {
@@ -1381,14 +1394,38 @@ local function getMenuRect()
     if not root.Visible then
         return nil
     end
-    local pos = root.AbsolutePosition
-    local size = root.AbsoluteSize
     local inset = game:GetService("GuiService"):GetGuiInset()
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    local function expand(gui)
+        if not gui or not gui:IsA("GuiObject") or not gui.Visible then return end
+        local p = gui.AbsolutePosition
+        local s = gui.AbsoluteSize
+        local x1, y1 = p.X, p.Y + inset.Y
+        local x2, y2 = x1 + s.X, y1 + s.Y
+        if x1 < minX then minX = x1 end
+        if y1 < minY then minY = y1 end
+        if x2 > maxX then maxX = x2 end
+        if y2 > maxY then maxY = y2 end
+    end
+    expand(root)
+    if st.win.catcher then expand(st.win.catcher) end
+    if st.win.catcher2 then expand(st.win.catcher2) end
+    for _, d in ipairs(root:GetDescendants()) do
+        if d:IsA("GuiObject") and d.Visible then
+            local n = d.Name:lower()
+            if n:find("picker") or n:find("drop") or n:find("popup") or n:find("menu") or n:find("color") then
+                expand(d)
+            end
+        end
+    end
+    if minX == math.huge then return nil end
+    local pad = 12
     return {
-        x = pos.X,
-        y = pos.Y + inset.Y,
-        w = size.X,
-        h = size.Y,
+        x = minX - pad,
+        y = minY - pad,
+        w = (maxX - minX) + pad * 2,
+        h = (maxY - minY) + pad * 2,
     }
 end
 
@@ -1420,6 +1457,16 @@ local function pushShader()
         put(n.sc, c.Scale)
         put(n.st, design.Style)
         put(n.en, state.use[k] and 1 or 0)
+    end
+    local r = getMenuRect()
+    if r then
+        put("ui_x", r.x)
+        put("ui_y", r.y)
+        put("ui_w", r.w)
+        put("ui_h", r.h)
+        put("ui_on", 1)
+    else
+        put("ui_on", 0)
     end
 end
 

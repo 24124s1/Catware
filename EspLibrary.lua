@@ -16,6 +16,7 @@ local KEY_COLORS = {
     [0] = rgb(255, 0, 255),
     [1] = rgb(0, 255, 255),
     [2] = rgb(0, 0, 255),
+	[3] = rgb(255, 255, 255),
 }
 
 local CHAMS_DESIGNS = {
@@ -1755,7 +1756,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             hl.FillColor = keyCol
-            hl.FillTransparency = 0.3
+            hl.FillTransparency = 0
             hl.OutlineColor = keyCol
             hl.OutlineTransparency = 1
             hl.Parent = state.gui

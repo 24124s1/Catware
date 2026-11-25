@@ -2967,8 +2967,8 @@ function Column:preview(o)
 
     local hoverGlow = new("ImageLabel", {
         Parent = ov, Image = "rbxassetid://110204605000367", ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(v2(21, 21), v2(79, 79)), BackgroundTransparency = 1,
-        ImageColor3 = T("accent"), ImageTransparency = 0.3, Visible = false, ZIndex = 8,
+        SliceCenter = Rect.new(v2(21, 21), v2(79, 79)), SliceScale = 0.3, BackgroundTransparency = 1,
+        ImageColor3 = T("accent"), ImageTransparency = 0.6, Visible = false, ZIndex = 8,
     })
     local hoverBox = new("Frame", { Parent = ov, BackgroundTransparency = 1, Visible = false, ZIndex = 9 })
     stroke(hoverBox, "accent")
@@ -3076,8 +3076,8 @@ function Column:preview(o)
     end
 
     local function textRect(t, p)
-        local sz = t.label.AbsoluteSize
-        return p.x - p.ax * sz.X, p.y - p.ay * sz.Y, sz.X, sz.Y
+        local b = t.label.TextBounds
+        return p.x - p.ax * b.X, p.y - p.ay * b.Y, b.X, b.Y
     end
 
     local function layoutPreview(cfg, x, y, w, h, opt)
@@ -3612,13 +3612,14 @@ function Column:preview(o)
                 if r.x + r.w > ux2 then ux2 = r.x + r.w end
                 if r.y + r.h > uy2 then uy2 = r.y + r.h end
             end
-            ux1, uy1, ux2, uy2 = ux1 - 3, uy1 - 3, ux2 + 3, uy2 + 3
+            ux1, uy1, ux2, uy2 = floor(ux1 - 2), floor(uy1 - 2), floor(ux2 + 2), floor(uy2 + 2)
+            local bw, bh = ux2 - ux1, uy2 - uy1
             hoverBox.Position = off(ux1, uy1)
-            hoverBox.Size = off(ux2 - ux1, uy2 - uy1)
+            hoverBox.Size = off(bw, bh)
             hoverBox.Visible = true
-            hoverGlow.Position = off(ux1 - 21, uy1 - 21)
-            hoverGlow.Size = off(ux2 - ux1 + 42, uy2 - uy1 + 41)
-            hoverGlow.ImageTransparency = dragEl and 0.15 or 0.4
+            hoverGlow.Position = off(ux1 - 6, uy1 - 6)
+            hoverGlow.Size = off(bw + 12, bh + 12)
+            hoverGlow.ImageTransparency = dragEl and 0.35 or 0.6
             hoverGlow.Visible = true
         else
             hoverBox.Visible = false

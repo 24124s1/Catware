@@ -1,6 +1,4 @@
-local hi = math.huge
-
-print(hi)
+print('1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -387,20 +385,21 @@ function espModule.Layout(cfg, x, y, w, h, o)
         return d
     end
 
-	local function placeBar(key, side)
+local function placeBar(key, side)
+        local gap = math.clamp(math.floor(math.min(w, h) * 0.04 + 0.5), 2, 5)
         local rx, ry, rw, rh, vertical
         if side == "Left" then
-            rx, ry, rw, rh, vertical = x - 6 - off.Left, y, 1, h, true
-            off.Left += 6
+            rx, ry, rw, rh, vertical = x - gap - 1 - off.Left, y, 1, h, true
+            off.Left += gap + 1
         elseif side == "Right" then
-            rx, ry, rw, rh, vertical = x + w + 5 + off.Right, y, 1, h, true
-            off.Right += 6
+            rx, ry, rw, rh, vertical = x + w + gap + off.Right, y, 1, h, true
+            off.Right += gap + 1
         elseif side == "Top" then
-            rx, ry, rw, rh, vertical = x, y - 6 - off.Top, w, 1, false
-            off.Top += 6
+            rx, ry, rw, rh, vertical = x, y - gap - 1 - off.Top, w, 1, false
+            off.Top += gap + 1
         else
-            rx, ry, rw, rh, vertical = x, y + h + 5 + off.Bottom, w, 1, false
-            off.Bottom += 6
+            rx, ry, rw, rh, vertical = x, y + h + gap + off.Bottom, w, 1, false
+            off.Bottom += gap + 1
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
         return rx, ry

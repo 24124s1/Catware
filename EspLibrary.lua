@@ -1,4 +1,4 @@
-print('-1')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -12,7 +12,7 @@ local rgb = Color3.fromRGB
 
 local espModule = {}
 
-local KEY_COLOR = rgb(0, 255, 64)
+local KEY_COLOR = rgb(255, 0, 255)
 
 local function entitySettings(p)
     return {
@@ -37,12 +37,57 @@ local function entitySettings(p)
     }
 end
 
+local CHAMS_DESIGNS = {
+    Borealis = {
+        Style = 0, ColorCount = 3,
+        Colors = {rgb(12, 120, 110), rgb(48, 220, 245), rgb(195, 85, 235)},
+        Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.35, Scale = 3.0,
+    },
+    Inferno = {
+        Style = 1, ColorCount = 3,
+        Colors = {rgb(150, 15, 0), rgb(255, 110, 0), rgb(255, 225, 120)},
+        Brightness = 1.15, Contrast = 1.05, Bloom = 0.5, BloomSpread = 3.5, Speed = 1.2, Scale = 2.5,
+    },
+    Plasma = {
+        Style = 2, ColorCount = 3,
+        Colors = {rgb(60, 20, 170), rgb(200, 40, 230), rgb(80, 200, 255)},
+        Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 3.0,
+    },
+    Hologram = {
+        Style = 3, ColorCount = 3,
+        Colors = {rgb(0, 70, 120), rgb(0, 200, 255), rgb(200, 245, 255)},
+        Brightness = 1.1, Contrast = 1.0, Bloom = 0.55, BloomSpread = 3.0, Speed = 1.0, Scale = 3.0,
+    },
+    Galaxy = {
+        Style = 4, ColorCount = 3,
+        Colors = {rgb(25, 15, 80), rgb(110, 40, 170), rgb(240, 120, 220)},
+        Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.8, Scale = 2.2,
+    },
+}
+
+local CHAMS_DESIGN_NAMES = {"Borealis", "Inferno", "Plasma", "Hologram", "Galaxy"}
+
+local function chamsFromDesign(name, into)
+    local d = CHAMS_DESIGNS[name] or CHAMS_DESIGNS.Borealis
+    into = into or {}
+    into.Design = CHAMS_DESIGNS[name] and name or "Borealis"
+    into.ColorCount = d.ColorCount
+    into.Color1, into.Color2, into.Color3 = d.Colors[1], d.Colors[2], d.Colors[3]
+    into.Brightness = d.Brightness
+    into.Contrast = d.Contrast
+    into.Bloom = d.Bloom
+    into.BloomSpread = d.BloomSpread
+    into.Speed = d.Speed
+    into.Scale = d.Scale
+    return into
+end
+
 espModule.Settings = {
     RefreshRate = 144,
     MaxDistance = 1200,
     BoxMode = "Dynamic",
     BoxSmoothing = 0,
-    ChamsPreset = "Borealis",
+    ChamsSettings = chamsFromDesign("Borealis"),
     TextFont = "Gojiberry Quibble",
     FlagsFont = "Gojiberry Quibble",
     HealthFont = "Gojiberry Quibble",
@@ -76,57 +121,10 @@ espModule.CustomFlags = {}
 espModule.CustomAIs = {}
 espModule.CustomEntities = espModule.CustomAIs
 espModule.CustomItems = {}
-
-local CHAMS_DEFAULTS = {
-    Brightness = 1.1,
-    Contrast = 1.1,
-    GlowIntensity = 0.35,
-    GlowSpread = 3.0,
-    Speed = 1.2,
-    Scale = 3.0,
-}
-
-local function makePreset(t)
-    for k, v in pairs(CHAMS_DEFAULTS) do
-        if t[k] == nil then t[k] = v end
-    end
-    return t
-end
-
-local CHAMS_PRESETS = {
-    Borealis = makePreset({
-        Style = 0,
-        Color1 = rgb(10, 24, 42), Color2 = rgb(22, 185, 138), Color3 = rgb(48, 220, 245),
-        Color4 = rgb(195, 85, 235), Color5 = rgb(255, 135, 215), GlowColor = rgb(85, 230, 205),
-        Speed = 1.35,
-    }),
-    Inferno = makePreset({
-        Style = 1,
-        Color1 = rgb(40, 0, 0), Color2 = rgb(190, 25, 0), Color3 = rgb(255, 110, 0),
-        Color4 = rgb(255, 190, 30), Color5 = rgb(255, 245, 170), GlowColor = rgb(255, 100, 20),
-        Scale = 2.5,
-    }),
-    Plasma = makePreset({
-        Style = 2,
-        Color1 = rgb(20, 5, 60), Color2 = rgb(90, 30, 200), Color3 = rgb(200, 40, 230),
-        Color4 = rgb(255, 90, 150), Color5 = rgb(80, 200, 255), GlowColor = rgb(190, 80, 255),
-    }),
-    Hologram = makePreset({
-        Style = 3,
-        Color1 = rgb(0, 20, 40), Color2 = rgb(0, 90, 140), Color3 = rgb(0, 200, 255),
-        Color4 = rgb(150, 240, 255), Color5 = rgb(255, 255, 255), GlowColor = rgb(60, 220, 255),
-        Speed = 1.0, GlowIntensity = 0.5,
-    }),
-    Galaxy = makePreset({
-        Style = 4,
-        Color1 = rgb(5, 5, 25), Color2 = rgb(40, 20, 110), Color3 = rgb(110, 40, 170),
-        Color4 = rgb(230, 90, 200), Color5 = rgb(255, 200, 255), GlowColor = rgb(170, 110, 255),
-        Speed = 0.8, Scale = 2.2,
-    }),
-}
-
-espModule.ChamsPresetNames = {"Borealis", "Inferno", "Plasma", "Hologram", "Galaxy"}
-espModule.ChamsPresets = CHAMS_PRESETS
+espModule.ChamsDesigns = CHAMS_DESIGNS
+espModule.ChamsDesignNames = CHAMS_DESIGN_NAMES
+espModule.ChamsPresetNames = CHAMS_DESIGN_NAMES
+espModule.ChamsPresets = CHAMS_DESIGNS
 
 local registryListeners = {}
 local fontListeners = {}
@@ -168,8 +166,22 @@ function espModule.GetFlagNames()
     return out
 end
 
+function espModule.GetChamsDesignNames()
+    return CHAMS_DESIGN_NAMES
+end
+
 function espModule.GetChamsPresetNames()
-    return espModule.ChamsPresetNames
+    return CHAMS_DESIGN_NAMES
+end
+
+function espModule:SetChamsDesign(name)
+    if not CHAMS_DESIGNS[name] then return false end
+    chamsFromDesign(name, self.Settings.ChamsSettings)
+    return true
+end
+
+function espModule:SetChamsPreset(name)
+    return self:SetChamsDesign(name)
 end
 
 function espModule:AddFlag(name, func)
@@ -354,9 +366,7 @@ cbuffer User : register(b1) {
 	float3 color1;
 	float3 color2;
 	float3 color3;
-	float3 color4;
-	float3 color5;
-	float3 glowColor;
+	float  colorCount;
 	float  brightness;
 	float  contrast;
 	float  glowIntensity;
@@ -365,8 +375,6 @@ cbuffer User : register(b1) {
 	float  scale;
 	float  style;
 };
-
-static const float KEY_BLUE_RATIO = 0.2510;
 
 float hash21(float2 p) {
 	p = frac(p * float2(127.1, 311.7));
@@ -401,35 +409,44 @@ float fbm(float2 p) {
 }
 
 float3 palette(float x) {
-	x = saturate(x) * 4.0;
-	float3 c = lerp(color1, color2, saturate(x));
-	c = lerp(c, color3, saturate(x - 1.0));
-	c = lerp(c, color4, saturate(x - 2.0));
-	c = lerp(c, color5, saturate(x - 3.0));
-	return c;
+	x = saturate(x);
+	if (colorCount < 1.5) {
+		return color1 * lerp(0.15, 1.0, x);
+	}
+	if (colorCount < 2.5) {
+		return lerp(color1, color2, x);
+	}
+	float3 a = lerp(color1, color2, saturate(x * 2.0));
+	return lerp(a, color3, saturate((x - 0.5) * 2.0));
 }
 
-float getMask(float3 col) {
-	float g = max(col.g, 0.0001);
-	float rr = col.r / g;
-	float br = col.b / g;
-	float redOk = 1.0 - smoothstep(0.06, 0.14, rr);
-	float blueOk = 1.0 - smoothstep(0.06, 0.12, abs(br - KEY_BLUE_RATIO));
-	float lumOk = smoothstep(0.5, 0.8, col.g);
-	return redOk * blueOk * lumOk;
+float3 glowCol() {
+	if (colorCount > 2.5) return color3;
+	if (colorCount > 1.5) return color2;
+	return color1;
 }
 
-float getFringeMask(float3 col) {
-	float g = max(col.g, 0.0001);
-	float rr = col.r / g;
-	float br = col.b / g;
-	float redOk = 1.0 - smoothstep(0.12, 0.25, rr);
-	float blueOk = 1.0 - smoothstep(0.10, 0.20, abs(br - KEY_BLUE_RATIO));
-	float lumOk = smoothstep(0.2, 0.45, col.g);
-	return redOk * blueOk * lumOk;
+float keyAmount(float3 c) {
+	float mx = max(c.r, c.b);
+	float mn = min(c.r, c.b);
+	float inv = 1.0 / max(mx, 0.0001);
+	float s = (mn - c.g) * inv;
+	float bal = 1.0 - smoothstep(0.25, 0.5, abs(c.r - c.b) * inv);
+	float lum = smoothstep(0.25, 0.5, mn);
+	return smoothstep(0.45, 0.7, s) * bal * lum;
 }
 
-float3 patAurora(float2 p, float t) {
+float fringeAmount(float3 c) {
+	float mx = max(c.r, c.b);
+	float mn = min(c.r, c.b);
+	float inv = 1.0 / max(mx, 0.0001);
+	float s = (mn - c.g) * inv;
+	float bal = 1.0 - smoothstep(0.4, 0.8, abs(c.r - c.b) * inv);
+	float lum = smoothstep(0.08, 0.25, mn);
+	return smoothstep(0.1, 0.35, s) * bal * lum;
+}
+
+float patAurora(float2 p, float t, out float extra) {
 	float w1 = fbm(p * 0.75 + float2(t * 0.28, -t * 0.14));
 	float w2 = fbm(p * 1.45 + float2(-t * 0.22, t * 0.19) + w1 * 1.1);
 
@@ -439,86 +456,72 @@ float3 patAurora(float2 p, float t) {
 
 	float rays = 0.65 + 0.35 * sin((p.x * 9.0 + w2 * 5.5 - t * 1.4) * 3.14159);
 	float shimmer = curtain1 * rays;
-
 	float band = clamp(curtain1 * 0.65 + curtain2 * 0.55 + w2 * 0.35, 0.0, 1.0);
-	float crown = smoothstep(0.48, 0.95, curtain2 * (0.6 + 0.4 * sin(t * 1.3 + p.x * 2.0)));
-	float pinkTip = smoothstep(0.72, 1.0, shimmer * curtain2);
 
-	float3 col = lerp(color1, color2, smoothstep(0.10, 0.65, shimmer));
-	col = lerp(col, color3, smoothstep(0.30, 0.85, band) * 0.85);
-	col = lerp(col, color4, crown * 0.85);
-	col = lerp(col, color5, pinkTip * 0.75);
-	col += glowColor * smoothstep(0.55, 1.0, shimmer) * (0.38 * glowIntensity);
-	return col;
+	extra = smoothstep(0.72, 1.0, shimmer * curtain2) * 0.35;
+	return saturate(shimmer * 0.5 + band * 0.6);
 }
 
-float3 patFlame(float2 p, float t) {
+float patFlame(float2 p, float t, out float extra) {
 	float n = fbm(float2(p.x * 1.2, p.y * 1.6 - t * 1.1));
 	float n2 = fbm(p * 2.0 + float2(0.0, -t * 1.8) + n);
 	float heat = saturate(n * 0.7 + n2 * 0.55 + sin(p.y * 1.5 - t * 1.5) * 0.2);
-	float3 col = lerp(color1, color2, smoothstep(0.10, 0.45, heat));
-	col = lerp(col, color3, smoothstep(0.40, 0.70, heat));
-	col = lerp(col, color4, smoothstep(0.65, 0.90, heat));
-	col = lerp(col, color5, smoothstep(0.85, 1.00, heat));
-	return col;
+	extra = smoothstep(0.85, 1.0, heat) * 0.3;
+	return heat;
 }
 
-float3 patPlasma(float2 p, float t) {
+float patPlasma(float2 p, float t, out float extra) {
 	float2 q = p + float2(fbm(p + t * 0.2), fbm(p - t * 0.25)) * 1.2;
 	float v = sin(q.x * 1.7 + t) + sin(q.y * 2.1 - t * 1.2) + sin((q.x + q.y) * 1.3 + t * 0.7);
 	v += sin(length(q + float2(sin(t * 0.5), cos(t * 0.4)) * 2.0) * 2.5);
-	float x = v * 0.125 + 0.5;
-	return palette(x);
+	extra = 0.0;
+	return v * 0.125 + 0.5;
 }
 
-float3 patHologram(float2 uv, float2 p, float t) {
+float patHologram(float2 uv, float2 p, float t, out float extra) {
 	float scan = 0.5 + 0.5 * sin(uv.y * resolution.y * 0.6 - t * 8.0);
 	float w = fbm(p * 1.1 + float2(0.0, -t * 0.4));
-	float x = saturate(0.35 + 0.25 * sin(p.y * 3.0 - t * 2.0) + w * 0.4);
+	float x = saturate(0.3 + 0.25 * sin(p.y * 3.0 - t * 2.0) + w * 0.4 + scan * 0.15);
 	float flicker = 0.92 + 0.08 * sin(t * 30.0);
-	float3 col = palette(x) * (0.7 + 0.3 * scan) * flicker;
-	col += glowColor * smoothstep(0.92, 1.0, scan) * 0.35;
-	float grid = step(0.94, frac(p.x * 4.0)) + step(0.94, frac(p.y * 4.0));
-	col += color4 * saturate(grid) * 0.25;
-	return col;
+	float grid = saturate(step(0.94, frac(p.x * 4.0)) + step(0.94, frac(p.y * 4.0)));
+	extra = (smoothstep(0.92, 1.0, scan) * 0.3 + grid * 0.2) * flicker;
+	return x * flicker;
 }
 
-float3 patGalaxy(float2 p, float t) {
+float patGalaxy(float2 p, float t, out float extra) {
 	float a = fbm(p * 0.8 + t * 0.05);
 	float b = fbm(p * 1.6 - t * 0.08 + a);
-	float x = saturate(a * 0.6 + b * 0.6 - 0.1);
-	float3 col = palette(x);
 	float s = hash21(floor(p * 18.0));
-	float star = step(0.985, s) * (0.6 + 0.4 * sin(t * 3.0 + s * 50.0));
-	col += star;
-	return col;
+	extra = step(0.985, s) * (0.6 + 0.4 * sin(t * 3.0 + s * 50.0));
+	return saturate(a * 0.6 + b * 0.6 - 0.1);
 }
 
 float3 evalPattern(float2 uv, float t) {
 	float aspect = resolution.x / max(resolution.y, 1.0);
 	float2 p = uv * float2(aspect, 1.0) * scale;
 	int st = (int)(style + 0.5);
-	float3 col;
+	float extra = 0.0;
+	float v;
 	if (st == 1) {
-		col = patFlame(p, t);
+		v = patFlame(p, t, extra);
 	} else if (st == 2) {
-		col = patPlasma(p, t);
+		v = patPlasma(p, t, extra);
 	} else if (st == 3) {
-		col = patHologram(uv, p, t);
+		v = patHologram(uv, p, t, extra);
 	} else if (st == 4) {
-		col = patGalaxy(p, t);
+		v = patGalaxy(p, t, extra);
 	} else {
-		col = patAurora(p, t);
+		v = patAurora(p, t, extra);
 	}
-	col = pow(max(col, 0.0), contrast) * brightness;
-	return col;
+	float3 col = palette(v) + glowCol() * extra;
+	return pow(max(col, 0.0), contrast) * brightness;
 }
 
 float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
 	float4 scene = Scene.Sample(Linear, uv);
 	float t = time * speed;
 
-	float mask = getMask(scene.rgb);
+	float mask = keyAmount(scene.rgb);
 
 	float bloom = 0.0;
 	if (glowIntensity > 0.001 && glowSpread > 0.01) {
@@ -527,30 +530,26 @@ float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
 		for (int i = 0; i < SAMPLES; i++) {
 			float ang = (float(i) / float(SAMPLES)) * 6.2831853;
 			float2 dir = float2(cos(ang), sin(ang));
-			bloom += getMask(Scene.Sample(Linear, uv + dir * texel).rgb);
+			bloom += keyAmount(Scene.Sample(Linear, uv + dir * texel).rgb);
 		}
 		bloom /= float(SAMPLES);
 	}
 
 	float3 cleanScene = scene.rgb;
-	float fringe = getFringeMask(cleanScene) * clamp(bloom * 4.0, 0.0, 1.0);
-	float remove = clamp(max(mask, fringe), 0.0, 1.0);
-	if (remove > 0.001) {
-		float rbMax = max(cleanScene.r, cleanScene.b);
-		if (cleanScene.g > rbMax) {
-			cleanScene.g = lerp(cleanScene.g, rbMax, remove);
-		}
-	}
+	float fringe = fringeAmount(cleanScene) * saturate(bloom * 4.0);
+	float remove = saturate(max(mask, fringe));
+	float excess = max(min(cleanScene.r, cleanScene.b) - cleanScene.g, 0.0);
+	cleanScene.r -= excess * remove;
+	cleanScene.b -= excess * remove;
 
 	float3 finalRGB = cleanScene;
 
 	if (mask > 0.001) {
-		float3 fx = evalPattern(uv, t);
-		finalRGB = lerp(cleanScene, fx, mask);
+		finalRGB = lerp(cleanScene, evalPattern(uv, t), mask);
 	}
 
 	float edgeGlow = bloom * (1.0 - mask) * smoothstep(0.15, 0.75, bloom);
-	finalRGB += glowColor * edgeGlow * (glowIntensity * 0.42);
+	finalRGB += glowCol() * edgeGlow * (glowIntensity * 1.1);
 
 	return float4(finalRGB, 1.0);
 }
@@ -1095,29 +1094,34 @@ local state = {
     hadItems = false,
     dead = false,
     shader = nil,
-    appliedPreset = nil,
+    shaderParams = {},
 }
 
-local function applyPreset(name)
+local function pushShader()
     local shader = state.shader
-    local preset = CHAMS_PRESETS[name] or CHAMS_PRESETS.Borealis
     if not shader then return end
-    pcall(function()
-        shader:Set("color1", preset.Color1)
-        shader:Set("color2", preset.Color2)
-        shader:Set("color3", preset.Color3)
-        shader:Set("color4", preset.Color4)
-        shader:Set("color5", preset.Color5)
-        shader:Set("glowColor", preset.GlowColor)
-        shader:Set("brightness", preset.Brightness)
-        shader:Set("contrast", preset.Contrast)
-        shader:Set("glowIntensity", preset.GlowIntensity)
-        shader:Set("glowSpread", preset.GlowSpread)
-        shader:Set("speed", preset.Speed)
-        shader:Set("scale", preset.Scale)
-        shader:Set("style", preset.Style)
-    end)
-    state.appliedPreset = name
+    local c = espModule.Settings.ChamsSettings
+    local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
+    local params = {
+        color1 = c.Color1,
+        color2 = c.Color2,
+        color3 = c.Color3,
+        colorCount = math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3),
+        brightness = c.Brightness,
+        contrast = c.Contrast,
+        glowIntensity = c.Bloom,
+        glowSpread = c.BloomSpread,
+        speed = c.Speed,
+        scale = c.Scale,
+        style = design.Style,
+    }
+    local cache = state.shaderParams
+    for k, v in pairs(params) do
+        if cache[k] ~= v then
+            cache[k] = v
+            pcall(function() shader:Set(k, v) end)
+        end
+    end
 end
 
 local function ensureShader()
@@ -1137,22 +1141,16 @@ local function ensureShader()
         return
     end
     state.shader = shader
-    applyPreset(espModule.Settings.ChamsPreset)
+    state.shaderParams = {}
+    pushShader()
 end
 
 local function destroyShader()
     if state.shader then
         pcall(function() state.shader:Remove() end)
         state.shader = nil
-        state.appliedPreset = nil
+        state.shaderParams = {}
     end
-end
-
-function espModule:SetChamsPreset(name)
-    if not CHAMS_PRESETS[name] then return false end
-    self.Settings.ChamsPreset = name
-    if state.shader then applyPreset(name) end
-    return true
 end
 
 local function hideRecord(rec)
@@ -1466,21 +1464,26 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local healthFont = getFont(settings.HealthFont)
     local meters = math.floor(dist / 2.81 + 0.5)
     local d = rec.d
+    local chamsOn = cfg.Chams and state.shader ~= nil
 
     if cfg.BoxFill and cfg.BoxEnabled then
         if cfg.BoxType == "3D" then
-            if not rec.fillHl then
-                local hl = Instance.new("Highlight")
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                hl.Parent = state.gui
-                rec.fillHl = hl
+            if chamsOn then
+                if rec.fillHl then rec.fillHl.Enabled = false end
+            else
+                if not rec.fillHl then
+                    local hl = Instance.new("Highlight")
+                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    hl.Parent = state.gui
+                    rec.fillHl = hl
+                end
+                rec.fillHl.Adornee = rec.character
+                rec.fillHl.FillColor = cfg.BoxFillColor1
+                rec.fillHl.OutlineColor = cfg.LineColor
+                rec.fillHl.FillTransparency = 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr))
+                rec.fillHl.OutlineTransparency = 1
+                rec.fillHl.Enabled = true
             end
-            rec.fillHl.Adornee = rec.character
-            rec.fillHl.FillColor = cfg.BoxFillColor1
-            rec.fillHl.OutlineColor = cfg.LineColor
-            rec.fillHl.FillTransparency = 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr))
-            rec.fillHl.OutlineTransparency = 1
-            rec.fillHl.Enabled = true
         else
             if rec.fillHl then rec.fillHl.Enabled = false end
             local ang = cfg.BoxFillRotation or 0
@@ -1493,7 +1496,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if cfg.Chams and state.shader then
+    if chamsOn then
         if not rec.hl then
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -2181,9 +2184,7 @@ local function step()
         or (settings.Items.Enabled and settings.Items.Chams)
     if anyChams then
         ensureShader()
-        if state.shader and state.appliedPreset ~= settings.ChamsPreset then
-            applyPreset(settings.ChamsPreset)
-        end
+        pushShader()
     elseif state.shader then
         destroyShader()
     end

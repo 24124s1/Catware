@@ -387,20 +387,20 @@ function espModule.Layout(cfg, x, y, w, h, o)
         return d
     end
 
-    local function placeBar(key, side)
+	local function placeBar(key, side)
         local rx, ry, rw, rh, vertical
         if side == "Left" then
-            rx, ry, rw, rh, vertical = x - pad - off.Left, y, 1, h, true
-            off.Left += pad + 1
+            rx, ry, rw, rh, vertical = x - 6 - off.Left, y, 1, h, true
+            off.Left += 6
         elseif side == "Right" then
-            rx, ry, rw, rh, vertical = x + w + pad + off.Right, y, 1, h, true
-            off.Right += pad + 1
+            rx, ry, rw, rh, vertical = x + w + 5 + off.Right, y, 1, h, true
+            off.Right += 6
         elseif side == "Top" then
-            rx, ry, rw, rh, vertical = x, y - pad - off.Top, w, 1, false
-            off.Top += pad + 1
+            rx, ry, rw, rh, vertical = x, y - 6 - off.Top, w, 1, false
+            off.Top += 6
         else
-            rx, ry, rw, rh, vertical = x, y + h + 16 + off.Bottom, w, 1, false
-            off.Bottom += 16
+            rx, ry, rw, rh, vertical = x, y + h + 5 + off.Bottom, w, 1, false
+            off.Bottom += 6
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
         return rx, ry

@@ -1,4 +1,4 @@
-print('-22')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -1384,62 +1384,19 @@ local function put(name, v)
     end
 end
 
-local function getMenuRect()
+local function menuOpen()
     local env = (typeof(getgenv) == "function" and getgenv()) or _G
     local st = env.Stardust
-    if type(st) ~= "table" or not st.win or not st.win.root then
-        return nil
+    if type(st) == "table" and st.win and st.win.root then
+        return st.win.root.Visible == true
     end
-    local root = st.win.root
-    if not root.Visible then
-        return nil
-    end
-    local inset = game:GetService("GuiService"):GetGuiInset()
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    local function expand(gui)
-        if not gui or not gui:IsA("GuiObject") or not gui.Visible then return end
-        local p = gui.AbsolutePosition
-        local s = gui.AbsoluteSize
-        local x1, y1 = p.X, p.Y + inset.Y
-        local x2, y2 = x1 + s.X, y1 + s.Y
-        if x1 < minX then minX = x1 end
-        if y1 < minY then minY = y1 end
-        if x2 > maxX then maxX = x2 end
-        if y2 > maxY then maxY = y2 end
-    end
-    expand(root)
-    if st.win.catcher then expand(st.win.catcher) end
-    if st.win.catcher2 then expand(st.win.catcher2) end
-    for _, d in ipairs(root:GetDescendants()) do
-        if d:IsA("GuiObject") and d.Visible then
-            local n = d.Name:lower()
-            if n:find("picker") or n:find("drop") or n:find("popup") or n:find("menu") or n:find("color") then
-                expand(d)
-            end
-        end
-    end
-    if minX == math.huge then return nil end
-    local pad = 12
-    return {
-        x = minX - pad,
-        y = minY - pad,
-        w = (maxX - minX) + pad * 2,
-        h = (maxY - minY) + pad * 2,
-    }
-end
-
-local function underMenu(x, y, w, h)
-    local r = getMenuRect()
-    if not r then return false end
-    local ax1, ay1, ax2, ay2 = x, y, x + w, y + h
-    local bx1, by1, bx2, by2 = r.x, r.y, r.x + r.w, r.y + r.h
-    return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
+    return false
 end
 
 local function pushShader()
     if not state.shader then return end
     local s = espModule.Settings
+    local hide = menuOpen()
     for k = 0, 2 do
         local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
         local c = g.ChamsSettings
@@ -1456,18 +1413,9 @@ local function pushShader()
         put(n.sp, c.Speed)
         put(n.sc, c.Scale)
         put(n.st, design.Style)
-        put(n.en, state.use[k] and 1 or 0)
+        put(n.en, (not hide and state.use[k]) and 1 or 0)
     end
-    local r = getMenuRect()
-    if r then
-        put("ui_x", r.x)
-        put("ui_y", r.y)
-        put("ui_w", r.w)
-        put("ui_h", r.h)
-        put("ui_on", 1)
-    else
-        put("ui_on", 0)
-    end
+    put("ui_on", 0)
 end
 
 local function ensureShader()
@@ -1842,7 +1790,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if chamsOn and not underMenu(x, y, w, h) then
+    if chamsOn then
         local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
         if not rec.hl then
             local hl = Instance.new("Highlight")
@@ -2542,7 +2490,7 @@ local function step()
     use[0] = settings.Enemy.Enabled and settings.Enemy.Chams
     use[1] = settings.Teammate.Enabled and settings.Teammate.Chams
     use[2] = (settings.AI.Enabled and settings.AI.Chams) or (settings.Items.Enabled and settings.Items.Chams)
-    if use[0] or use[1] or use[2] then
+    if (use[0] or use[1] or use[2]) and not menuOpen() then
         ensureShader()
         pushShader()
     elseif state.shader then

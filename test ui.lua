@@ -3901,9 +3901,27 @@ local function addESPSection(sec, tbl, prefix)
     local fillPop = fill:gear({title = "Box Fill Options"})
     fillPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
 
+    local cs = ESP.Settings.ChamsSettings
     local chams = sec:toggle({name = "Shader Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
+    local pickers = {}
+    pickers[1] = chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
+    pickers[2] = chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
+    pickers[3] = chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
     local chamsPop = chams:gear({title = "Chams Options"})
-    chamsPop:dropdown({name = "Preset", items = ESP.GetChamsPresetNames(), default = ESP.Settings.ChamsPreset or "Borealis", flag = prefix.."_chams_preset", callback = function(v) ESP:SetChamsPreset(v) end})
+    chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
+        ESP:SetChamsDesign(v)
+        for i = 1, 3 do
+            local p = pickers[i]
+            if p then pcall(function() p:set(cs["Color" .. i]) end) end
+        end
+    end})
+    chamsPop:slider({name = "Colors", min = 1, max = 3, default = cs.ColorCount, interval = 1, flag = prefix.."_chams_colors", callback = function(v) cs.ColorCount = v end})
+    chamsPop:slider({name = "Bloom", min = 0, max = 1.5, default = cs.Bloom, interval = 0.05, flag = prefix.."_chams_bloom", callback = function(v) cs.Bloom = v end})
+    chamsPop:slider({name = "Bloom Spread", min = 0, max = 12, default = cs.BloomSpread, interval = 0.5, flag = prefix.."_chams_spread", callback = function(v) cs.BloomSpread = v end})
+    chamsPop:slider({name = "Brightness", min = 0.5, max = 2, default = cs.Brightness, interval = 0.05, flag = prefix.."_chams_brightness", callback = function(v) cs.Brightness = v end})
+    chamsPop:slider({name = "Contrast", min = 0.5, max = 2, default = cs.Contrast, interval = 0.05, flag = prefix.."_chams_contrast", callback = function(v) cs.Contrast = v end})
+    chamsPop:slider({name = "Speed", min = 0, max = 4, default = cs.Speed, interval = 0.05, flag = prefix.."_chams_speed", callback = function(v) cs.Speed = v end})
+    chamsPop:slider({name = "Scale", min = 0.5, max = 8, default = cs.Scale, interval = 0.1, flag = prefix.."_chams_scale", callback = function(v) cs.Scale = v end})
 
     local names = sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
     names:colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})

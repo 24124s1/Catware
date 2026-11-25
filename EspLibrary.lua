@@ -622,24 +622,29 @@ float3 glowCol(Grp g) {
 
 float keyAmount(float3 c, int k) {
 	if (k == 2) {
-		float s2 = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l2 = smoothstep(0.35, 0.6, c.b);
-		return smoothstep(0.6, 0.85, s2) * l2;
+		float s = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
+		float l = smoothstep(0.45, 0.75, c.b);
+		return smoothstep(0.78, 0.95, s) * l;
 	}
-	float lo = c.g;
-	float a = c.r;
-	float b = c.b;
-	if (k == 1) {
+
+	float lo, a, b;
+	if (k == 0) {
+		lo = c.g;
+		a = c.r;
+		b = c.b;
+	} else {
 		lo = c.r;
 		a = c.g;
+		b = c.b;
 	}
+
 	float mx = max(a, b);
 	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
 	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.25, 0.5, abs(a - b) * inv);
-	float lum = smoothstep(0.25, 0.5, mn);
-	return smoothstep(0.45, 0.7, s) * bal * lum;
+	float bal = 1.0 - smoothstep(0.18, 0.42, abs(a - b) * inv);
+	float lum = smoothstep(0.35, 0.65, mn);
+	return smoothstep(0.72, 0.92, s) * bal * lum;
 }
 
 float fringeAmount(float3 c, int k) {

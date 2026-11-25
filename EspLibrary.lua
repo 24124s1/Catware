@@ -1,4 +1,4 @@
-local hi = 9e9
+local hi = math.huge
 
 print(hi)
 

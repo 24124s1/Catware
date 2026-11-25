@@ -1,4 +1,4 @@
-print('-5')
+print('1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -19,41 +19,19 @@ local KEY_COLORS = {
 }
 
 local CHAMS_DESIGNS = {
-    Borealis = {
-        Style = 0, ColorCount = 3,
-        Colors = {rgb(12, 120, 110), rgb(48, 220, 245), rgb(195, 85, 235)},
-        Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.35, Scale = 3.0,
-    },
-    Inferno = {
-        Style = 1, ColorCount = 3,
-        Colors = {rgb(150, 15, 0), rgb(255, 110, 0), rgb(255, 225, 120)},
-        Brightness = 1.15, Contrast = 1.05, Bloom = 0.5, BloomSpread = 3.5, Speed = 1.2, Scale = 2.5,
-    },
-    Plasma = {
-        Style = 2, ColorCount = 3,
-        Colors = {rgb(60, 20, 170), rgb(200, 40, 230), rgb(80, 200, 255)},
-        Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 3.0,
-    },
-    Hologram = {
-        Style = 3, ColorCount = 3,
-        Colors = {rgb(0, 70, 120), rgb(0, 200, 255), rgb(200, 245, 255)},
-        Brightness = 1.1, Contrast = 1.0, Bloom = 0.55, BloomSpread = 3.0, Speed = 1.0, Scale = 3.0,
-    },
-    Galaxy = {
-        Style = 4, ColorCount = 3,
-        Colors = {rgb(25, 15, 80), rgb(110, 40, 170), rgb(240, 120, 220)},
-        Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.8, Scale = 2.2,
-    },
+    Rainbow = { Style = 0, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.5, Scale = 3.0 },
+    Inferno = { Style = 1, Brightness = 1.2, Contrast = 1.0, Bloom = 0.5, BloomSpread = 3.5, Speed = 1.2, Scale = 2.5 },
+    Plasma  = { Style = 2, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 3.0 },
+    Holo    = { Style = 3, Brightness = 1.1, Contrast = 1.0, Bloom = 0.55, BloomSpread = 3.0, Speed = 1.0, Scale = 3.0 },
+    Galaxy  = { Style = 4, Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.8, Scale = 2.2 },
 }
 
-local CHAMS_DESIGN_NAMES = {"Borealis", "Inferno", "Plasma", "Hologram", "Galaxy"}
+local CHAMS_DESIGN_NAMES = {"Rainbow", "Inferno", "Plasma", "Holo", "Galaxy"}
 
 local function chamsFromDesign(name, into)
-    local d = CHAMS_DESIGNS[name] or CHAMS_DESIGNS.Borealis
+    local d = CHAMS_DESIGNS[name] or CHAMS_DESIGNS.Rainbow
     into = into or {}
-    into.Design = CHAMS_DESIGNS[name] and name or "Borealis"
-    into.ColorCount = d.ColorCount
-    into.Color1, into.Color2, into.Color3 = d.Colors[1], d.Colors[2], d.Colors[3]
+    into.Design = CHAMS_DESIGNS[name] and name or "Rainbow"
     into.Brightness = d.Brightness
     into.Contrast = d.Contrast
     into.Bloom = d.Bloom
@@ -70,7 +48,13 @@ local function entitySettings(p)
         BoxGlow = false,
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
-        Chams = false, ChamsKey = p.key, ChamsSettings = chamsFromDesign(p.design),
+        Chams = false, ChamsKey = p.key, ChamsType = "Shader",
+        ChamsSettings = chamsFromDesign(p.design, {
+            Color1 = p.c1 or rgb(12, 120, 110),
+            Color2 = p.c2 or rgb(48, 220, 245),
+            Color3 = p.c3 or rgb(195, 85, 235),
+            ColorCount = 3
+        }),
         Names = false, NameType = "Display", NameColor = p.text1, NameColor2 = p.text2, NamePos = "Top",
         Distance = false, DistanceColor = p.text1, DistanceColor2 = p.text2, DistancePos = "Right",
         Tool = false, ToolColor = p.text1, ToolColor2 = p.text2, ToolPos = "Bottom",
@@ -97,19 +81,22 @@ espModule.Settings = {
     HealthFont = "Gojiberry Quibble",
     TextGradientAnimated = true,
     Enemy = entitySettings({
-        key = 0, design = "Borealis",
+        key = 0, design = "Rainbow",
+        c1 = rgb(255, 80, 80), c2 = rgb(255, 40, 40), c3 = rgb(200, 0, 0),
         main = rgb(255, 80, 80), fill1 = rgb(255, 80, 80), fill2 = rgb(255, 40, 40), skel2 = rgb(200, 200, 200),
         text1 = rgb(255, 255, 255), text2 = rgb(200, 200, 200),
         health = {rgb(0, 255, 100), rgb(255, 255, 0), rgb(255, 40, 40)},
     }),
     Teammate = entitySettings({
-        key = 1, design = "Hologram",
+        key = 1, design = "Holo",
+        c1 = rgb(0, 180, 255), c2 = rgb(0, 100, 200), c3 = rgb(0, 50, 100),
         main = rgb(0, 180, 255), fill1 = rgb(0, 180, 255), fill2 = rgb(0, 100, 200), skel2 = rgb(100, 150, 200),
         text1 = rgb(180, 230, 255), text2 = rgb(100, 150, 200),
         health = {rgb(0, 200, 255), rgb(100, 200, 255), rgb(30, 80, 140)},
     }),
     AI = entitySettings({
         key = 2, design = "Inferno",
+        c1 = rgb(255, 200, 50), c2 = rgb(255, 150, 0), c3 = rgb(255, 100, 0),
         main = rgb(255, 200, 50), fill1 = rgb(255, 200, 50), fill2 = rgb(255, 150, 0), skel2 = rgb(200, 150, 50),
         text1 = rgb(255, 255, 255), text2 = rgb(200, 200, 200),
         health = {rgb(0, 255, 100), rgb(255, 255, 0), rgb(255, 40, 40)},
@@ -399,6 +386,7 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local out = { flagLines = {} }
     local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
     local rows = { Left = 0, Right = 0 }
+    local pad = math.clamp(math.floor(h * 0.08), 2, 10)
 
     local SIDE_OK = {
         Top = true,
@@ -415,17 +403,17 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local function placeBar(key, side)
         local rx, ry, rw, rh, vertical
         if side == "Left" then
-            rx, ry, rw, rh, vertical = x - 4 - off.Left, y, 1, h, true
-            off.Left += 5
+            rx, ry, rw, rh, vertical = x - pad - off.Left, y, 1, h, true
+            off.Left += pad + 1
         elseif side == "Right" then
-            rx, ry, rw, rh, vertical = x + w + 3 + off.Right, y, 1, h, true
-            off.Right += 5
+            rx, ry, rw, rh, vertical = x + w + pad + off.Right, y, 1, h, true
+            off.Right += pad + 1
         elseif side == "Top" then
-            rx, ry, rw, rh, vertical = x, y - 4 - off.Top, w, 1, false
-            off.Top += 5
+            rx, ry, rw, rh, vertical = x, y - pad - off.Top, w, 1, false
+            off.Top += pad + 1
         else
-            rx, ry, rw, rh, vertical = x, y + h + 1 + off.Bottom, w, 1, false
-            off.Bottom += 3
+            rx, ry, rw, rh, vertical = x, y + h + 10 + off.Bottom, w, 1, false
+            off.Bottom += 10
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
         return rx, ry
@@ -434,16 +422,16 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local function placeText(side)
         local p
         if side == "Top" then
-            p = { x = x + w * 0.5, y = y - 2 - off.Top, ax = 0.5, ay = 1 }
+            p = { x = x + w * 0.5, y = y - pad - off.Top, ax = 0.5, ay = 1 }
             off.Top += step
         elseif side == "Bottom" then
-            p = { x = x + w * 0.5, y = y + h + 1 + off.Bottom, ax = 0.5, ay = 0 }
+            p = { x = x + w * 0.5, y = y + h + pad + off.Bottom, ax = 0.5, ay = 0 }
             off.Bottom += step
         elseif side == "Left" then
-            p = { x = x - 4 - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
+            p = { x = x - pad - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
             rows.Left += 1
         else
-            p = { x = x + w + 4 + off.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
+            p = { x = x + w + pad + off.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
             rows.Right += 1
         end
         return p
@@ -455,16 +443,16 @@ function espModule.Layout(cfg, x, y, w, h, o)
             local ty = math.clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
             local tx = math.clamp(x + w * ratio, x, x + w)
             if side == "Left" then
-                out.healthText = { x = rx - 3, y = ty, ax = 1, ay = 0 }
+                out.healthText = { x = rx - pad, y = ty, ax = 1, ay = 0 }
                 off.Left += 16
             elseif side == "Right" then
-                out.healthText = { x = rx + 4, y = ty, ax = 0, ay = 0 }
+                out.healthText = { x = rx + pad, y = ty, ax = 0, ay = 0 }
                 off.Right += 16
             elseif side == "Top" then
-                out.healthText = { x = tx, y = ry - 2, ax = 0.5, ay = 1 }
+                out.healthText = { x = tx, y = ry - pad, ax = 0.5, ay = 1 }
                 off.Top += size + 2
             else
-                out.healthText = { x = tx, y = ry + 4, ax = 0.5, ay = 0 }
+                out.healthText = { x = tx, y = ry + pad, ax = 0.5, ay = 0 }
                 off.Bottom += size + 2
             end
         end
@@ -1372,23 +1360,27 @@ local function put(name, v)
     end
 end
 
-local function menuOpen()
+local function getMenuBounds()
     local env = (typeof(getgenv) == "function" and getgenv()) or _G
     local st = env.Stardust
     if type(st) == "table" and st.win and st.win.root then
-        return st.win.root.Visible == true
+        local root = st.win.root
+        if root.Visible then
+            local pos = root.AbsolutePosition
+            local size = root.AbsoluteSize
+            return pos.X, pos.Y, size.X, size.Y
+        end
     end
-    return false
+    return nil
 end
 
 local function pushShader()
     if not state.shader then return end
     local s = espModule.Settings
-    local hide = menuOpen()
     for k = 0, 2 do
         local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
         local c = g.ChamsSettings
-        local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
+        local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Rainbow
         local n = PN[k]
         put(n.c1, c.Color1)
         put(n.c2, c.Color2)
@@ -1401,9 +1393,18 @@ local function pushShader()
         put(n.sp, c.Speed)
         put(n.sc, c.Scale)
         put(n.st, design.Style)
-        put(n.en, (not hide and state.use[k]) and 1 or 0)
+        put(n.en, state.use[k] and 1 or 0)
     end
-    put("ui_on", 0)
+    local mx, my, mw, mh = getMenuBounds()
+    if mx then
+        put("ui_on", 1)
+        put("ui_x", mx)
+        put("ui_y", my)
+        put("ui_w", mw)
+        put("ui_h", mh)
+    else
+        put("ui_on", 0)
+    end
 end
 
 local function ensureShader()
@@ -1747,10 +1748,11 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local meters = math.floor(dist + 0.5)
     local d = rec.d
     local chamsOn = cfg.Chams and state.shader ~= nil
+    local chamsType = cfg.ChamsType or "Shader"
 
     if cfg.BoxFill and cfg.BoxEnabled then
         if cfg.BoxType == "3D" then
-            if chamsOn then
+            if chamsOn and chamsType == "Shader" then
                 if rec.fillHl then rec.fillHl.Enabled = false end
             else
                 if not rec.fillHl then
@@ -1778,26 +1780,37 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if chamsOn then
-        local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
-        if not rec.hl then
-            local hl = Instance.new("Highlight")
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = keyCol
-            hl.FillTransparency = 0
-            hl.OutlineColor = keyCol
-            hl.OutlineTransparency = 1
-            hl.Parent = state.gui
-            rec.hl = hl
-        end
-        if rec.hl.FillColor ~= keyCol then
+    if cfg.Chams then
+        if chamsType == "Adornment" then
+            if not rec.hl then
+                local hl = Instance.new("Highlight")
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = state.gui
+                rec.hl = hl
+            end
+            rec.hl.FillColor = cfg.ChamsSettings.Color1
+            rec.hl.OutlineColor = cfg.ChamsSettings.Color1
+            rec.hl.FillTransparency = 0.5
+            rec.hl.OutlineTransparency = 0
+            rec.hl.Adornee = rec.character
+            rec.hl.Enabled = true
+        elseif chamsType == "Shader" and state.shader then
+            local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
+            if not rec.hl then
+                local hl = Instance.new("Highlight")
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = state.gui
+                rec.hl = hl
+            end
             rec.hl.FillColor = keyCol
             rec.hl.OutlineColor = keyCol
-        end
-        if rec.hl.Adornee ~= rec.character then
+            rec.hl.FillTransparency = 0
+            rec.hl.OutlineTransparency = 1
             rec.hl.Adornee = rec.character
+            rec.hl.Enabled = true
+        else
+            if rec.hl then rec.hl.Enabled = false end
         end
-        rec.hl.Enabled = true
     else
         if rec.hl then rec.hl.Enabled = false end
     end
@@ -2475,10 +2488,10 @@ local function step()
     end
 
     local use = state.use
-    use[0] = settings.Enemy.Enabled and settings.Enemy.Chams
-    use[1] = settings.Teammate.Enabled and settings.Teammate.Chams
-    use[2] = (settings.AI.Enabled and settings.AI.Chams) or (settings.Items.Enabled and settings.Items.Chams)
-    if (use[0] or use[1] or use[2]) and not menuOpen() then
+    use[0] = settings.Enemy.Enabled and settings.Enemy.Chams and settings.Enemy.ChamsType == "Shader"
+    use[1] = settings.Teammate.Enabled and settings.Teammate.Chams and settings.Teammate.ChamsType == "Shader"
+    use[2] = (settings.AI.Enabled and settings.AI.Chams and settings.AI.ChamsType == "Shader") or (settings.Items.Enabled and settings.Items.Chams)
+    if use[0] or use[1] or use[2] then
         ensureShader()
         pushShader()
     elseif state.shader then

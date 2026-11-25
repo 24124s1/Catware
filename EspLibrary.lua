@@ -1422,6 +1422,16 @@ local function destroyShader()
     end
 end
 
+local function clearAdornments(rec)
+    if rec.adornments then
+        for _, ad in ipairs(rec.adornments) do
+            if ad then ad:Destroy() end
+        end
+        rec.adornments = nil
+        rec.adornChar = nil
+    end
+end
+
 local function hideRecord(rec)
     if rec.hidden then return end
     rec.hidden = true
@@ -1432,6 +1442,11 @@ local function hideRecord(rec)
     if rec.fillHl then
         rec.fillHl.Enabled = false
     end
+    if rec.adornments then
+        for _, ad in ipairs(rec.adornments) do
+            if ad then ad.Visible = false end
+        end
+    end
 end
 
 local function dropRecord(entity)
@@ -1440,6 +1455,7 @@ local function dropRecord(entity)
     if rec.renderer then rec.renderer:Destroy() end
     if rec.hl then rec.hl:Destroy() end
     if rec.fillHl then rec.fillHl:Destroy() end
+    clearAdornments(rec)
     state.records[entity] = nil
 end
 
@@ -1766,21 +1782,51 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if cfg.Chams then
+if cfg.Chams then
         if chamsType == "Adornment" then
-            if not rec.hl then
-                local hl = Instance.new("Highlight")
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                hl.Parent = state.gui
-                rec.hl = hl
+            if rec.hl then rec.hl.Enabled = false end
+            local c1 = cfg.ChamsSettings.Color1
+            local c2 = cfg.ChamsSettings.Color2
+            local adTr = 1 - (0.65 * (1 - tr))
+
+            if rec.adornChar ~= rec.character or not rec.adornments then
+                clearAdornments(rec)
+                rec.adornChar = rec.character
+                rec.adornments = {}
+                for _, part in ipairs(rec.parts) do
+                    if part and part.Parent and part.Name ~= "HumanoidRootPart" then
+                        local isHead = part.Name:lower() == "head"
+                        local ad = Instance.new(isHead and "CylinderHandleAdornment" or "BoxHandleAdornment")
+                        ad.Adornee = part
+                        ad.AlwaysOnTop = true
+                        ad.ZIndex = 5
+                        if isHead then
+                            local rad = math.max(part.Size.X, part.Size.Z) * 0.52
+                            ad.Radius = rad
+                            ad.InnerRadius = 0
+                            ad.Height = part.Size.Y * 1.05
+                            ad.CFrame = CFrame.Angles(math.rad(90), 0, 0)
+                        else
+                            ad.Size = part.Size + Vector3.new(0.05, 0.05, 0.05)
+                        end
+                        ad.Parent = state.gui
+                        rec.adornments[#rec.adornments + 1] = ad
+                    end
+                end
             end
-            rec.hl.FillColor = cfg.ChamsSettings.Color1
-            rec.hl.OutlineColor = cfg.ChamsSettings.Color1
-            rec.hl.FillTransparency = 0.5
-            rec.hl.OutlineTransparency = 0
-            rec.hl.Adornee = rec.character
-            rec.hl.Enabled = true
+
+            for _, ad in ipairs(rec.adornments) do
+                if ad and ad.Parent and ad.Adornee and ad.Adornee.Parent then
+                    local isHead = ad:IsA("CylinderHandleAdornment")
+                    ad.Color3 = isHead and c2 or c1
+                    ad.Transparency = adTr
+                    ad.Visible = true
+                elseif ad then
+                    ad.Visible = false
+                end
+            end
         elseif chamsType == "Shader" and state.shader then
+            clearAdornments(rec)
             local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
             if not rec.hl then
                 local hl = Instance.new("Highlight")
@@ -1795,9 +1841,11 @@ local function render(rec, cfg, rx, ry, rz, dist)
             rec.hl.Adornee = rec.character
             rec.hl.Enabled = true
         else
+            clearAdornments(rec)
             if rec.hl then rec.hl.Enabled = false end
         end
     else
+        clearAdornments(rec)
         if rec.hl then rec.hl.Enabled = false end
     end
 

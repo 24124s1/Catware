@@ -20,6 +20,7 @@ local GameNames = {
     [6035872082] = "Rivals",
     [13197060622] = "Strike Force",
     [72920620366355] = "Operation One",
+    [122947932880352] = "Miami Crime RP"
 }
 
 local currentGame = GameNames[game.PlaceId] or "Unknown"
@@ -179,7 +180,10 @@ local IsTeam = function(plr)
         if myTeam == nil and theirTeam == nil then return false end
         return myTeam == theirTeam
     end
-    
+
+    if currentGame == "Miami Crime RP" then
+        return LocalPlayer:GetAttribute("Faction") == plr:GetAttribute("Faction")
+    end    
 
     return plr.Team == LocalPlayer.Team
 end

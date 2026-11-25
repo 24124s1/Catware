@@ -117,7 +117,7 @@ espModule.Settings = {
     Items = {
         Enabled = false, MaxDistance = 200, TextSize = 12,
         ShowNames = false, ShowDistance = false, ShowContents = false,
-        Chams = false, ChamsFillTransparency = 0.3,
+        Chams = false, ChamsFillTransparency = 1,
     },
 }
 

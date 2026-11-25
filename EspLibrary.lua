@@ -1422,15 +1422,33 @@ local function destroyShader()
     end
 end
 
+local function restoreTransparency(rec)
+    if rec.origTrans then
+        for obj, val in pairs(rec.origTrans) do
+            if obj and obj.Parent then
+                if obj:IsA("BasePart") then
+                    obj.LocalTransparencyModifier = val
+                elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = val
+                end
+            end
+        end
+        rec.origTrans = nil
+    end
+end
+
 local function clearAdornments(rec)
     if rec.adornments then
         for _, entry in pairs(rec.adornments) do
             if entry.fill then entry.fill:Destroy() end
-            if entry.outline then entry.outline:Destroy() end
+            if entry.glow then
+                for _, g in ipairs(entry.glow) do g:Destroy() end
+            end
         end
         rec.adornments = nil
         rec.adornChar = nil
     end
+    restoreTransparency(rec)
 end
 
 local function hideRecord(rec)
@@ -1446,9 +1464,12 @@ local function hideRecord(rec)
     if rec.adornments then
         for _, entry in pairs(rec.adornments) do
             if entry.fill then entry.fill.Visible = false end
-            if entry.outline then entry.outline.Visible = false end
+            if entry.glow then
+                for _, g in ipairs(entry.glow) do g.Visible = false end
+            end
         end
     end
+    restoreTransparency(rec)
 end
 
 local function dropRecord(entity)
@@ -1789,8 +1810,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
             if rec.hl then rec.hl.Enabled = false end
             local c1 = cfg.ChamsSettings.Color1
             local c2 = cfg.ChamsSettings.Color2
-            local adTr = 1 - (0.65 * (1 - tr))
-            local outTr = 1 - (0.85 * (1 - tr))
+            local adTr = 1 - (0.45 * (1 - tr))
 
             if rec.adornChar ~= rec.character or not rec.adornments then
                 clearAdornments(rec)
@@ -1798,6 +1818,24 @@ local function render(rec, cfg, rx, ry, rz, dist)
                 rec.adornments = {}
             end
 
+            rec.origTrans = rec.origTrans or {}
+            if rec.character then
+                for _, obj in ipairs(rec.character:GetDescendants()) do
+                    if obj:IsA("BasePart") then
+                        if rec.origTrans[obj] == nil then
+                            rec.origTrans[obj] = obj.LocalTransparencyModifier
+                        end
+                        obj.LocalTransparencyModifier = 1
+                    elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                        if rec.origTrans[obj] == nil then
+                            rec.origTrans[obj] = obj.Transparency
+                        end
+                        obj.Transparency = 1
+                    end
+                end
+            end
+
+            local GLOW_LAYERS = 4
             local activeParts = {}
             for _, part in ipairs(rec.parts) do
                 if part and part.Parent and part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
@@ -1808,56 +1846,71 @@ local function render(rec, cfg, rx, ry, rz, dist)
                         local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
                         local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
 
-                        local outline = Instance.new(className)
-                        outline.Adornee = part
-                        outline.AlwaysOnTop = true
-                        outline.ZIndex = 4
-                        outline.Parent = state.gui
+                        local glow = {}
+                        for i = 1, GLOW_LAYERS do
+                            local g = Instance.new(className)
+                            g.Adornee = part
+                            g.AlwaysOnTop = true
+                            g.ZIndex = GLOW_LAYERS - i + 1
+                            if isHead then
+                                g.CFrame = CFrame.Angles(math.rad(90), 0, 0)
+                            end
+                            g.Parent = state.gui
+                            glow[i] = g
+                        end
 
                         local fill = Instance.new(className)
                         fill.Adornee = part
                         fill.AlwaysOnTop = true
-                        fill.ZIndex = 5
-                        fill.Parent = state.gui
-
+                        fill.ZIndex = GLOW_LAYERS + 1
                         if isHead then
-                            outline.CFrame = CFrame.Angles(math.rad(90), 0, 0)
                             fill.CFrame = CFrame.Angles(math.rad(90), 0, 0)
                         end
+                        fill.Parent = state.gui
 
-                        entry = { fill = fill, outline = outline, isHead = isHead }
+                        entry = { fill = fill, glow = glow, isHead = isHead }
                         rec.adornments[part] = entry
                     end
 
-                    local fill, outline = entry.fill, entry.outline
+                    local fill = entry.fill
                     if entry.isHead then
                         local rad = math.max(part.Size.X, part.Size.Z) * 0.52
                         local h = part.Size.Y * 1.05
                         fill.Radius = rad
                         fill.InnerRadius = 0
                         fill.Height = h
-                        outline.Radius = rad + 0.04
-                        outline.InnerRadius = 0
-                        outline.Height = h + 0.08
+                        for i, g in ipairs(entry.glow) do
+                            local pad = i * 0.055
+                            g.Radius = rad + pad
+                            g.InnerRadius = 0
+                            g.Height = h + pad * 2
+                            g.Color3 = c2
+                            g.Transparency = 1 - ((0.22 - (i - 1) * 0.045) * (1 - tr))
+                            g.Visible = true
+                        end
                     else
-                        fill.Size = part.Size + Vector3.new(0.02, 0.02, 0.02)
-                        outline.Size = part.Size + Vector3.new(0.09, 0.09, 0.09)
+                        fill.Size = part.Size
+                        for i, g in ipairs(entry.glow) do
+                            local pad = i * 0.11
+                            g.Size = part.Size + Vector3.new(pad, pad, pad)
+                            g.Color3 = c2
+                            g.Transparency = 1 - ((0.22 - (i - 1) * 0.045) * (1 - tr))
+                            g.Visible = true
+                        end
                     end
 
                     fill.Color3 = c1
                     fill.Transparency = adTr
                     fill.Visible = true
-
-                    outline.Color3 = c2
-                    outline.Transparency = outTr
-                    outline.Visible = true
                 end
             end
 
             for part, entry in pairs(rec.adornments) do
                 if not activeParts[part] then
                     if entry.fill then entry.fill:Destroy() end
-                    if entry.outline then entry.outline:Destroy() end
+                    if entry.glow then
+                        for _, g in ipairs(entry.glow) do g:Destroy() end
+                    end
                     rec.adornments[part] = nil
                 end
             end

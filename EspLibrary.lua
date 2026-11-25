@@ -315,7 +315,7 @@ end
 
 task.spawn(function()
     local ok, fn = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/TeamCheck.lua"))()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/personalvalor/Catware/refs/heads/main/TeamCheck.lua"))()
     end)
     if ok and type(fn) == "function" then
         local original = fn

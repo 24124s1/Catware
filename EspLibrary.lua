@@ -1,4 +1,4 @@
-print('-1')
+print('-12')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -264,35 +264,72 @@ local function getFont(name)
 end
 
 local function loadFonts()
-    local canLoad = typeof(writefile) == "function" and typeof(readfile) == "function"
-        and typeof(isfile) == "function" and typeof(getcustomasset) == "function"
+    local canLoad = typeof(writefile) == "function"
+        and typeof(isfile) == "function"
+        and typeof(getcustomasset) == "function"
 
     if canLoad then
-        if typeof(makefolder) == "function" and not (typeof(isfolder) == "function" and isfolder("catware_fonts")) then
-            pcall(makefolder, "catware_fonts")
-        end
+        pcall(function()
+            if typeof(makefolder) == "function" then
+                if not (typeof(isfolder) == "function" and isfolder("catware_fonts")) then
+                    makefolder("catware_fonts")
+                end
+            end
+        end)
         for _, entry in ipairs(fontFiles) do
             local name, file = entry[1], entry[2]
             if not espModule.Fonts[name] then
                 local ok, font = pcall(function()
                     local path = "catware_fonts/" .. file
                     if not isfile(path) then
-                        writefile(path, game:HttpGet("https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/" .. (file:gsub(" ", "%%20"))))
-                        task.wait()
+                        local url = "https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/" .. file:gsub(" ", "%%20")
+                        local data = game:HttpGet(url)
+                        if type(data) ~= "string" or #data < 100 then
+                            error("font download failed")
+                        end
+                        writefile(path, data)
                     end
+                    local asset = getcustomasset(path)
                     local jsonPath = "catware_fonts/" .. (name:gsub("%s", "_")) .. ".json"
                     writefile(jsonPath, HttpService:JSONEncode({
                         name = name,
-                        faces = {{ name = "Regular", weight = 400, style = "normal", assetId = getcustomasset(path) }},
+                        faces = {{
+                            name = "Regular",
+                            weight = 400,
+                            style = "normal",
+                            assetId = asset,
+                        }},
                     }))
                     return Font.new(getcustomasset(jsonPath), Enum.FontWeight.Regular, Enum.FontStyle.Normal)
                 end)
-                if ok and font then espModule.Fonts[name] = font end
+                if ok and font then
+                    espModule.Fonts[name] = font
+                else
+                    pcall(function()
+                        local path = "catware_fonts/" .. file
+                        if isfile(path) then
+                            local f = Font.new(getcustomasset(path), Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+                            if f then espModule.Fonts[name] = f end
+                        end
+                    end)
+                end
             end
         end
         if not espModule.Fonts["Tahoma"] then
-            espModule.Fonts["Tahoma"] = espModule.Fonts["Tahoma Modern"] or espModule.Fonts["Tahoma 8px"]
+            espModule.Fonts["Tahoma"] = espModule.Fonts["Tahoma Modern"]
+                or espModule.Fonts["Tahoma 8px"]
+                or espModule.Fonts["Tahoma Bold"]
         end
+        if not espModule.Fonts["Gojiberry Quibble"] then
+            espModule.Fonts["Gojiberry Quibble"] = espModule.Fonts["Tahoma"] or fallbackFont
+        end
+    end
+
+    if not next(espModule.Fonts) then
+        pcall(function()
+            espModule.Fonts["Tahoma"] = Font.fromEnum(Enum.Font.Code)
+            espModule.Fonts["Gojiberry Quibble"] = Font.fromEnum(Enum.Font.Code)
+        end)
     end
 
     espModule.FontsReady = true
@@ -357,7 +394,7 @@ end
 
 function espModule.Layout(cfg, x, y, w, h, o)
     local size = o.size or 12
-    local step = size + 1
+    local step = size
     local ratio = o.ratio or 1
     local out = { flagLines = {} }
     local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
@@ -387,8 +424,8 @@ function espModule.Layout(cfg, x, y, w, h, o)
             rx, ry, rw, rh, vertical = x, y - 4 - off.Top, w, 1, false
             off.Top += 5
         else
-            rx, ry, rw, rh, vertical = x, y + h + 2 + off.Bottom, w, 1, false
-            off.Bottom += 4
+            rx, ry, rw, rh, vertical = x, y + h + 1 + off.Bottom, w, 1, false
+            off.Bottom += 3
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
         return rx, ry
@@ -397,10 +434,10 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local function placeText(side)
         local p
         if side == "Top" then
-            p = { x = x + w * 0.5, y = y - 3 - off.Top, ax = 0.5, ay = 1 }
+            p = { x = x + w * 0.5, y = y - 2 - off.Top, ax = 0.5, ay = 1 }
             off.Top += step
         elseif side == "Bottom" then
-            p = { x = x + w * 0.5, y = y + h + 2 + off.Bottom, ax = 0.5, ay = 0 }
+            p = { x = x + w * 0.5, y = y + h + 1 + off.Bottom, ax = 0.5, ay = 0 }
             off.Bottom += step
         elseif side == "Left" then
             p = { x = x - 4 - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
@@ -1334,19 +1371,38 @@ local function put(name, v)
     end
 end
 
-local function menuOpen()
+local function getMenuRect()
     local env = (typeof(getgenv) == "function" and getgenv()) or _G
     local st = env.Stardust
-    if type(st) == "table" and st.win and st.win.root then
-        return st.win.root.Visible == true
+    if type(st) ~= "table" or not st.win or not st.win.root then
+        return nil
     end
-    return false
+    local root = st.win.root
+    if not root.Visible then
+        return nil
+    end
+    local pos = root.AbsolutePosition
+    local size = root.AbsoluteSize
+    local inset = game:GetService("GuiService"):GetGuiInset()
+    return {
+        x = pos.X,
+        y = pos.Y + inset.Y,
+        w = size.X,
+        h = size.Y,
+    }
+end
+
+local function underMenu(x, y, w, h)
+    local r = getMenuRect()
+    if not r then return false end
+    local ax1, ay1, ax2, ay2 = x, y, x + w, y + h
+    local bx1, by1, bx2, by2 = r.x, r.y, r.x + r.w, r.y + r.h
+    return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
 end
 
 local function pushShader()
     if not state.shader then return end
     local s = espModule.Settings
-    local hide = menuOpen()
     for k = 0, 2 do
         local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
         local c = g.ChamsSettings
@@ -1363,7 +1419,7 @@ local function pushShader()
         put(n.sp, c.Speed)
         put(n.sc, c.Scale)
         put(n.st, design.Style)
-        put(n.en, (not hide and state.use[k]) and 1 or 0)
+        put(n.en, state.use[k] and 1 or 0)
     end
 end
 
@@ -1739,7 +1795,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if chamsOn then
+    if chamsOn and not underMenu(x, y, w, h) then
         local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
         if not rec.hl then
             local hl = Instance.new("Highlight")
@@ -2439,15 +2495,11 @@ local function step()
     use[0] = settings.Enemy.Enabled and settings.Enemy.Chams
     use[1] = settings.Teammate.Enabled and settings.Teammate.Chams
     use[2] = (settings.AI.Enabled and settings.AI.Chams) or (settings.Items.Enabled and settings.Items.Chams)
-    if (use[0] or use[1] or use[2]) and not menuOpen() then
+    if use[0] or use[1] or use[2] then
         ensureShader()
         pushShader()
     elseif state.shader then
-        if menuOpen() then
-            pushShader()
-        else
-            destroyShader()
-        end
+        destroyShader()
     end
 
     if not anyEntity and not anyItem then return end

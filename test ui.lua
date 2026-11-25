@@ -4228,7 +4228,7 @@ local win = Library.new({
 })
 win.onUnload = function()
     ESP:Stop()
-    if env.Stardust == Stardust then env.Stardust = nil end
+    if env and env.Stardust == Stardust then env.Stardust = nil end
 end
 
 local combat = win:category("Combat")
@@ -4253,6 +4253,11 @@ local Enemy, Team, Setting = left:multi_section({
     fills = false,
 })
 
+local function getRow(el)
+    if not el then return nil end
+    return el.row or el.holder or el.frame
+end
+
 local function addESPSection(sec, tbl, prefix)
     sec:toggle({name = "Enabled", default = tbl.Enabled, flag = prefix.."_enabled", callback = function(v) tbl.Enabled = v end})
 
@@ -4269,10 +4274,10 @@ local function addESPSection(sec, tbl, prefix)
     local fillPop = fill:gear({title = "Box Fill Options"})
     fillPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
 
-local cs = tbl.ChamsSettings
+    local cs = tbl.ChamsSettings
     local chams = sec:toggle({name = "Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
-    local cp1 = chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
-    local cp2 = chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
+    chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
+    chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
     local cp3 = chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
 
     local chamsPop = chams:gear({title = "Chams Options"})
@@ -4281,18 +4286,17 @@ local cs = tbl.ChamsSettings
 
     local function syncChamsUI(mode)
         local isShader = (mode == "Shader")
-        if cp3 and cp3.button then
-            cp3.button.Visible = isShader
+        local c3Btn = cp3 and cp3.button
+        if c3Btn then
+            c3Btn.Visible = isShader
         end
         for _, el in ipairs(shaderElems) do
-            if el and el.row then
-                el.row.Visible = isShader
-            end
+            local r = getRow(el)
+            if r then r.Visible = isShader end
         end
         for _, el in ipairs(adornElems) do
-            if el and el.row then
-                el.row.Visible = not isShader
-            end
+            local r = getRow(el)
+            if r then r.Visible = not isShader end
         end
     end
 
@@ -4495,6 +4499,6 @@ function Stardust.unload()
     win:unload()
 end
 
-env.Stardust = Stardust
+if env then env.Stardust = Stardust end
 
 return Stardust

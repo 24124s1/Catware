@@ -12,30 +12,11 @@ local rgb = Color3.fromRGB
 
 local espModule = {}
 
-local KEY_COLOR = rgb(255, 0, 255)
-
-local function entitySettings(p)
-    return {
-        Enabled = false,
-        BoxEnabled = false, BoxType = "Corner", Thickness = 1, LineColor = p.main,
-        BoxGlow = false,
-        BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
-        BoxFillRotation = 0, BoxFillSpeed = 2,
-        Chams = false,
-        Names = false, NameType = "Display", NameColor = p.text1, NameColor2 = p.text2,
-        Distance = false, DistanceColor = p.text1, DistanceColor2 = p.text2,
-        Tool = false, ToolColor = p.text1, ToolColor2 = p.text2,
-        Flags = false, SelectedFlags = {"Walking", "Jumping", "Swimming", "Dih"},
-        FlagColor1 = rgb(255, 255, 255), FlagColor2 = rgb(200, 200, 200),
-        HealthBar = false, HealthText = false,
-        HealthHigh = p.health[1], HealthMid = p.health[2], HealthLow = p.health[3],
-        ArmorBar = false, ArmorHigh = rgb(0, 255, 0), ArmorMid = rgb(255, 255, 0), ArmorLow = rgb(255, 0, 0),
-        HeadDot = false, HeadDotColor = rgb(255, 255, 255), HeadDotSize = 20, HeadDotOutlineThickness = 1,
-        Skeleton = false, SkeletonThickness = 1, SkeletonColor = p.main, SkeletonColor2 = p.skel2,
-        Tracers = false, TracerThickness = 1, TracerOrigin = "Bottom", TracerColor = p.main,
-        TextSize = 12,
-    }
-end
+local KEY_COLORS = {
+    [0] = rgb(255, 0, 255),
+    [1] = rgb(0, 255, 255),
+    [2] = rgb(0, 0, 255),
+}
 
 local CHAMS_DESIGNS = {
     Borealis = {
@@ -82,27 +63,53 @@ local function chamsFromDesign(name, into)
     return into
 end
 
+local function entitySettings(p)
+    return {
+        Enabled = false,
+        BoxEnabled = false, BoxType = "Corner", Thickness = 1, LineColor = p.main,
+        BoxGlow = false,
+        BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
+        BoxFillRotation = 0, BoxFillSpeed = 2,
+        Chams = false, ChamsKey = p.key, ChamsSettings = chamsFromDesign(p.design),
+        Names = false, NameType = "Display", NameColor = p.text1, NameColor2 = p.text2, NamePos = "Top",
+        Distance = false, DistanceColor = p.text1, DistanceColor2 = p.text2, DistancePos = "Right",
+        Tool = false, ToolColor = p.text1, ToolColor2 = p.text2, ToolPos = "Bottom",
+        Flags = false, SelectedFlags = {"Walking", "Jumping", "Swimming", "Dih"},
+        FlagColor1 = rgb(255, 255, 255), FlagColor2 = rgb(200, 200, 200), FlagsPos = "Right",
+        HealthBar = false, HealthText = false, HealthBarPos = "Left",
+        HealthHigh = p.health[1], HealthMid = p.health[2], HealthLow = p.health[3],
+        ArmorBar = false, ArmorBarPos = "Bottom",
+        ArmorHigh = rgb(0, 255, 0), ArmorMid = rgb(255, 255, 0), ArmorLow = rgb(255, 0, 0),
+        HeadDot = false, HeadDotColor = rgb(255, 255, 255), HeadDotSize = 20, HeadDotOutlineThickness = 1,
+        Skeleton = false, SkeletonThickness = 1, SkeletonColor = p.main, SkeletonColor2 = p.skel2,
+        Tracers = false, TracerThickness = 1, TracerOrigin = "Bottom", TracerColor = p.main,
+        TextSize = 12,
+    }
+end
+
 espModule.Settings = {
     RefreshRate = 144,
     MaxDistance = 1200,
     BoxMode = "Dynamic",
     BoxSmoothing = 0,
-    ChamsSettings = chamsFromDesign("Borealis"),
     TextFont = "Gojiberry Quibble",
     FlagsFont = "Gojiberry Quibble",
     HealthFont = "Gojiberry Quibble",
     TextGradientAnimated = true,
     Enemy = entitySettings({
+        key = 0, design = "Borealis",
         main = rgb(255, 80, 80), fill1 = rgb(255, 80, 80), fill2 = rgb(255, 40, 40), skel2 = rgb(200, 200, 200),
         text1 = rgb(255, 255, 255), text2 = rgb(200, 200, 200),
         health = {rgb(0, 255, 100), rgb(255, 255, 0), rgb(255, 40, 40)},
     }),
     Teammate = entitySettings({
+        key = 1, design = "Hologram",
         main = rgb(0, 180, 255), fill1 = rgb(0, 180, 255), fill2 = rgb(0, 100, 200), skel2 = rgb(100, 150, 200),
         text1 = rgb(180, 230, 255), text2 = rgb(100, 150, 200),
         health = {rgb(0, 200, 255), rgb(100, 200, 255), rgb(30, 80, 140)},
     }),
     AI = entitySettings({
+        key = 2, design = "Inferno",
         main = rgb(255, 200, 50), fill1 = rgb(255, 200, 50), fill2 = rgb(255, 150, 0), skel2 = rgb(200, 150, 50),
         text1 = rgb(255, 255, 255), text2 = rgb(200, 200, 200),
         health = {rgb(0, 255, 100), rgb(255, 255, 0), rgb(255, 40, 40)},
@@ -125,6 +132,7 @@ espModule.ChamsDesigns = CHAMS_DESIGNS
 espModule.ChamsDesignNames = CHAMS_DESIGN_NAMES
 espModule.ChamsPresetNames = CHAMS_DESIGN_NAMES
 espModule.ChamsPresets = CHAMS_DESIGNS
+espModule.KeyColors = KEY_COLORS
 
 local registryListeners = {}
 local fontListeners = {}
@@ -174,14 +182,23 @@ function espModule.GetChamsPresetNames()
     return CHAMS_DESIGN_NAMES
 end
 
-function espModule:SetChamsDesign(name)
+function espModule:SetChamsDesign(name, target)
     if not CHAMS_DESIGNS[name] then return false end
-    chamsFromDesign(name, self.Settings.ChamsSettings)
+    local s = self.Settings
+    local groups = {s.Enemy, s.Teammate, s.AI}
+    if type(target) == "string" then
+        groups = {s[target]}
+    elseif type(target) == "table" then
+        groups = {target}
+    end
+    for _, g in ipairs(groups) do
+        if g and g.ChamsSettings then chamsFromDesign(name, g.ChamsSettings) end
+    end
     return true
 end
 
-function espModule:SetChamsPreset(name)
-    return self:SetChamsDesign(name)
+function espModule:SetChamsPreset(name, target)
+    return self:SetChamsDesign(name, target)
 end
 
 function espModule:AddFlag(name, func)
@@ -338,6 +355,93 @@ function espModule.HealthColor(t, high, mid, low)
     return low:Lerp(mid, t * 2)
 end
 
+local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
+
+function espModule.Layout(cfg, x, y, w, h, o)
+    local size = o.size or 12
+    local step = size + 1
+    local ratio = o.ratio or 1
+    local out = { flagLines = {} }
+    local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
+    local rows = { Left = 0, Right = 0 }
+
+    local function pick(v, d)
+        if SIDE_OK[v] then return v end
+        return d
+    end
+
+    local function placeBar(key, side)
+        local rx, ry, rw, rh, vertical
+        if side == "Left" then
+            rx, ry, rw, rh, vertical = x - 4 - off.Left, y, 1, h, true
+        elseif side == "Right" then
+            rx, ry, rw, rh, vertical = x + w + 3 + off.Right, y, 1, h, true
+        elseif side == "Top" then
+            rx, ry, rw, rh, vertical = x, y - 4 - off.Top, w, 1, false
+        else
+            rx, ry, rw, rh, vertical = x, y + h + 3 + off.Bottom, w, 1, false
+        end
+        out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
+        off[side] += 4
+        return rx, ry
+    end
+
+    if o.health then
+        local side = pick(cfg.HealthBarPos, "Left")
+        local rx, ry = placeBar("health", side)
+        if cfg.HealthText then
+            local ty = math.clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
+            local tx = math.clamp(x + w * ratio, x, x + w)
+            if side == "Left" then
+                out.healthText = { x = rx - 3, y = ty, ax = 1, ay = 0 }
+                off.Left += 16
+            elseif side == "Right" then
+                out.healthText = { x = rx + 4, y = ty, ax = 0, ay = 0 }
+                off.Right += 16
+            elseif side == "Top" then
+                out.healthText = { x = tx, y = ry - 2, ax = 0.5, ay = 1 }
+                off.Top += size + 2
+            else
+                out.healthText = { x = tx, y = ry + 4, ax = 0.5, ay = 0 }
+                off.Bottom += size + 2
+            end
+        end
+    end
+
+    if o.armor then
+        placeBar("armor", pick(cfg.ArmorBarPos, "Bottom"))
+    end
+
+    local function placeText(side)
+        local p
+        if side == "Top" then
+            p = { x = x + w * 0.5, y = y - 3 - off.Top, ax = 0.5, ay = 1 }
+            off.Top += step
+        elseif side == "Bottom" then
+            p = { x = x + w * 0.5, y = y + h + 3 + off.Bottom, ax = 0.5, ay = 0 }
+            off.Bottom += step
+        elseif side == "Left" then
+            p = { x = x - 4 - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
+            rows.Left += 1
+        else
+            p = { x = x + w + 4 + off.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
+            rows.Right += 1
+        end
+        return p
+    end
+
+    if cfg.Names then out.name = placeText(pick(cfg.NamePos, "Top")) end
+    if cfg.Distance then out.distance = placeText(pick(cfg.DistancePos, "Right")) end
+    if cfg.Tool then out.tool = placeText(pick(cfg.ToolPos, "Bottom")) end
+    local fc = o.flagCount or 0
+    if cfg.Flags and fc > 0 then
+        local side = pick(cfg.FlagsPos, "Right")
+        for i = 1, fc do out.flagLines[i] = placeText(side) end
+    end
+
+    return out
+end
+
 local SHADER_VERTEX = [[
 struct VSOut {
 	float4 pos : SV_POSITION;
@@ -363,18 +467,78 @@ cbuffer Params : register(b0) {
 };
 
 cbuffer User : register(b1) {
-	float3 color1;
-	float3 color2;
-	float3 color3;
-	float  colorCount;
-	float  brightness;
-	float  contrast;
-	float  glowIntensity;
-	float  glowSpread;
-	float  speed;
-	float  scale;
-	float  style;
+	float3 g0_color1;
+	float3 g0_color2;
+	float3 g0_color3;
+	float  g0_colorCount;
+	float  g0_brightness;
+	float  g0_contrast;
+	float  g0_glowIntensity;
+	float  g0_glowSpread;
+	float  g0_speed;
+	float  g0_scale;
+	float  g0_style;
+	float  g0_enabled;
+
+	float3 g1_color1;
+	float3 g1_color2;
+	float3 g1_color3;
+	float  g1_colorCount;
+	float  g1_brightness;
+	float  g1_contrast;
+	float  g1_glowIntensity;
+	float  g1_glowSpread;
+	float  g1_speed;
+	float  g1_scale;
+	float  g1_style;
+	float  g1_enabled;
+
+	float3 g2_color1;
+	float3 g2_color2;
+	float3 g2_color3;
+	float  g2_colorCount;
+	float  g2_brightness;
+	float  g2_contrast;
+	float  g2_glowIntensity;
+	float  g2_glowSpread;
+	float  g2_speed;
+	float  g2_scale;
+	float  g2_style;
+	float  g2_enabled;
 };
+
+struct Grp {
+	float3 c1;
+	float3 c2;
+	float3 c3;
+	float cc;
+	float br;
+	float ct;
+	float gi;
+	float gs;
+	float sp;
+	float sc;
+	float st;
+	float en;
+};
+
+Grp getGrp(int i) {
+	Grp g;
+	if (i == 0) {
+		g.c1 = g0_color1; g.c2 = g0_color2; g.c3 = g0_color3; g.cc = g0_colorCount;
+		g.br = g0_brightness; g.ct = g0_contrast; g.gi = g0_glowIntensity; g.gs = g0_glowSpread;
+		g.sp = g0_speed; g.sc = g0_scale; g.st = g0_style; g.en = g0_enabled;
+	} else if (i == 1) {
+		g.c1 = g1_color1; g.c2 = g1_color2; g.c3 = g1_color3; g.cc = g1_colorCount;
+		g.br = g1_brightness; g.ct = g1_contrast; g.gi = g1_glowIntensity; g.gs = g1_glowSpread;
+		g.sp = g1_speed; g.sc = g1_scale; g.st = g1_style; g.en = g1_enabled;
+	} else {
+		g.c1 = g2_color1; g.c2 = g2_color2; g.c3 = g2_color3; g.cc = g2_colorCount;
+		g.br = g2_brightness; g.ct = g2_contrast; g.gi = g2_glowIntensity; g.gs = g2_glowSpread;
+		g.sp = g2_speed; g.sc = g2_scale; g.st = g2_style; g.en = g2_enabled;
+	}
+	return g;
+}
 
 float hash21(float2 p) {
 	p = frac(p * float2(127.1, 311.7));
@@ -408,42 +572,84 @@ float fbm(float2 p) {
 	return v;
 }
 
-float3 palette(float x) {
+float3 palette(float x, Grp g) {
 	x = saturate(x);
-	if (colorCount < 1.5) {
-		return color1 * lerp(0.15, 1.0, x);
+	if (g.cc < 1.5) {
+		return g.c1 * lerp(0.15, 1.0, x);
 	}
-	if (colorCount < 2.5) {
-		return lerp(color1, color2, x);
+	if (g.cc < 2.5) {
+		return lerp(g.c1, g.c2, x);
 	}
-	float3 a = lerp(color1, color2, saturate(x * 2.0));
-	return lerp(a, color3, saturate((x - 0.5) * 2.0));
+	float3 a = lerp(g.c1, g.c2, saturate(x * 2.0));
+	return lerp(a, g.c3, saturate((x - 0.5) * 2.0));
 }
 
-float3 glowCol() {
-	if (colorCount > 2.5) return color3;
-	if (colorCount > 1.5) return color2;
-	return color1;
+float3 glowCol(Grp g) {
+	if (g.cc > 2.5) return g.c3;
+	if (g.cc > 1.5) return g.c2;
+	return g.c1;
 }
 
-float keyAmount(float3 c) {
-	float mx = max(c.r, c.b);
-	float mn = min(c.r, c.b);
+float keyAmount(float3 c, int k) {
+	if (k == 2) {
+		float s2 = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
+		float l2 = smoothstep(0.35, 0.6, c.b);
+		return smoothstep(0.6, 0.85, s2) * l2;
+	}
+	float lo = c.g;
+	float a = c.r;
+	float b = c.b;
+	if (k == 1) {
+		lo = c.r;
+		a = c.g;
+	}
+	float mx = max(a, b);
+	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
-	float s = (mn - c.g) * inv;
-	float bal = 1.0 - smoothstep(0.25, 0.5, abs(c.r - c.b) * inv);
+	float s = (mn - lo) * inv;
+	float bal = 1.0 - smoothstep(0.25, 0.5, abs(a - b) * inv);
 	float lum = smoothstep(0.25, 0.5, mn);
 	return smoothstep(0.45, 0.7, s) * bal * lum;
 }
 
-float fringeAmount(float3 c) {
-	float mx = max(c.r, c.b);
-	float mn = min(c.r, c.b);
+float fringeAmount(float3 c, int k) {
+	if (k == 2) {
+		float s2 = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
+		float l2 = smoothstep(0.1, 0.3, c.b);
+		return smoothstep(0.3, 0.6, s2) * l2;
+	}
+	float lo = c.g;
+	float a = c.r;
+	float b = c.b;
+	if (k == 1) {
+		lo = c.r;
+		a = c.g;
+	}
+	float mx = max(a, b);
+	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
-	float s = (mn - c.g) * inv;
-	float bal = 1.0 - smoothstep(0.4, 0.8, abs(c.r - c.b) * inv);
+	float s = (mn - lo) * inv;
+	float bal = 1.0 - smoothstep(0.4, 0.8, abs(a - b) * inv);
 	float lum = smoothstep(0.08, 0.25, mn);
 	return smoothstep(0.1, 0.35, s) * bal * lum;
+}
+
+float3 cleanKey(float3 c, int k, float remove) {
+	if (k == 2) {
+		float e2 = max(c.b - max(c.r, c.g), 0.0);
+		c.b -= e2 * remove;
+		return c;
+	}
+	if (k == 0) {
+		float e0 = max(min(c.r, c.b) - c.g, 0.0);
+		c.r -= e0 * remove;
+		c.b -= e0 * remove;
+		return c;
+	}
+	float e1 = max(min(c.g, c.b) - c.r, 0.0);
+	c.g -= e1 * remove;
+	c.b -= e1 * remove;
+	return c;
 }
 
 float patAurora(float2 p, float t, out float extra) {
@@ -496,10 +702,11 @@ float patGalaxy(float2 p, float t, out float extra) {
 	return saturate(a * 0.6 + b * 0.6 - 0.1);
 }
 
-float3 evalPattern(float2 uv, float t) {
+float3 evalPattern(float2 uv, Grp g) {
+	float t = time * g.sp;
 	float aspect = resolution.x / max(resolution.y, 1.0);
-	float2 p = uv * float2(aspect, 1.0) * scale;
-	int st = (int)(style + 0.5);
+	float2 p = uv * float2(aspect, 1.0) * g.sc;
+	int st = (int)(g.st + 0.5);
 	float extra = 0.0;
 	float v;
 	if (st == 1) {
@@ -513,45 +720,40 @@ float3 evalPattern(float2 uv, float t) {
 	} else {
 		v = patAurora(p, t, extra);
 	}
-	float3 col = palette(v) + glowCol() * extra;
-	return pow(max(col, 0.0), contrast) * brightness;
+	float3 col = palette(v, g) + glowCol(g) * extra;
+	return pow(max(col, 0.0), g.ct) * g.br;
 }
 
 float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
-	float4 scene = Scene.Sample(Linear, uv);
-	float t = time * speed;
+	float3 src = Scene.Sample(Linear, uv).rgb;
+	float3 outc = src;
 
-	float mask = keyAmount(scene.rgb);
-
-	float bloom = 0.0;
-	if (glowIntensity > 0.001 && glowSpread > 0.01) {
-		float2 texel = glowSpread / max(resolution, float2(1.0, 1.0));
-		const int SAMPLES = 10;
-		for (int i = 0; i < SAMPLES; i++) {
-			float ang = (float(i) / float(SAMPLES)) * 6.2831853;
-			float2 dir = float2(cos(ang), sin(ang));
-			bloom += keyAmount(Scene.Sample(Linear, uv + dir * texel).rgb);
+	for (int k = 0; k < 3; k++) {
+		Grp g = getGrp(k);
+		if (g.en > 0.5) {
+			float mk = keyAmount(src, k);
+			float bl = 0.0;
+			if (g.gi > 0.001 && g.gs > 0.01) {
+				float2 texel = g.gs / max(resolution, float2(1.0, 1.0));
+				for (int i = 0; i < 10; i++) {
+					float ang = (float(i) / 10.0) * 6.2831853;
+					float2 dir = float2(cos(ang), sin(ang));
+					bl += keyAmount(Scene.SampleLevel(Linear, uv + dir * texel, 0).rgb, k);
+				}
+				bl /= 10.0;
+			}
+			float fr = fringeAmount(src, k) * saturate(bl * 4.0);
+			float rem = saturate(max(mk, fr));
+			outc = cleanKey(outc, k, rem);
+			if (mk > 0.001) {
+				outc = lerp(outc, evalPattern(uv, g), mk);
+			}
+			float edge = bl * (1.0 - mk) * smoothstep(0.15, 0.75, bl);
+			outc += glowCol(g) * edge * (g.gi * 1.1);
 		}
-		bloom /= float(SAMPLES);
 	}
 
-	float3 cleanScene = scene.rgb;
-	float fringe = fringeAmount(cleanScene) * saturate(bloom * 4.0);
-	float remove = saturate(max(mask, fringe));
-	float excess = max(min(cleanScene.r, cleanScene.b) - cleanScene.g, 0.0);
-	cleanScene.r -= excess * remove;
-	cleanScene.b -= excess * remove;
-
-	float3 finalRGB = cleanScene;
-
-	if (mask > 0.001) {
-		finalRGB = lerp(cleanScene, evalPattern(uv, t), mask);
-	}
-
-	float edgeGlow = bloom * (1.0 - mask) * smoothstep(0.15, 0.75, bloom);
-	finalRGB += glowCol() * edgeGlow * (glowIntensity * 1.1);
-
-	return float4(finalRGB, 1.0);
+	return float4(outc, 1.0);
 }
 ]]
 
@@ -1095,32 +1297,48 @@ local state = {
     dead = false,
     shader = nil,
     shaderParams = {},
+    use = { [0] = false, [1] = false, [2] = false },
 }
 
-local function pushShader()
-    local shader = state.shader
-    if not shader then return end
-    local c = espModule.Settings.ChamsSettings
-    local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
-    local params = {
-        color1 = c.Color1,
-        color2 = c.Color2,
-        color3 = c.Color3,
-        colorCount = math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3),
-        brightness = c.Brightness,
-        contrast = c.Contrast,
-        glowIntensity = c.Bloom,
-        glowSpread = c.BloomSpread,
-        speed = c.Speed,
-        scale = c.Scale,
-        style = design.Style,
+local PN = {}
+for k = 0, 2 do
+    local p = "g" .. k .. "_"
+    PN[k] = {
+        c1 = p .. "color1", c2 = p .. "color2", c3 = p .. "color3", cc = p .. "colorCount",
+        br = p .. "brightness", ct = p .. "contrast", gi = p .. "glowIntensity", gs = p .. "glowSpread",
+        sp = p .. "speed", sc = p .. "scale", st = p .. "style", en = p .. "enabled",
     }
+end
+
+local function put(name, v)
     local cache = state.shaderParams
-    for k, v in pairs(params) do
-        if cache[k] ~= v then
-            cache[k] = v
-            pcall(function() shader:Set(k, v) end)
-        end
+    if cache[name] ~= v then
+        cache[name] = v
+        local sh = state.shader
+        if sh then pcall(function() sh:Set(name, v) end) end
+    end
+end
+
+local function pushShader()
+    if not state.shader then return end
+    local s = espModule.Settings
+    for k = 0, 2 do
+        local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
+        local c = g.ChamsSettings
+        local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
+        local n = PN[k]
+        put(n.c1, c.Color1)
+        put(n.c2, c.Color2)
+        put(n.c3, c.Color3)
+        put(n.cc, math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3))
+        put(n.br, c.Brightness)
+        put(n.ct, c.Contrast)
+        put(n.gi, c.Bloom)
+        put(n.gs, c.BloomSpread)
+        put(n.sp, c.Speed)
+        put(n.sc, c.Scale)
+        put(n.st, design.Style)
+        put(n.en, state.use[k] and 1 or 0)
     end
 end
 
@@ -1497,15 +1715,20 @@ local function render(rec, cfg, rx, ry, rz, dist)
     end
 
     if chamsOn then
+        local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
         if not rec.hl then
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = KEY_COLOR
+            hl.FillColor = keyCol
             hl.FillTransparency = 0
-            hl.OutlineColor = KEY_COLOR
+            hl.OutlineColor = keyCol
             hl.OutlineTransparency = 1
             hl.Parent = state.gui
             rec.hl = hl
+        end
+        if rec.hl.FillColor ~= keyCol then
+            rec.hl.FillColor = keyCol
+            rec.hl.OutlineColor = keyCol
         end
         if rec.hl.Adornee ~= rec.character then
             rec.hl.Adornee = rec.character
@@ -1599,39 +1822,48 @@ local function render(rec, cfg, rx, ry, rz, dist)
         end
     end
 
-    if cfg.HealthBar and d.health then
-        renderer:Bar("health", x - 4, y, 1, h, d.health, true, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow, tr)
-        if cfg.HealthText then
-            local fillH = h * d.health
-            local ty = math.clamp(y + h - fillH - 5, y - 2, y + h - 10)
+    local lay = espModule.Layout(cfg, x, y, w, h, {
+        size = cfg.TextSize,
+        flagCount = (cfg.Flags and d.flags) and #d.flags or 0,
+        health = cfg.HealthBar and d.health ~= nil,
+        armor = cfg.ArmorBar and d.armor ~= nil,
+        ratio = d.health or 1,
+    })
+
+    if lay.health then
+        local r = lay.health
+        renderer:Bar("health", r.x, r.y, r.w, r.h, d.health, r.vertical, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow, tr)
+        if lay.healthText then
+            local p = lay.healthText
             local hCol = espModule.HealthColor(d.health, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
-            renderer:Text("hp", tostring(d.healthValue or 0), x - 7, ty, 1, 0, healthFont, cfg.TextSize, hCol, hCol, tr, false)
+            renderer:Text("hp", tostring(d.healthValue or 0), p.x, p.y, p.ax, p.ay, healthFont, cfg.TextSize, hCol, hCol, tr, false)
         end
     end
 
-    if cfg.ArmorBar and d.armor then
+    if lay.armor then
+        local r = lay.armor
         local armRatio = math.clamp(d.armor / 100, 0, 1)
-        renderer:Bar("armor", x, y + h + 4, w, 1, armRatio, false, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
+        renderer:Bar("armor", r.x, r.y, r.w, r.h, armRatio, r.vertical, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
     end
 
-    if cfg.Names and d.name then
-        renderer:Text("name", d.name, x + w * 0.5, y - 4, 0.5, 1, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
+    if lay.name and d.name then
+        local p = lay.name
+        renderer:Text("name", d.name, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
     end
 
-    if cfg.Distance then
-        renderer:Text("dist", "[" .. meters .. "m]", x + w + 4, y - 1, 0, 0, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
+    if lay.distance then
+        local p = lay.distance
+        renderer:Text("dist", "[" .. meters .. "m]", p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
     end
 
-    if cfg.Tool and d.tool then
-        local toolOffset = cfg.ArmorBar and 8 or 2
-        renderer:Text("tool", d.tool, x + w * 0.5, y + h + toolOffset, 0.5, 0, textFont, cfg.TextSize, cfg.ToolColor, cfg.ToolColor2, tr, settings.TextGradientAnimated)
+    if lay.tool and d.tool then
+        local p = lay.tool
+        renderer:Text("tool", d.tool, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.ToolColor, cfg.ToolColor2, tr, settings.TextGradientAnimated)
     end
 
-    if cfg.Flags and d.flags and #d.flags > 0 then
-        local flagsY = cfg.Distance and (y + 12) or (y - 1)
-        for i = 1, #d.flags do
-            renderer:Text("flag" .. i, d.flags[i], x + w + 4, flagsY + (i - 1) * (cfg.TextSize + 1), 0, 0, flagsFont, cfg.TextSize, cfg.FlagColor1, cfg.FlagColor2, tr, settings.TextGradientAnimated)
-        end
+    for i = 1, #lay.flagLines do
+        local p = lay.flagLines[i]
+        renderer:Text("flag" .. i, d.flags[i], p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.FlagColor1, cfg.FlagColor2, tr, settings.TextGradientAnimated)
     end
 
     if cfg.Tracers then
@@ -2021,9 +2253,9 @@ local function setChamHighlight(meta, key, adornee)
     if not hl then
         hl = Instance.new("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.FillColor = KEY_COLOR
+        hl.FillColor = KEY_COLORS[2]
         hl.FillTransparency = 0
-        hl.OutlineColor = KEY_COLOR
+        hl.OutlineColor = KEY_COLORS[2]
         hl.OutlineTransparency = 1
         hl.Parent = state.gui
         meta[key] = hl
@@ -2178,11 +2410,11 @@ local function step()
         clearItems()
     end
 
-    local anyChams = (settings.Enemy.Enabled and settings.Enemy.Chams)
-        or (settings.Teammate.Enabled and settings.Teammate.Chams)
-        or (settings.AI.Enabled and settings.AI.Chams)
-        or (settings.Items.Enabled and settings.Items.Chams)
-    if anyChams then
+    local use = state.use
+    use[0] = settings.Enemy.Enabled and settings.Enemy.Chams
+    use[1] = settings.Teammate.Enabled and settings.Teammate.Chams
+    use[2] = (settings.AI.Enabled and settings.AI.Chams) or (settings.Items.Enabled and settings.Items.Chams)
+    if use[0] or use[1] or use[2] then
         ensureShader()
         pushShader()
     elseif state.shader then

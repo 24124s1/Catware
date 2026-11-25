@@ -4271,26 +4271,52 @@ local function addESPSection(sec, tbl, prefix)
 
     local cs = tbl.ChamsSettings
     local chams = sec:toggle({name = "Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
-    chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
-    chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
-    chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
+    local cp1 = chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
+    local cp2 = chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
+    local cp3 = chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
+
     local chamsPop = chams:gear({title = "Chams Options"})
-    chamsPop:dropdown({name = "Chams Type", items = {"Shader", "Adornment"}, default = tbl.ChamsType or "Shader", flag = prefix.."_chams_type", callback = function(v) tbl.ChamsType = v end})
-    chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
+    local shaderElems = {}
+
+    local function syncChamsUI(mode)
+        local isShader = (mode == "Shader")
+        if cp3 and cp3.button then
+            cp3.button.Visible = isShader
+        end
+        for _, el in ipairs(shaderElems) do
+            if el and el.row then
+                el.row.Visible = isShader
+            end
+        end
+    end
+
+    chamsPop:dropdown({
+        name = "Chams Type",
+        items = {"Shader", "Adornment"},
+        default = tbl.ChamsType or "Shader",
+        flag = prefix.."_chams_type",
+        callback = function(v)
+            tbl.ChamsType = v
+            syncChamsUI(v)
+        end
+    })
+
+    shaderElems[#shaderElems + 1] = chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
         ESP:SetChamsDesign(v, tbl)
         for i = 1, 3 do
             local setter = win.setters[prefix.."_chams_c"..i]
             if setter then pcall(setter, cs["Color" .. i]) end
         end
     end})
-    chamsPop:slider({name = "Colors", min = 1, max = 3, default = cs.ColorCount, interval = 1, flag = prefix.."_chams_colors", callback = function(v) cs.ColorCount = v end})
-    chamsPop:slider({name = "Bloom", min = 0, max = 1.5, default = cs.Bloom, interval = 0.05, flag = prefix.."_chams_bloom", callback = function(v) cs.Bloom = v end})
-    chamsPop:slider({name = "Bloom Spread", min = 0, max = 12, default = cs.BloomSpread, interval = 0.5, flag = prefix.."_chams_spread", callback = function(v) cs.BloomSpread = v end})
-    chamsPop:slider({name = "Brightness", min = 0.5, max = 2, default = cs.Brightness, interval = 0.05, flag = prefix.."_chams_brightness", callback = function(v) cs.Brightness = v end})
-    chamsPop:slider({name = "Contrast", min = 0.5, max = 2, default = cs.Contrast, interval = 0.05, flag = prefix.."_chams_contrast", callback = function(v) cs.Contrast = v end})
-    chamsPop:slider({name = "Speed", min = 0, max = 4, default = cs.Speed, interval = 0.05, flag = prefix.."_chams_speed", callback = function(v) cs.Speed = v end})
-    chamsPop:slider({name = "Scale", min = 0.5, max = 8, default = cs.Scale, interval = 0.1, flag = prefix.."_chams_scale", callback = function(v) cs.Scale = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Colors", min = 1, max = 3, default = cs.ColorCount, interval = 1, flag = prefix.."_chams_colors", callback = function(v) cs.ColorCount = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Bloom", min = 0, max = 1.5, default = cs.Bloom, interval = 0.05, flag = prefix.."_chams_bloom", callback = function(v) cs.Bloom = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Bloom Spread", min = 0, max = 12, default = cs.BloomSpread, interval = 0.5, flag = prefix.."_chams_spread", callback = function(v) cs.BloomSpread = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Brightness", min = 0.5, max = 2, default = cs.Brightness, interval = 0.05, flag = prefix.."_chams_brightness", callback = function(v) cs.Brightness = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Contrast", min = 0.5, max = 2, default = cs.Contrast, interval = 0.05, flag = prefix.."_chams_contrast", callback = function(v) cs.Contrast = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Speed", min = 0, max = 4, default = cs.Speed, interval = 0.05, flag = prefix.."_chams_speed", callback = function(v) cs.Speed = v end})
+    shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Scale", min = 0.5, max = 8, default = cs.Scale, interval = 0.1, flag = prefix.."_chams_scale", callback = function(v) cs.Scale = v end})
 
+    syncChamsUI(tbl.ChamsType or "Shader")
     local names = sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
     names:colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
     names:colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})

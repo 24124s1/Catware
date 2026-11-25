@@ -385,9 +385,9 @@ function espModule.Layout(cfg, x, y, w, h, o)
         return d
     end
 
-local function placeBar(key, side)
-        local gap = math.clamp(math.floor(math.min(w, h) * 0.04 + 0.5), 2, 5)
+	local function placeBar(key, side)
         local rx, ry, rw, rh, vertical
+        local gap = 4
         if side == "Left" then
             rx, ry, rw, rh, vertical = x - gap - 1 - off.Left, y, 1, h, true
             off.Left += gap + 1

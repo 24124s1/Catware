@@ -1806,7 +1806,8 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-	if chamsType == "Adornment" then
+	if cfg.Chams then
+        if chamsType == "Adornment" then
             if rec.hl then rec.hl.Enabled = false end
             local c1 = cfg.ChamsSettings.Color1
             local c2 = cfg.ChamsSettings.Color2

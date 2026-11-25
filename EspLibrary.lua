@@ -13,9 +13,9 @@ local rgb = Color3.fromRGB
 local espModule = {}
 
 local KEY_COLORS = {
-    [0] = rgb(255, 0, 255),
-    [1] = rgb(0, 255, 255),
-    [2] = rgb(0, 0, 255),
+    [0] = rgb(255, 0, 128),
+    [1] = rgb(0, 255, 128),
+    [2] = rgb(0, 64, 255),
 }
 
 local CHAMS_DESIGNS = {
@@ -626,8 +626,8 @@ float3 glowCol(Grp g) {
 float keyAmount(float3 c, int k) {
 	if (k == 2) {
 		float s = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l = smoothstep(0.55, 0.82, c.b);
-		return smoothstep(0.86, 0.97, s) * l;
+		float l = smoothstep(0.6, 0.85, c.b);
+		return smoothstep(0.9, 0.98, s) * l;
 	}
 
 	float lo, a, b;
@@ -645,9 +645,9 @@ float keyAmount(float3 c, int k) {
 	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
 	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.12, 0.32, abs(a - b) * inv);
-	float lum = smoothstep(0.45, 0.75, mn);
-	return smoothstep(0.82, 0.96, s) * bal * lum;
+	float bal = 1.0 - smoothstep(0.08, 0.25, abs(a - b) * inv);
+	float lum = smoothstep(0.5, 0.8, mn);
+	return smoothstep(0.88, 0.97, s) * bal * lum;
 }
 
 float fringeAmount(float3 c, int k) {

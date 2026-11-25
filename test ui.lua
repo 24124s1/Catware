@@ -2965,6 +2965,14 @@ function Column:preview(o)
     local toolT = newText(ov, 0.5, 0, 5)
     local hpT   = newText(ov, 1, 0, 5)
 
+    local hoverGlow = new("ImageLabel", {
+        Parent = ov, Image = "rbxassetid://110204605000367", ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(v2(21, 21), v2(79, 79)), BackgroundTransparency = 1,
+        ImageColor3 = T("accent"), ImageTransparency = 0.3, Visible = false, ZIndex = 8,
+    })
+    local hoverBox = new("Frame", { Parent = ov, BackgroundTransparency = 1, Visible = false, ZIndex = 9 })
+    stroke(hoverBox, "accent")
+
     local statusLbl = label(ov, "Loading", "mute", dim2(0, 6, 0.5, -6), dim2(1, -12, 0, 12), ACenter)
     statusLbl.ZIndex = 5
     local errLbl = new("TextLabel", {
@@ -2985,34 +2993,41 @@ function Column:preview(o)
     local dragging, lastX, lastDrag = false, 0, 0
     local hpKey, arKey = nil, nil
 
-    local espOx, espOy = 0, 0
-    local dragMode = nil
-    local dragFrom = v2(0, 0)
-    local startOx, startOy = 0, 0
-    local lastRect = nil
+    local ORDER = { "name", "distance", "tool", "health", "armor" }
+    local POS_FLAG = {
+        name = "name_pos", distance = "distance_pos", tool = "tool_pos",
+        health = "healthbar_pos", armor = "armorbar_pos",
+    }
+    local POS_DEFAULT = {
+        name_pos = "Top", distance_pos = "Right", tool_pos = "Bottom",
+        healthbar_pos = "Left", armorbar_pos = "Bottom",
+    }
+    local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
+
+    local elems = {}
+    local hoverKey = nil
+    local dragEl, dragPrefix = nil, nil
 
     rotBtn.MouseButton1Down:Connect(function()
-        local rel = lib:mouse() - area.AbsolutePosition
-        local r = lastRect
-        if r and rel.X >= r.x - 40 and rel.X <= r.x + r.w + 40 and rel.Y >= r.y - 20 and rel.Y <= r.y + r.h + 20 then
-            dragMode = "esp"
-            dragFrom = rel
-            startOx, startOy = espOx, espOy
+        if hoverKey then
+            dragEl = hoverKey
+            dragPrefix = last
         else
-            dragMode = "rot"
             dragging = true
             lastX = UIS:GetMouseLocation().X
             lastDrag = tick()
         end
     end)
     rotBtn.MouseButton2Click:Connect(function()
-        espOx, espOy = 0, 0
-        ov.Position = off(0, 0)
+        for flag, side in pairs(POS_DEFAULT) do
+            local fn = lib.setters[last .. "_" .. flag]
+            if fn then pcall(fn, side) end
+        end
     end)
     lib:connect(UIS.InputEnded, function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
-            dragMode = nil
+            dragEl = nil
         end
     end)
 
@@ -3038,7 +3053,7 @@ function Column:preview(o)
         return f or UI.font, f ~= nil
     end
 
-    local function putText(t, text, fontName, size, c1, c2, rotation, px, py)
+    local function putText(t, text, fontName, size, c1, c2, rotation, p)
         local lbl = t.label
         if t.text ~= text then lbl.Text = text; t.text = text end
         local f, loaded = espFont(fontName)
@@ -3050,8 +3065,99 @@ function Column:preview(o)
             t.c1, t.c2 = c1, c2
         end
         t.grad.Rotation = rotation
-        lbl.Position = off(px, py)
+        if t.ax ~= p.ax or t.ay ~= p.ay then
+            t.ax, t.ay = p.ax, p.ay
+            lbl.AnchorPoint = v2(p.ax, p.ay)
+            lbl.TextXAlignment = p.ax == 0 and ALeft or (p.ax == 1 and ARight or ACenter)
+            lbl.TextYAlignment = p.ay == 0 and YTop or (p.ay == 1 and YBot or YMid)
+        end
+        lbl.Position = off(p.x, p.y)
         lbl.Visible = true
+    end
+
+    local function textRect(t, p)
+        local sz = t.label.AbsoluteSize
+        return p.x - p.ax * sz.X, p.y - p.ay * sz.Y, sz.X, sz.Y
+    end
+
+    local function layoutPreview(cfg, x, y, w, h, opt)
+        local size = opt.size or 12
+        local step = size + 1
+        local ratio = opt.ratio or 1
+        local out = {}
+        local offs = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
+        local rows = { Left = 0, Right = 0 }
+
+        local function pick(v, d)
+            if SIDE_OK[v] then return v end
+            return d
+        end
+
+        local function placeBar(key, side)
+            local rx, ry, rw, rh, vertical
+            if side == "Left" then
+                rx, ry, rw, rh, vertical = x - 4 - offs.Left, y, 1, h, true
+            elseif side == "Right" then
+                rx, ry, rw, rh, vertical = x + w + 3 + offs.Right, y, 1, h, true
+            elseif side == "Top" then
+                rx, ry, rw, rh, vertical = x, y - 4 - offs.Top, w, 1, false
+            else
+                rx, ry, rw, rh, vertical = x, y + h + 3 + offs.Bottom, w, 1, false
+            end
+            out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
+            offs[side] += 4
+            return rx, ry
+        end
+
+        if opt.health then
+            local side = pick(cfg.HealthBarPos, "Left")
+            local rx, ry = placeBar("health", side)
+            if cfg.HealthText then
+                local ty = math.clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
+                local tx = math.clamp(x + w * ratio, x, x + w)
+                if side == "Left" then
+                    out.healthText = { x = rx - 3, y = ty, ax = 1, ay = 0 }
+                    offs.Left += 16
+                elseif side == "Right" then
+                    out.healthText = { x = rx + 4, y = ty, ax = 0, ay = 0 }
+                    offs.Right += 16
+                elseif side == "Top" then
+                    out.healthText = { x = tx, y = ry - 2, ax = 0.5, ay = 1 }
+                    offs.Top += size + 2
+                else
+                    out.healthText = { x = tx, y = ry + 4, ax = 0.5, ay = 0 }
+                    offs.Bottom += size + 2
+                end
+            end
+        end
+
+        if opt.armor then
+            placeBar("armor", pick(cfg.ArmorBarPos, "Bottom"))
+        end
+
+        local function placeText(side)
+            local p
+            if side == "Top" then
+                p = { x = x + w * 0.5, y = y - 3 - offs.Top, ax = 0.5, ay = 1 }
+                offs.Top += step
+            elseif side == "Bottom" then
+                p = { x = x + w * 0.5, y = y + h + 3 + offs.Bottom, ax = 0.5, ay = 0 }
+                offs.Bottom += step
+            elseif side == "Left" then
+                p = { x = x - 4 - offs.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
+                rows.Left += 1
+            else
+                p = { x = x + w + 4 + offs.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
+                rows.Right += 1
+            end
+            return p
+        end
+
+        if cfg.Names then out.name = placeText(pick(cfg.NamePos, "Top")) end
+        if cfg.Distance then out.distance = placeText(pick(cfg.DistancePos, "Right")) end
+        if cfg.Tool then out.tool = placeText(pick(cfg.ToolPos, "Bottom")) end
+
+        return out
     end
 
     local function applyTint(want, fillTr)
@@ -3090,6 +3196,10 @@ function Column:preview(o)
         distT.label.Visible = false
         toolT.label.Visible = false
         hpT.label.Visible = false
+        hoverGlow.Visible = false
+        hoverBox.Visible = false
+        hoverKey = nil
+        table.clear(elems)
     end
 
     local ensure
@@ -3146,8 +3256,6 @@ function Column:preview(o)
     local function render(dt)
         if not (lib.root.Visible and tab.page.Visible) then return end
 
-        lastRect = nil
-
         local want = lib.flags.preview_model or "Local Player"
         if want ~= currentName and not loading then switchTo(want) end
 
@@ -3167,7 +3275,7 @@ function Column:preview(o)
             return
         end
 
-        if dragging and dragMode == "rot" then
+        if dragging then
             local mx = UIS:GetMouseLocation().X
             rot = rot + (mx - lastX) * 0.012
             lastX = mx
@@ -3180,13 +3288,6 @@ function Column:preview(o)
         local w, h = area.AbsoluteSize.X, area.AbsoluteSize.Y
         if w < 20 or h < 20 then return end
 
-        if dragMode == "esp" then
-            local rel = lib:mouse() - area.AbsolutePosition
-            espOx = clamp(startOx + (rel.X - dragFrom.X), -w * 0.5, w * 0.5)
-            espOy = clamp(startOy + (rel.Y - dragFrom.Y), -h * 0.5, h * 0.5)
-        end
-        ov.Position = off(espOx, espOy)
-
         local tanHalf = math.tan(math.rad(cam.FieldOfView) / 2)
         local distV = (current.height * 0.5) / (0.8 * tanHalf)
         local distH = current.radius / (0.85 * tanHalf * (w / h))
@@ -3196,7 +3297,9 @@ function Column:preview(o)
 
         local mm = tab.activeMulti
         local nm = mm and lower(mm.name) or "enemy"
-        if nm == "enemy" or nm == "team" or nm == "ai" then last = nm end
+        if nm == "enemy" or nm == "team" or nm == "ai" then
+            if not dragEl then last = nm end
+        end
 
         if not on("enabled") then
             hideAll()
@@ -3224,7 +3327,24 @@ function Column:preview(o)
         local sx = math.max(floor(maxX - minX + pad * 2 + 0.5), 8)
         local sy = math.max(floor(maxY - minY + pad * 2 + 0.5), 8)
 
-        lastRect = { x = x + espOx, y = y + espOy, w = sx, h = sy }
+        local mrel = lib:mouse() - area.AbsolutePosition
+
+        if dragEl then
+            local cx, cy = x + sx * 0.5, y + sy * 0.5
+            local nx = (mrel.X - cx) / (sx * 0.5)
+            local ny = (mrel.Y - cy) / (sy * 0.5)
+            local side
+            if math.abs(nx) > math.abs(ny) then
+                side = nx < 0 and "Left" or "Right"
+            else
+                side = ny < 0 and "Top" or "Bottom"
+            end
+            local flag = POS_FLAG[dragEl]
+            if str(flag, POS_DEFAULT[flag]) ~= side then
+                local fn = lib.setters[dragPrefix .. "_" .. flag]
+                if fn then pcall(fn, side) end
+            end
+        end
 
         local showBox = on("box")
         local boxType = str("box_type", "Corner")
@@ -3341,13 +3461,44 @@ function Column:preview(o)
         local hi = col("health_high", rgb(0, 255, 100))
         local mid = col("health_mid", rgb(255, 255, 0))
         local lo = col("health_low", rgb(255, 40, 40))
+        local healthOn = on("healthbar")
         local armorOn = on("armorbar")
 
-        if on("healthbar") then
-            hpBack.Position = off(x - 4, y)
-            hpBack.Size = off(1, sy)
+        local lay = layoutPreview({
+            HealthBarPos = str("healthbar_pos", "Left"),
+            HealthText = on("healthtext"),
+            ArmorBarPos = str("armorbar_pos", "Bottom"),
+            Names = on("names"), NamePos = str("name_pos", "Top"),
+            Distance = on("distance"), DistancePos = str("distance_pos", "Right"),
+            Tool = on("tool"), ToolPos = str("tool_pos", "Bottom"),
+        }, x, y, sx, sy, { size = size, ratio = hpRatio, health = healthOn, armor = armorOn })
+
+        table.clear(elems)
+        local function addRect(key, rx, ry, rw, rh)
+            local list = elems[key]
+            if not list then
+                list = {}
+                elems[key] = list
+            end
+            list[#list + 1] = { x = rx, y = ry, w = rw, h = rh }
+        end
+
+        if lay.health then
+            local r = lay.health
+            hpBack.Position = off(r.x, r.y)
+            hpBack.Size = off(r.w, r.h)
             hpBack.Visible = true
-            hpFill.Size = dim2(1, 0, hpRatio, 0)
+            if r.vertical then
+                hpFill.AnchorPoint = v2(0, 1)
+                hpFill.Position = dim2(0, 0, 1, 0)
+                hpFill.Size = dim2(1, 0, hpRatio, 0)
+                hpGrad.Rotation = 90
+            else
+                hpFill.AnchorPoint = v2(0, 0)
+                hpFill.Position = dim2(0, 0, 0, 0)
+                hpFill.Size = dim2(hpRatio, 0, 1, 0)
+                hpGrad.Rotation = 0
+            end
             local key = tostring(hi) .. tostring(mid) .. tostring(lo)
             if hpKey ~= key then
                 hpGrad.Color = ColorSequence.new({
@@ -3357,23 +3508,35 @@ function Column:preview(o)
                 })
                 hpKey = key
             end
-            if on("healthtext") then
-                local t2 = clamp(hpRatio, 0, 1)
-                local hc = t2 >= 0.5 and mid:Lerp(hi, (t2 - 0.5) * 2) or lo:Lerp(mid, t2 * 2)
-                local ty = clamp(y + sy - sy * hpRatio - 5, y - 2, y + sy - 10)
-                putText(hpT, tostring(floor(hpRatio * 100 + 0.5)), healthFont, size, hc, hc, 0, x - 7, ty)
-            else
-                hpT.label.Visible = false
-            end
+            addRect("health", r.x, r.y, r.w, r.h)
         else
             hpBack.Visible = false
+        end
+
+        if lay.healthText then
+            local t2 = clamp(hpRatio, 0, 1)
+            local hc = t2 >= 0.5 and mid:Lerp(hi, (t2 - 0.5) * 2) or lo:Lerp(mid, t2 * 2)
+            putText(hpT, tostring(floor(hpRatio * 100 + 0.5)), healthFont, size, hc, hc, 0, lay.healthText)
+            local tx, ty, tw, th = textRect(hpT, lay.healthText)
+            addRect("health", tx, ty, tw, th)
+        else
             hpT.label.Visible = false
         end
 
-        if armorOn then
-            arBack.Position = off(x, y + sy + 4)
-            arBack.Size = off(sx, 1)
+        if lay.armor then
+            local r = lay.armor
+            arBack.Position = off(r.x, r.y)
+            arBack.Size = off(r.w, r.h)
             arBack.Visible = true
+            if r.vertical then
+                arFill.AnchorPoint = v2(0, 1)
+                arFill.Position = dim2(0, 0, 1, 0)
+                arGrad.Rotation = 90
+            else
+                arFill.AnchorPoint = v2(0, 0)
+                arFill.Position = dim2(0, 0, 0, 0)
+                arGrad.Rotation = 0
+            end
             arFill.Size = dim2(1, 0, 1, 0)
             local ah = col("armor_high", rgb(0, 255, 0))
             local am = col("armor_mid", rgb(255, 255, 0))
@@ -3387,11 +3550,12 @@ function Column:preview(o)
                 })
                 arKey = key
             end
+            addRect("armor", r.x, r.y, r.w, r.h)
         else
             arBack.Visible = false
         end
 
-        if on("names") then
+        if lay.name then
             local nt = str("name_type", "Display")
             local txt = lp.DisplayName
             if nt == "Username" then
@@ -3399,21 +3563,66 @@ function Column:preview(o)
             elseif nt == "Both" then
                 txt = lp.DisplayName .. " (@" .. lp.Name .. ")"
             end
-            putText(nameT, txt, textFont, size, col("name_color", WHITE), col("name_color2", WHITE), rotG, x + sx * 0.5, y - 4)
+            putText(nameT, txt, textFont, size, col("name_color", WHITE), col("name_color2", WHITE), rotG, lay.name)
+            local tx, ty, tw, th = textRect(nameT, lay.name)
+            addRect("name", tx, ty, tw, th)
         else
             nameT.label.Visible = false
         end
 
-        if on("distance") then
-            putText(distT, "[45m]", flagsFont, size, col("dist_color", WHITE), col("dist_color2", WHITE), rotG, x + sx + 4, y - 1)
+        if lay.distance then
+            putText(distT, "[45m]", flagsFont, size, col("dist_color", WHITE), col("dist_color2", WHITE), rotG, lay.distance)
+            local tx, ty, tw, th = textRect(distT, lay.distance)
+            addRect("distance", tx, ty, tw, th)
         else
             distT.label.Visible = false
         end
 
-        if on("tool") then
-            putText(toolT, "Weapon", textFont, size, col("tool_color", WHITE), col("tool_color2", WHITE), rotG, x + sx * 0.5, y + sy + (armorOn and 6 or 2))
+        if lay.tool then
+            putText(toolT, "Weapon", textFont, size, col("tool_color", WHITE), col("tool_color2", WHITE), rotG, lay.tool)
+            local tx, ty, tw, th = textRect(toolT, lay.tool)
+            addRect("tool", tx, ty, tw, th)
         else
             toolT.label.Visible = false
+        end
+
+        local active = dragEl
+        if not active and not dragging and #lib.stack == 0
+            and mrel.X >= 0 and mrel.Y >= 0 and mrel.X <= w and mrel.Y <= h then
+            for _, key in ipairs(ORDER) do
+                local list = elems[key]
+                if list then
+                    for _, r in ipairs(list) do
+                        if mrel.X >= r.x - 4 and mrel.X <= r.x + r.w + 4 and mrel.Y >= r.y - 4 and mrel.Y <= r.y + r.h + 4 then
+                            active = key
+                            break
+                        end
+                    end
+                end
+                if active then break end
+            end
+        end
+        hoverKey = active
+
+        if active and elems[active] then
+            local ux1, uy1, ux2, uy2 = math.huge, math.huge, -math.huge, -math.huge
+            for _, r in ipairs(elems[active]) do
+                if r.x < ux1 then ux1 = r.x end
+                if r.y < uy1 then uy1 = r.y end
+                if r.x + r.w > ux2 then ux2 = r.x + r.w end
+                if r.y + r.h > uy2 then uy2 = r.y + r.h end
+            end
+            ux1, uy1, ux2, uy2 = ux1 - 3, uy1 - 3, ux2 + 3, uy2 + 3
+            hoverBox.Position = off(ux1, uy1)
+            hoverBox.Size = off(ux2 - ux1, uy2 - uy1)
+            hoverBox.Visible = true
+            hoverGlow.Position = off(ux1 - 21, uy1 - 21)
+            hoverGlow.Size = off(ux2 - ux1 + 42, uy2 - uy1 + 41)
+            hoverGlow.ImageTransparency = dragEl and 0.15 or 0.4
+            hoverGlow.Visible = true
+        else
+            hoverBox.Visible = false
+            hoverGlow.Visible = false
         end
 
         if on("headdot") and current.head then
@@ -3441,7 +3650,6 @@ function Column:preview(o)
             else
                 from = v2(w * 0.5, h * 0.5)
             end
-            from = from - v2(espOx, espOy)
             tracer.thickness = num("tracer_thickness", 1)
             tracer.color(col("tracer_color", WHITE))
             tracer.set(from, v2(x + sx * 0.5, y + sy))
@@ -3961,14 +4169,19 @@ local function addESPSection(sec, tbl, prefix)
     names:colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})
     local namePop = names:gear({title = "Name Options"})
     namePop:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
+    namePop:dropdown({name = "Name Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.NamePos, flag = prefix.."_name_pos", callback = function(v) tbl.NamePos = v end})
 
     local dist = sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
     dist:colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
     dist:colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
+    local distPop = dist:gear({title = "Distance Options"})
+    distPop:dropdown({name = "Distance Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.DistancePos, flag = prefix.."_distance_pos", callback = function(v) tbl.DistancePos = v end})
 
     local tool = sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
     tool:colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
     tool:colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
+    local toolPop = tool:gear({title = "Tool Options"})
+    toolPop:dropdown({name = "Tool Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.ToolPos, flag = prefix.."_tool_pos", callback = function(v) tbl.ToolPos = v end})
 
     local hp = sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
     hp:colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
@@ -3976,11 +4189,14 @@ local function addESPSection(sec, tbl, prefix)
     hp:colorpicker({flag = prefix.."_health_low", color = tbl.HealthLow, callback = function(c) tbl.HealthLow = c end})
     local hpPop = hp:gear({title = "Health Bar Options"})
     hpPop:toggle({name = "Health Text", default = tbl.HealthText, flag = prefix.."_healthtext", callback = function(v) tbl.HealthText = v end})
+    hpPop:dropdown({name = "Health Bar Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.HealthBarPos, flag = prefix.."_healthbar_pos", callback = function(v) tbl.HealthBarPos = v end})
 
     local armor = sec:toggle({name = "Armor Bar", default = tbl.ArmorBar, flag = prefix.."_armorbar", callback = function(v) tbl.ArmorBar = v end})
     armor:colorpicker({flag = prefix.."_armor_high", color = tbl.ArmorHigh, callback = function(c) tbl.ArmorHigh = c end})
     armor:colorpicker({flag = prefix.."_armor_mid", color = tbl.ArmorMid, callback = function(c) tbl.ArmorMid = c end})
     armor:colorpicker({flag = prefix.."_armor_low", color = tbl.ArmorLow, callback = function(c) tbl.ArmorLow = c end})
+    local armorPop = armor:gear({title = "Armor Bar Options"})
+    armorPop:dropdown({name = "Armor Bar Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.ArmorBarPos, flag = prefix.."_armorbar_pos", callback = function(v) tbl.ArmorBarPos = v end})
 
     local skel = sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
     skel:colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})

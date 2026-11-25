@@ -2994,6 +2994,8 @@ function Column:preview(o)
     local hpKey, arKey = nil, nil
 
     local HOVER_ORDER = { "name", "distance", "tool", "health", "armor" }
+    local KEY_N = { health = 1, armor = 2, name = 3, distance = 4, tool = 5 }
+    local KEY_LIST = { "health", "armor", "name", "distance", "tool" }
     local POS_FLAG = {
         name = "name_pos", distance = "distance_pos", tool = "tool_pos",
         health = "healthbar_pos", armor = "armorbar_pos",
@@ -3002,25 +3004,29 @@ function Column:preview(o)
         name_pos = "Top", distance_pos = "Right", tool_pos = "Bottom",
         healthbar_pos = "Left", armorbar_pos = "Bottom",
     }
+    local SLOT_FLAG = {
+        name = "name_slot", distance = "distance_slot", tool = "tool_slot",
+        health = "healthbar_slot", armor = "armorbar_slot",
+    }
+    local SLOT_DEFAULT = {
+        name_slot = 3, distance_slot = 4, tool_slot = 5,
+        healthbar_slot = 1, armorbar_slot = 2,
+    }
     local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
     local TEXT_KEYS = { name = true, distance = true, tool = true }
-    local ORDER_KEYS = { health = true, armor = true, name = true, distance = true, tool = true }
-    local DEFAULT_ORDER = { "health", "armor", "name", "distance", "tool" }
 
-    local function resolveOrder(list)
-        local out, seen = {}, {}
-        if type(list) == "table" then
-            for _, k in ipairs(list) do
-                if ORDER_KEYS[k] and not seen[k] then
-                    seen[k] = true
-                    out[#out + 1] = k
-                end
-            end
-        end
-        for _, k in ipairs(DEFAULT_ORDER) do
-            if not seen[k] then out[#out + 1] = k end
-        end
-        return out
+    local function sideOf(prefix, key)
+        local f = POS_FLAG[key]
+        local v = lib.flags[prefix .. "_" .. f]
+        if type(v) == "string" and SIDE_OK[v] then return v end
+        return POS_DEFAULT[f]
+    end
+
+    local function slotOf(prefix, key)
+        local f = SLOT_FLAG[key]
+        local v = lib.flags[prefix .. "_" .. f]
+        if type(v) == "number" then return v end
+        return SLOT_DEFAULT[f]
     end
 
     local elems = {}
@@ -3034,8 +3040,10 @@ function Column:preview(o)
             local fn = lib.setters[last .. "_" .. flag]
             if fn then pcall(fn, side) end
         end
-        local ofn = lib.setters[last .. "_order"]
-        if ofn then pcall(ofn, resolveOrder(nil)) end
+        for flag, slot in pairs(SLOT_DEFAULT) do
+            local fn = lib.setters[last .. "_" .. flag]
+            if fn then pcall(fn, slot) end
+        end
     end
 
     for _, key in ipairs(HOVER_ORDER) do
@@ -3133,11 +3141,6 @@ function Column:preview(o)
         local offs = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
         local rows = { Left = 0, Right = 0 }
 
-        local function pick(v, d)
-            if SIDE_OK[v] then return v end
-            return d
-        end
-
         local function placeBar(key, side)
             local rx, ry, rw, rh, vertical
             if side == "Left" then
@@ -3172,8 +3175,7 @@ function Column:preview(o)
             return p
         end
 
-        local function doHealth()
-            local side = pick(cfg.HealthBarPos, "Left")
+        local function doHealth(side)
             local rx, ry = placeBar("health", side)
             if cfg.HealthText then
                 local ty = math.clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
@@ -3194,31 +3196,39 @@ function Column:preview(o)
             end
         end
 
-        local textInfo = {
-            name = { on = cfg.Names, side = pick(cfg.NamePos, "Top") },
-            distance = { on = cfg.Distance, side = pick(cfg.DistancePos, "Right") },
-            tool = { on = cfg.Tool, side = pick(cfg.ToolPos, "Bottom") },
-        }
-
-        local deferred = {}
-        for _, key in ipairs(resolveOrder(cfg.Order)) do
-            if key == "health" then
-                if opt.health then doHealth() end
-            elseif key == "armor" then
-                if opt.armor then placeBar("armor", pick(cfg.ArmorBarPos, "Bottom")) end
-            else
-                local info = textInfo[key]
-                if info and info.on then
-                    if info.side == "Left" or info.side == "Right" then
-                        deferred[#deferred + 1] = key
-                    else
-                        out[key] = placeText(info.side)
-                    end
-                end
+        local items = {}
+        local function add(key, kind, enabled)
+            if enabled then
+                items[#items + 1] = {
+                    key = key, kind = kind, side = cfg.sides[key], slot = cfg.slots[key], n = KEY_N[key],
+                }
             end
         end
-        for _, key in ipairs(deferred) do
-            out[key] = placeText(textInfo[key].side)
+        add("health", "healthbar", opt.health)
+        add("armor", "bar", opt.armor)
+        add("name", "text", cfg.Names)
+        add("distance", "text", cfg.Distance)
+        add("tool", "text", cfg.Tool)
+
+        table.sort(items, function(a, b)
+            if a.slot ~= b.slot then return a.slot < b.slot end
+            return a.n < b.n
+        end)
+
+        local deferred = {}
+        for _, it in ipairs(items) do
+            if it.kind == "healthbar" then
+                doHealth(it.side)
+            elseif it.kind == "bar" then
+                placeBar(it.key, it.side)
+            elseif it.side == "Left" or it.side == "Right" then
+                deferred[#deferred + 1] = it
+            else
+                out[it.key] = placeText(it.side)
+            end
+        end
+        for _, it in ipairs(deferred) do
+            out[it.key] = placeText(it.side)
         end
 
         return out
@@ -3510,14 +3520,16 @@ function Column:preview(o)
         local healthOn = on("healthbar")
         local armorOn = on("armorbar")
 
+        local sides, slots = {}, {}
+        for _, k in ipairs(KEY_LIST) do
+            sides[k] = sideOf(last, k)
+            slots[k] = slotOf(last, k)
+        end
+
         local lay = layoutPreview({
-            HealthBarPos = str("healthbar_pos", "Left"),
             HealthText = on("healthtext"),
-            ArmorBarPos = str("armorbar_pos", "Bottom"),
-            Names = on("names"), NamePos = str("name_pos", "Top"),
-            Distance = on("distance"), DistancePos = str("distance_pos", "Right"),
-            Tool = on("tool"), ToolPos = str("tool_pos", "Bottom"),
-            Order = lib.flags[last .. "_order"],
+            Names = on("names"), Distance = on("distance"), Tool = on("tool"),
+            sides = sides, slots = slots,
         }, x, y, sx, sy, { size = size, ratio = hpRatio, health = healthOn, armor = armorOn })
 
         table.clear(elems)
@@ -3678,50 +3690,38 @@ function Column:preview(o)
             end
 
             local mouseRank = rankOf(dragEl, side, vx, vy, 0, 0)
-            local base = resolveOrder(lib.flags[dragPrefix .. "_order"])
-            local rest = {}
-            for _, k in ipairs(base) do
-                if k ~= dragEl then rest[#rest + 1] = k end
-            end
 
-            local insertAt, lastSame
-            for i, k in ipairs(rest) do
-                local list = elems[k]
-                local kFlag = POS_FLAG[k]
-                local kSide = lib.flags[dragPrefix .. "_" .. kFlag]
-                if type(kSide) ~= "string" then kSide = POS_DEFAULT[kFlag] end
+            local others = {}
+            for _, k in ipairs(KEY_LIST) do
+                if k ~= dragEl and elems[k] and sideOf(dragPrefix, k) == side then
+                    others[#others + 1] = k
+                end
+            end
+            table.sort(others, function(a, b)
+                local sa, sb = slotOf(dragPrefix, a), slotOf(dragPrefix, b)
+                if sa ~= sb then return sa < sb end
+                return KEY_N[a] < KEY_N[b]
+            end)
+
+            local insertIdx = 1
+            for i, k in ipairs(others) do
                 local comparable = side == "Top" or side == "Bottom" or (TEXT_KEYS[k] == TEXT_KEYS[dragEl])
-                if list and list[1] and kSide == side and comparable then
-                    lastSame = i
-                    local r = list[1]
-                    if not insertAt and rankOf(k, side, r.x, r.y, r.w, r.h) > mouseRank then
-                        insertAt = i
-                    end
+                local r = elems[k][1]
+                if comparable and rankOf(k, side, r.x, r.y, r.w, r.h) < mouseRank then
+                    insertIdx = i + 1
+                end
+            end
+            table.insert(others, insertIdx, dragEl)
+
+            for i, k in ipairs(others) do
+                if slotOf(dragPrefix, k) ~= i then
+                    local fn = lib.setters[dragPrefix .. "_" .. SLOT_FLAG[k]]
+                    if fn then pcall(fn, i) end
                 end
             end
 
-            if lastSame then
-                table.insert(rest, insertAt or (lastSame + 1), dragEl)
-            else
-                local pos = table.find(base, dragEl) or (#rest + 1)
-                table.insert(rest, math.min(pos, #rest + 1), dragEl)
-            end
-
-            local changed = false
-            for i = 1, #base do
-                if base[i] ~= rest[i] then
-                    changed = true
-                    break
-                end
-            end
-            if changed then
-                local ofn = lib.setters[dragPrefix .. "_order"]
-                if ofn then pcall(ofn, rest) end
-            end
-
-            local flag = POS_FLAG[dragEl]
-            if str(flag, POS_DEFAULT[flag]) ~= side then
-                local fn = lib.setters[dragPrefix .. "_" .. flag]
+            if sideOf(dragPrefix, dragEl) ~= side then
+                local fn = lib.setters[dragPrefix .. "_" .. POS_FLAG[dragEl]]
                 if fn then pcall(fn, side) end
             end
         end
@@ -4296,18 +4296,21 @@ local function addESPSection(sec, tbl, prefix)
     local namePop = names:gear({title = "Name Options"})
     namePop:dropdown({name = "Name Type", items = {"Display", "Username", "Both"}, default = tbl.NameType, flag = prefix.."_name_type", callback = function(v) tbl.NameType = v end})
     namePop:dropdown({name = "Name Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.NamePos, flag = prefix.."_name_pos", callback = function(v) tbl.NamePos = v end})
+    namePop:slider({name = "Name Slot", min = 1, max = 10, default = tbl.NameSlot or 3, interval = 1, flag = prefix.."_name_slot", callback = function(v) tbl.NameSlot = v end})
 
     local dist = sec:toggle({name = "Distance", default = tbl.Distance, flag = prefix.."_distance", callback = function(v) tbl.Distance = v end})
     dist:colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
     dist:colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
     local distPop = dist:gear({title = "Distance Options"})
     distPop:dropdown({name = "Distance Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.DistancePos, flag = prefix.."_distance_pos", callback = function(v) tbl.DistancePos = v end})
+    distPop:slider({name = "Distance Slot", min = 1, max = 10, default = tbl.DistanceSlot or 4, interval = 1, flag = prefix.."_distance_slot", callback = function(v) tbl.DistanceSlot = v end})
 
     local tool = sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})
     tool:colorpicker({flag = prefix.."_tool_color", color = tbl.ToolColor, callback = function(c) tbl.ToolColor = c end})
     tool:colorpicker({flag = prefix.."_tool_color2", color = tbl.ToolColor2, callback = function(c) tbl.ToolColor2 = c end})
     local toolPop = tool:gear({title = "Tool Options"})
     toolPop:dropdown({name = "Tool Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.ToolPos, flag = prefix.."_tool_pos", callback = function(v) tbl.ToolPos = v end})
+    toolPop:slider({name = "Tool Slot", min = 1, max = 10, default = tbl.ToolSlot or 5, interval = 1, flag = prefix.."_tool_slot", callback = function(v) tbl.ToolSlot = v end})
 
     local hp = sec:toggle({name = "Health Bar", default = tbl.HealthBar, flag = prefix.."_healthbar", callback = function(v) tbl.HealthBar = v end})
     hp:colorpicker({flag = prefix.."_health_high", color = tbl.HealthHigh, callback = function(c) tbl.HealthHigh = c end})
@@ -4316,6 +4319,7 @@ local function addESPSection(sec, tbl, prefix)
     local hpPop = hp:gear({title = "Health Bar Options"})
     hpPop:toggle({name = "Health Text", default = tbl.HealthText, flag = prefix.."_healthtext", callback = function(v) tbl.HealthText = v end})
     hpPop:dropdown({name = "Health Bar Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.HealthBarPos, flag = prefix.."_healthbar_pos", callback = function(v) tbl.HealthBarPos = v end})
+    hpPop:slider({name = "Health Bar Slot", min = 1, max = 10, default = tbl.HealthBarSlot or 1, interval = 1, flag = prefix.."_healthbar_slot", callback = function(v) tbl.HealthBarSlot = v end})
 
     local armor = sec:toggle({name = "Armor Bar", default = tbl.ArmorBar, flag = prefix.."_armorbar", callback = function(v) tbl.ArmorBar = v end})
     armor:colorpicker({flag = prefix.."_armor_high", color = tbl.ArmorHigh, callback = function(c) tbl.ArmorHigh = c end})
@@ -4323,6 +4327,7 @@ local function addESPSection(sec, tbl, prefix)
     armor:colorpicker({flag = prefix.."_armor_low", color = tbl.ArmorLow, callback = function(c) tbl.ArmorLow = c end})
     local armorPop = armor:gear({title = "Armor Bar Options"})
     armorPop:dropdown({name = "Armor Bar Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.ArmorBarPos, flag = prefix.."_armorbar_pos", callback = function(v) tbl.ArmorBarPos = v end})
+    armorPop:slider({name = "Armor Bar Slot", min = 1, max = 10, default = tbl.ArmorBarSlot or 2, interval = 1, flag = prefix.."_armorbar_slot", callback = function(v) tbl.ArmorBarSlot = v end})
 
     local skel = sec:toggle({name = "Skeleton", default = tbl.Skeleton, flag = prefix.."_skeleton", callback = function(v) tbl.Skeleton = v end})
     skel:colorpicker({flag = prefix.."_skeleton_color", color = tbl.SkeletonColor, callback = function(c) tbl.SkeletonColor = c end})

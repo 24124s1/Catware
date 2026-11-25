@@ -1,4 +1,4 @@
-print('-2')
+print('-1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -1334,9 +1334,19 @@ local function put(name, v)
     end
 end
 
+local function menuOpen()
+    local env = (typeof(getgenv) == "function" and getgenv()) or _G
+    local st = env.Stardust
+    if type(st) == "table" and st.win and st.win.root then
+        return st.win.root.Visible == true
+    end
+    return false
+end
+
 local function pushShader()
     if not state.shader then return end
     local s = espModule.Settings
+    local hide = menuOpen()
     for k = 0, 2 do
         local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
         local c = g.ChamsSettings
@@ -1353,7 +1363,7 @@ local function pushShader()
         put(n.sp, c.Speed)
         put(n.sc, c.Scale)
         put(n.st, design.Style)
-        put(n.en, state.use[k] and 1 or 0)
+        put(n.en, (not hide and state.use[k]) and 1 or 0)
     end
 end
 
@@ -2429,11 +2439,15 @@ local function step()
     use[0] = settings.Enemy.Enabled and settings.Enemy.Chams
     use[1] = settings.Teammate.Enabled and settings.Teammate.Chams
     use[2] = (settings.AI.Enabled and settings.AI.Chams) or (settings.Items.Enabled and settings.Items.Chams)
-    if use[0] or use[1] or use[2] then
+    if (use[0] or use[1] or use[2]) and not menuOpen() then
         ensureShader()
         pushShader()
     elseif state.shader then
-        destroyShader()
+        if menuOpen() then
+            pushShader()
+        else
+            destroyShader()
+        end
     end
 
     if not anyEntity and not anyItem then return end

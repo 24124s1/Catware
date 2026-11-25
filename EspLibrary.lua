@@ -1424,8 +1424,9 @@ end
 
 local function clearAdornments(rec)
     if rec.adornments then
-        for _, ad in ipairs(rec.adornments) do
-            if ad then ad:Destroy() end
+        for _, entry in pairs(rec.adornments) do
+            if entry.fill then entry.fill:Destroy() end
+            if entry.outline then entry.outline:Destroy() end
         end
         rec.adornments = nil
         rec.adornChar = nil
@@ -1443,8 +1444,9 @@ local function hideRecord(rec)
         rec.fillHl.Enabled = false
     end
     if rec.adornments then
-        for _, ad in ipairs(rec.adornments) do
-            if ad then ad.Visible = false end
+        for _, entry in pairs(rec.adornments) do
+            if entry.fill then entry.fill.Visible = false end
+            if entry.outline then entry.outline.Visible = false end
         end
     end
 end
@@ -1782,47 +1784,81 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-if cfg.Chams then
+	if cfg.Chams then
         if chamsType == "Adornment" then
             if rec.hl then rec.hl.Enabled = false end
             local c1 = cfg.ChamsSettings.Color1
             local c2 = cfg.ChamsSettings.Color2
             local adTr = 1 - (0.65 * (1 - tr))
+            local outTr = 1 - (0.85 * (1 - tr))
 
             if rec.adornChar ~= rec.character or not rec.adornments then
                 clearAdornments(rec)
                 rec.adornChar = rec.character
                 rec.adornments = {}
-                for _, part in ipairs(rec.parts) do
-                    if part and part.Parent and part.Name ~= "HumanoidRootPart" then
-                        local isHead = part.Name:lower() == "head"
-                        local ad = Instance.new(isHead and "CylinderHandleAdornment" or "BoxHandleAdornment")
-                        ad.Adornee = part
-                        ad.AlwaysOnTop = true
-                        ad.ZIndex = 5
+            end
+
+            local activeParts = {}
+            for _, part in ipairs(rec.parts) do
+                if part and part.Parent and part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    activeParts[part] = true
+                    local entry = rec.adornments[part]
+                    if not entry then
+                        local lname = part.Name:lower()
+                        local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
+                        local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
+
+                        local outline = Instance.new(className)
+                        outline.Adornee = part
+                        outline.AlwaysOnTop = true
+                        outline.ZIndex = 4
+                        outline.Parent = state.gui
+
+                        local fill = Instance.new(className)
+                        fill.Adornee = part
+                        fill.AlwaysOnTop = true
+                        fill.ZIndex = 5
+                        fill.Parent = state.gui
+
                         if isHead then
-                            local rad = math.max(part.Size.X, part.Size.Z) * 0.52
-                            ad.Radius = rad
-                            ad.InnerRadius = 0
-                            ad.Height = part.Size.Y * 1.05
-                            ad.CFrame = CFrame.Angles(math.rad(90), 0, 0)
-                        else
-                            ad.Size = part.Size + Vector3.new(0.05, 0.05, 0.05)
+                            outline.CFrame = CFrame.Angles(math.rad(90), 0, 0)
+                            fill.CFrame = CFrame.Angles(math.rad(90), 0, 0)
                         end
-                        ad.Parent = state.gui
-                        rec.adornments[#rec.adornments + 1] = ad
+
+                        entry = { fill = fill, outline = outline, isHead = isHead }
+                        rec.adornments[part] = entry
                     end
+
+                    local fill, outline = entry.fill, entry.outline
+                    if entry.isHead then
+                        local rad = math.max(part.Size.X, part.Size.Z) * 0.52
+                        local h = part.Size.Y * 1.05
+                        fill.Radius = rad
+                        fill.InnerRadius = 0
+                        fill.Height = h
+                        outline.Radius = rad + 0.04
+                        outline.InnerRadius = 0
+                        outline.Height = h + 0.08
+                    else
+                        fill.Size = part.Size + Vector3.new(0.02, 0.02, 0.02)
+                        outline.Size = part.Size + Vector3.new(0.09, 0.09, 0.09)
+                    end
+
+                    fill.Color3 = c1
+                    fill.Transparency = adTr
+                    fill.Visible = true
+
+                    outline.Color3 = c2
+                    outline.Transparency = outTr
+                    outline.Visible = true
                 end
             end
 
-            for _, ad in ipairs(rec.adornments) do
-                if ad and ad.Parent and ad.Adornee and ad.Adornee.Parent then
-                    local isHead = ad:IsA("CylinderHandleAdornment")
-                    ad.Color3 = isHead and c2 or c1
-                    ad.Transparency = adTr
-                    ad.Visible = true
-                elseif ad then
-                    ad.Visible = false
+            for part, entry in pairs(rec.adornments) do
+                if not activeParts[part] then
+                    if entry.fill then entry.fill:Destroy() end
+                    if entry.outline then entry.outline:Destroy() end
+                    rec.adornments[part] = nil
                 end
             end
         elseif chamsType == "Shader" and state.shader then

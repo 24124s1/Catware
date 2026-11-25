@@ -4270,11 +4270,12 @@ local function addESPSection(sec, tbl, prefix)
     fillPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
 
     local cs = tbl.ChamsSettings
-    local chams = sec:toggle({name = "Shader Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
+    local chams = sec:toggle({name = "Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
     chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
     chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
     chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
     local chamsPop = chams:gear({title = "Chams Options"})
+    chamsPop:dropdown({name = "Chams Type", items = {"Shader", "Adornment"}, default = tbl.ChamsType or "Shader", flag = prefix.."_chams_type", callback = function(v) tbl.ChamsType = v end})
     chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
         ESP:SetChamsDesign(v, tbl)
         for i = 1, 3 do

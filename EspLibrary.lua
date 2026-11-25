@@ -1,4 +1,4 @@
-print('-2')
+print('-5')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -667,25 +667,13 @@ float3 glowCol(Grp g) {
 }
 
 float keyAmount(float3 c, int k) {
-	if (k == 2) {
-		float s2 = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l2 = smoothstep(0.35, 0.6, c.b);
-		return smoothstep(0.6, 0.85, s2) * l2;
-	}
-	float lo = c.g;
-	float a = c.r;
-	float b = c.b;
-	if (k == 1) {
-		lo = c.r;
-		a = c.g;
-	}
-	float mx = max(a, b);
-	float mn = min(a, b);
-	float inv = 1.0 / max(mx, 0.0001);
-	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.25, 0.5, abs(a - b) * inv);
-	float lum = smoothstep(0.25, 0.5, mn);
-	return smoothstep(0.45, 0.7, s) * bal * lum;
+	float3 key;
+	if (k == 0) key = float3(1.0, 0.0, 1.0);
+	else if (k == 1) key = float3(0.0, 1.0, 1.0);
+	else key = float3(0.0, 0.0, 1.0);
+	float3 d = abs(c - key);
+	float err = max(d.x, max(d.y, d.z));
+	return 1.0 - smoothstep(0.04, 0.12, err);
 }
 
 float fringeAmount(float3 c, int k) {

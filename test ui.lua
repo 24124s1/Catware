@@ -4255,11 +4255,16 @@ local Enemy, Team, Setting = left:multi_section({
     fills = false,
 })
 
-local function setElemVisible(el, vis)
-    if type(el) ~= "table" then return end
-    for _, v in pairs(el) do
-        if typeof(v) == "Instance" and v:IsA("GuiObject") then
-            v.Visible = vis
+local function setVisible(obj, vis)
+    if not obj then return end
+    if typeof(obj) == "Instance" and obj:IsA("GuiObject") then
+        obj.Visible = vis
+    elseif type(obj) == "table" then
+        for _, v in pairs(obj) do
+            if typeof(v) == "Instance" and v:IsA("GuiObject") then
+                v.Visible = vis
+                break
+            end
         end
     end
 end
@@ -4292,12 +4297,12 @@ local function addESPSection(sec, tbl, prefix)
 
     local function syncChamsUI(mode)
         local isShader = (mode == "Shader")
-        setElemVisible(cp3, isShader)
+        setVisible(cp3, isShader)
         for _, el in ipairs(shaderElems) do
-            setElemVisible(el, isShader)
+            setVisible(el, isShader)
         end
         for _, el in ipairs(adornElems) do
-            setElemVisible(el, not isShader)
+            setVisible(el, not isShader)
         end
     end
 

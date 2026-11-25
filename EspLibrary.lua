@@ -1,4 +1,4 @@
-print('-5')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -11,6 +11,12 @@ local LocalPlayer = Players.LocalPlayer
 local rgb = Color3.fromRGB
 
 local espModule = {}
+
+local KEY_COLORS = {
+    [0] = rgb(255, 0, 255),
+    [1] = rgb(0, 255, 255),
+    [2] = rgb(0, 0, 255),
+}
 
 local CHAMS_DESIGNS = {
     Borealis = {
@@ -126,6 +132,7 @@ espModule.ChamsDesigns = CHAMS_DESIGNS
 espModule.ChamsDesignNames = CHAMS_DESIGN_NAMES
 espModule.ChamsPresetNames = CHAMS_DESIGN_NAMES
 espModule.ChamsPresets = CHAMS_DESIGNS
+espModule.KeyColors = KEY_COLORS
 
 local registryListeners = {}
 local fontListeners = {}
@@ -618,27 +625,24 @@ float3 glowCol(Grp g) {
 
 float keyAmount(float3 c, int k) {
 	if (k == 2) {
-		float s = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l = smoothstep(0.4, 0.7, c.b);
-		return smoothstep(0.7, 0.9, s) * l;
+		float s2 = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
+		float l2 = smoothstep(0.35, 0.6, c.b);
+		return smoothstep(0.6, 0.85, s2) * l2;
 	}
-	float lo, a, b;
-	if (k == 0) {
-		lo = c.g;
-		a = c.r;
-		b = c.b;
-	} else {
+	float lo = c.g;
+	float a = c.r;
+	float b = c.b;
+	if (k == 1) {
 		lo = c.r;
 		a = c.g;
-		b = c.b;
 	}
 	float mx = max(a, b);
 	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
 	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.2, 0.5, abs(a - b) * inv);
-	float lum = smoothstep(0.3, 0.6, mn);
-	return smoothstep(0.65, 0.88, s) * bal * lum;
+	float bal = 1.0 - smoothstep(0.25, 0.5, abs(a - b) * inv);
+	float lum = smoothstep(0.25, 0.5, mn);
+	return smoothstep(0.45, 0.7, s) * bal * lum;
 }
 
 float fringeAmount(float3 c, int k) {
@@ -737,15 +741,33 @@ float3 evalPattern(float2 uv, Grp g) {
 
 float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
 	float3 src = Scene.Sample(Linear, uv).rgb;
-	Grp g = getGrp(0);
-	if (g.en < 0.5) {
-		return float4(src, 1.0);
+	float3 outc = src;
+
+	for (int k = 0; k < 3; k++) {
+		Grp g = getGrp(k);
+		if (g.en > 0.5) {
+			float mk = keyAmount(src, k);
+			float bl = 0.0;
+			if (g.gi > 0.001 && g.gs > 0.01) {
+				float2 texel = g.gs / max(resolution, float2(1.0, 1.0));
+				for (int i = 0; i < 10; i++) {
+					float ang = (float(i) / 10.0) * 6.2831853;
+					float2 dir = float2(cos(ang), sin(ang));
+					bl += keyAmount(Scene.SampleLevel(Linear, uv + dir * texel, 0).rgb, k);
+				}
+				bl /= 10.0;
+			}
+			float fr = fringeAmount(src, k) * saturate(bl * 4.0);
+			float rem = saturate(max(mk, fr));
+			outc = cleanKey(outc, k, rem);
+			if (mk > 0.001) {
+				outc = lerp(outc, evalPattern(uv, g), mk);
+			}
+			float edge = bl * (1.0 - mk) * smoothstep(0.15, 0.75, bl);
+			outc += glowCol(g) * edge * (g.gi * 1.1);
+		}
 	}
-	float lum = dot(src, float3(0.299, 0.587, 0.114));
-	float mask = smoothstep(0.02, 0.18, lum);
-	float3 pat = evalPattern(uv, g);
-	float3 outc = lerp(src, pat, mask * 0.92);
-	outc += glowCol(g) * smoothstep(0.55, 1.0, mask) * g.gi * 0.35;
+
 	return float4(outc, 1.0);
 }
 ]]
@@ -1315,46 +1337,33 @@ end
 local function pushShader()
     if not state.shader then return end
     local s = espModule.Settings
-    local active = nil
-    if state.use[0] then active = s.Enemy
-    elseif state.use[1] then active = s.Teammate
-    elseif state.use[2] then active = s.AI
+    for k = 0, 2 do
+        local g = (k == 0 and s.Enemy) or (k == 1 and s.Teammate) or s.AI
+        local c = g.ChamsSettings
+        local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
+        local n = PN[k]
+        put(n.c1, c.Color1)
+        put(n.c2, c.Color2)
+        put(n.c3, c.Color3)
+        put(n.cc, math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3))
+        put(n.br, c.Brightness)
+        put(n.ct, c.Contrast)
+        put(n.gi, c.Bloom)
+        put(n.gs, c.BloomSpread)
+        put(n.sp, c.Speed)
+        put(n.sc, c.Scale)
+        put(n.st, design.Style)
+        put(n.en, state.use[k] and 1 or 0)
     end
-    local n = PN[0]
-    if not active then
-        put(n.en, 0)
-        return
-    end
-    local c = active.ChamsSettings
-    local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
-    put(n.c1, c.Color1)
-    put(n.c2, c.Color2)
-    put(n.c3, c.Color3)
-    put(n.cc, math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3))
-    put(n.br, c.Brightness)
-    put(n.ct, c.Contrast)
-    put(n.gi, c.Bloom)
-    put(n.gs, c.BloomSpread)
-    put(n.sp, c.Speed)
-    put(n.sc, c.Scale)
-    put(n.st, design.Style)
-    put(n.en, 1)
 end
 
 local function ensureShader()
-    if state.shader then
-        pcall(function() state.shader:Remove() end)
-        state.shader = nil
-        state.shaderParams = {}
-    end
-end
-
-local function makeBoxShader()
-    if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then return nil end
+    if state.shader then return end
+    if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then return end
     local ok, shader = pcall(function()
         return Drawing.new("Shader")
     end)
-    if not ok or not shader then return nil end
+    if not ok or not shader then return end
     local built = pcall(function()
         shader.Vertex = SHADER_VERTEX
         shader.Pixel = SHADER_PIXEL
@@ -1362,30 +1371,11 @@ local function makeBoxShader()
     end)
     if not built then
         pcall(function() shader:Remove() end)
-        return nil
+        return
     end
-    return shader
-end
-
-local function pushBoxShader(sh, cfg)
-    if not sh then return end
-    local c = cfg.ChamsSettings
-    local design = CHAMS_DESIGNS[c.Design] or CHAMS_DESIGNS.Borealis
-    local function s(name, v)
-        pcall(function() sh:Set(name, v) end)
-    end
-    s("g0_color1", c.Color1)
-    s("g0_color2", c.Color2)
-    s("g0_color3", c.Color3)
-    s("g0_colorCount", math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3))
-    s("g0_brightness", c.Brightness)
-    s("g0_contrast", c.Contrast)
-    s("g0_glowIntensity", c.Bloom)
-    s("g0_glowSpread", c.BloomSpread)
-    s("g0_speed", c.Speed)
-    s("g0_scale", c.Scale)
-    s("g0_style", design.Style)
-    s("g0_enabled", 1)
+    state.shader = shader
+    state.shaderParams = {}
+    pushShader()
 end
 
 local function destroyShader()
@@ -1400,7 +1390,6 @@ local function hideRecord(rec)
     if rec.hidden then return end
     rec.hidden = true
     if rec.renderer then rec.renderer:Clear() end
-    if rec.shader then pcall(function() rec.shader.Visible = false end) end
     if rec.hl then
         rec.hl.Enabled = false
     end
@@ -1413,7 +1402,6 @@ local function dropRecord(entity)
     local rec = state.records[entity]
     if not rec then return end
     if rec.renderer then rec.renderer:Destroy() end
-    if rec.shader then pcall(function() rec.shader:Remove() end) rec.shader = nil end
     if rec.hl then rec.hl:Destroy() end
     if rec.fillHl then rec.fillHl:Destroy() end
     state.records[entity] = nil
@@ -1709,7 +1697,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local healthFont = getFont(settings.HealthFont)
     local meters = math.floor(dist + 0.5)
     local d = rec.d
-    local chamsOn = cfg.Chams
+    local chamsOn = cfg.Chams and state.shader ~= nil
 
     if cfg.BoxFill and cfg.BoxEnabled then
         if cfg.BoxType == "3D" then
@@ -1741,40 +1729,28 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if cfg.Chams then
-        local col = (cfg.ChamsSettings and cfg.ChamsSettings.Color1) or Color3.fromRGB(255, 0, 255)
+    if chamsOn then
+        local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
         if not rec.hl then
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillTransparency = 0.45
-            hl.OutlineTransparency = 0.25
+            hl.FillColor = keyCol
+            hl.FillTransparency = 0
+            hl.OutlineColor = keyCol
+            hl.OutlineTransparency = 1
             hl.Parent = state.gui
             rec.hl = hl
         end
-        rec.hl.FillColor = col
-        rec.hl.OutlineColor = col
+        if rec.hl.FillColor ~= keyCol then
+            rec.hl.FillColor = keyCol
+            rec.hl.OutlineColor = keyCol
+        end
         if rec.hl.Adornee ~= rec.character then
             rec.hl.Adornee = rec.character
         end
         rec.hl.Enabled = true
-
-        if not rec.shader then
-            rec.shader = makeBoxShader()
-        end
-        if rec.shader then
-            local pad = 4
-            rec.shader.Position = Vector2.new(x - pad, y - pad)
-            rec.shader.Size = Vector2.new(math.max(1, w + pad * 2), math.max(1, h + pad * 2))
-            pushBoxShader(rec.shader, cfg)
-            pcall(function()
-                rec.shader.Visible = true
-            end)
-        end
     else
         if rec.hl then rec.hl.Enabled = false end
-        if rec.shader then
-            pcall(function() rec.shader.Visible = false end)
-        end
     end
 
     if cfg.BoxEnabled then
@@ -2292,9 +2268,9 @@ local function setChamHighlight(meta, key, adornee)
     if not hl then
         hl = Instance.new("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.FillColor = Color3.fromRGB(0, 0, 255)
+        hl.FillColor = KEY_COLORS[2]
         hl.FillTransparency = 0
-        hl.OutlineColor = Color3.fromRGB(0, 0, 255)
+        hl.OutlineColor = KEY_COLORS[2]
         hl.OutlineTransparency = 1
         hl.Parent = state.gui
         meta[key] = hl

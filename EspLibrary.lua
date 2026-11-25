@@ -1,4 +1,4 @@
-print('-2')
+print('-1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -12,6 +12,8 @@ local rgb = Color3.fromRGB
 
 local espModule = {}
 
+local KEY_COLOR = rgb(0, 255, 64)
+
 local function entitySettings(p)
     return {
         Enabled = false,
@@ -19,7 +21,7 @@ local function entitySettings(p)
         BoxGlow = false,
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
-        Chams = false, ChamsColor = p.main, ChamsGlow = false, ChamsFillTransparency = 0.3,
+        Chams = false,
         Names = false, NameType = "Display", NameColor = p.text1, NameColor2 = p.text2,
         Distance = false, DistanceColor = p.text1, DistanceColor2 = p.text2,
         Tool = false, ToolColor = p.text1, ToolColor2 = p.text2,
@@ -39,7 +41,8 @@ espModule.Settings = {
     RefreshRate = 144,
     MaxDistance = 1200,
     BoxMode = "Dynamic",
-    BoxSmoothing = 0.35,
+    BoxSmoothing = 0,
+    ChamsPreset = "Borealis",
     TextFont = "Gojiberry Quibble",
     FlagsFont = "Gojiberry Quibble",
     HealthFont = "Gojiberry Quibble",
@@ -73,6 +76,57 @@ espModule.CustomFlags = {}
 espModule.CustomAIs = {}
 espModule.CustomEntities = espModule.CustomAIs
 espModule.CustomItems = {}
+
+local CHAMS_DEFAULTS = {
+    Brightness = 1.1,
+    Contrast = 1.1,
+    GlowIntensity = 0.35,
+    GlowSpread = 3.0,
+    Speed = 1.2,
+    Scale = 3.0,
+}
+
+local function makePreset(t)
+    for k, v in pairs(CHAMS_DEFAULTS) do
+        if t[k] == nil then t[k] = v end
+    end
+    return t
+end
+
+local CHAMS_PRESETS = {
+    Borealis = makePreset({
+        Style = 0,
+        Color1 = rgb(10, 24, 42), Color2 = rgb(22, 185, 138), Color3 = rgb(48, 220, 245),
+        Color4 = rgb(195, 85, 235), Color5 = rgb(255, 135, 215), GlowColor = rgb(85, 230, 205),
+        Speed = 1.35,
+    }),
+    Inferno = makePreset({
+        Style = 1,
+        Color1 = rgb(40, 0, 0), Color2 = rgb(190, 25, 0), Color3 = rgb(255, 110, 0),
+        Color4 = rgb(255, 190, 30), Color5 = rgb(255, 245, 170), GlowColor = rgb(255, 100, 20),
+        Scale = 2.5,
+    }),
+    Plasma = makePreset({
+        Style = 2,
+        Color1 = rgb(20, 5, 60), Color2 = rgb(90, 30, 200), Color3 = rgb(200, 40, 230),
+        Color4 = rgb(255, 90, 150), Color5 = rgb(80, 200, 255), GlowColor = rgb(190, 80, 255),
+    }),
+    Hologram = makePreset({
+        Style = 3,
+        Color1 = rgb(0, 20, 40), Color2 = rgb(0, 90, 140), Color3 = rgb(0, 200, 255),
+        Color4 = rgb(150, 240, 255), Color5 = rgb(255, 255, 255), GlowColor = rgb(60, 220, 255),
+        Speed = 1.0, GlowIntensity = 0.5,
+    }),
+    Galaxy = makePreset({
+        Style = 4,
+        Color1 = rgb(5, 5, 25), Color2 = rgb(40, 20, 110), Color3 = rgb(110, 40, 170),
+        Color4 = rgb(230, 90, 200), Color5 = rgb(255, 200, 255), GlowColor = rgb(170, 110, 255),
+        Speed = 0.8, Scale = 2.2,
+    }),
+}
+
+espModule.ChamsPresetNames = {"Borealis", "Inferno", "Plasma", "Hologram", "Galaxy"}
+espModule.ChamsPresets = CHAMS_PRESETS
 
 local registryListeners = {}
 local fontListeners = {}
@@ -112,6 +166,10 @@ function espModule.GetFlagNames()
     local out = {"Walking", "Jumping", "Swimming"}
     for _, name in ipairs(sortedKeys(espModule.CustomFlags)) do out[#out + 1] = name end
     return out
+end
+
+function espModule.GetChamsPresetNames()
+    return espModule.ChamsPresetNames
 end
 
 function espModule:AddFlag(name, func)
@@ -267,6 +325,236 @@ function espModule.HealthColor(t, high, mid, low)
     if t >= 0.5 then return mid:Lerp(high, (t - 0.5) * 2) end
     return low:Lerp(mid, t * 2)
 end
+
+local SHADER_VERTEX = [[
+struct VSOut {
+	float4 pos : SV_POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VSOut main(uint id : SV_VertexID) {
+	VSOut o;
+	o.uv  = float2((id << 1) & 2, id & 2);
+	o.pos = float4(o.uv * float2(2.0, -2.0) + float2(-1.0, 1.0), 0.0, 1.0);
+	return o;
+}
+]]
+
+local SHADER_PIXEL = [[
+Texture2D    Scene  : register(t0);
+SamplerState Linear : register(s0);
+
+cbuffer Params : register(b0) {
+	float  time;
+	float2 resolution;
+	float2 mouse;
+};
+
+cbuffer User : register(b1) {
+	float3 color1;
+	float3 color2;
+	float3 color3;
+	float3 color4;
+	float3 color5;
+	float3 glowColor;
+	float  brightness;
+	float  contrast;
+	float  glowIntensity;
+	float  glowSpread;
+	float  speed;
+	float  scale;
+	float  style;
+};
+
+static const float KEY_BLUE_RATIO = 0.2510;
+
+float hash21(float2 p) {
+	p = frac(p * float2(127.1, 311.7));
+	p += dot(p, p + 34.23);
+	return frac(p.x * p.y);
+}
+
+float noise2D(float2 p) {
+	float2 i = floor(p);
+	float2 f = frac(p);
+	f = f * f * (3.0 - 2.0 * f);
+
+	float a = hash21(i);
+	float b = hash21(i + float2(1.0, 0.0));
+	float c = hash21(i + float2(0.0, 1.0));
+	float d = hash21(i + float2(1.0, 1.0));
+
+	return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+float fbm(float2 p) {
+	float v = 0.0;
+	float amp = 0.52;
+	float2 shift = float2(37.0, 17.0);
+	float2x2 rot = float2x2(0.8775, 0.4794, -0.4794, 0.8775);
+	for (int i = 0; i < 4; i++) {
+		v += amp * noise2D(p);
+		p = mul(rot, p) * 2.05 + shift;
+		amp *= 0.5;
+	}
+	return v;
+}
+
+float3 palette(float x) {
+	x = saturate(x) * 4.0;
+	float3 c = lerp(color1, color2, saturate(x));
+	c = lerp(c, color3, saturate(x - 1.0));
+	c = lerp(c, color4, saturate(x - 2.0));
+	c = lerp(c, color5, saturate(x - 3.0));
+	return c;
+}
+
+float getMask(float3 col) {
+	float g = max(col.g, 0.0001);
+	float rr = col.r / g;
+	float br = col.b / g;
+	float redOk = 1.0 - smoothstep(0.06, 0.14, rr);
+	float blueOk = 1.0 - smoothstep(0.06, 0.12, abs(br - KEY_BLUE_RATIO));
+	float lumOk = smoothstep(0.5, 0.8, col.g);
+	return redOk * blueOk * lumOk;
+}
+
+float getFringeMask(float3 col) {
+	float g = max(col.g, 0.0001);
+	float rr = col.r / g;
+	float br = col.b / g;
+	float redOk = 1.0 - smoothstep(0.12, 0.25, rr);
+	float blueOk = 1.0 - smoothstep(0.10, 0.20, abs(br - KEY_BLUE_RATIO));
+	float lumOk = smoothstep(0.2, 0.45, col.g);
+	return redOk * blueOk * lumOk;
+}
+
+float3 patAurora(float2 p, float t) {
+	float w1 = fbm(p * 0.75 + float2(t * 0.28, -t * 0.14));
+	float w2 = fbm(p * 1.45 + float2(-t * 0.22, t * 0.19) + w1 * 1.1);
+
+	float coord = p.x * 1.35 + p.y * 0.85 + w1 * 2.35 + sin(p.y * 2.4 - t * 0.9) * 0.35;
+	float curtain1 = pow(clamp(1.0 - abs(sin(coord * 3.14159)), 0.0, 1.0), 2.4);
+	float curtain2 = pow(clamp(1.0 - abs(sin((coord * 1.85 - w2 * 1.6 + t * 0.35) * 3.14159)), 0.0, 1.0), 3.0);
+
+	float rays = 0.65 + 0.35 * sin((p.x * 9.0 + w2 * 5.5 - t * 1.4) * 3.14159);
+	float shimmer = curtain1 * rays;
+
+	float band = clamp(curtain1 * 0.65 + curtain2 * 0.55 + w2 * 0.35, 0.0, 1.0);
+	float crown = smoothstep(0.48, 0.95, curtain2 * (0.6 + 0.4 * sin(t * 1.3 + p.x * 2.0)));
+	float pinkTip = smoothstep(0.72, 1.0, shimmer * curtain2);
+
+	float3 col = lerp(color1, color2, smoothstep(0.10, 0.65, shimmer));
+	col = lerp(col, color3, smoothstep(0.30, 0.85, band) * 0.85);
+	col = lerp(col, color4, crown * 0.85);
+	col = lerp(col, color5, pinkTip * 0.75);
+	col += glowColor * smoothstep(0.55, 1.0, shimmer) * (0.38 * glowIntensity);
+	return col;
+}
+
+float3 patFlame(float2 p, float t) {
+	float n = fbm(float2(p.x * 1.2, p.y * 1.6 - t * 1.1));
+	float n2 = fbm(p * 2.0 + float2(0.0, -t * 1.8) + n);
+	float heat = saturate(n * 0.7 + n2 * 0.55 + sin(p.y * 1.5 - t * 1.5) * 0.2);
+	float3 col = lerp(color1, color2, smoothstep(0.10, 0.45, heat));
+	col = lerp(col, color3, smoothstep(0.40, 0.70, heat));
+	col = lerp(col, color4, smoothstep(0.65, 0.90, heat));
+	col = lerp(col, color5, smoothstep(0.85, 1.00, heat));
+	return col;
+}
+
+float3 patPlasma(float2 p, float t) {
+	float2 q = p + float2(fbm(p + t * 0.2), fbm(p - t * 0.25)) * 1.2;
+	float v = sin(q.x * 1.7 + t) + sin(q.y * 2.1 - t * 1.2) + sin((q.x + q.y) * 1.3 + t * 0.7);
+	v += sin(length(q + float2(sin(t * 0.5), cos(t * 0.4)) * 2.0) * 2.5);
+	float x = v * 0.125 + 0.5;
+	return palette(x);
+}
+
+float3 patHologram(float2 uv, float2 p, float t) {
+	float scan = 0.5 + 0.5 * sin(uv.y * resolution.y * 0.6 - t * 8.0);
+	float w = fbm(p * 1.1 + float2(0.0, -t * 0.4));
+	float x = saturate(0.35 + 0.25 * sin(p.y * 3.0 - t * 2.0) + w * 0.4);
+	float flicker = 0.92 + 0.08 * sin(t * 30.0);
+	float3 col = palette(x) * (0.7 + 0.3 * scan) * flicker;
+	col += glowColor * smoothstep(0.92, 1.0, scan) * 0.35;
+	float grid = step(0.94, frac(p.x * 4.0)) + step(0.94, frac(p.y * 4.0));
+	col += color4 * saturate(grid) * 0.25;
+	return col;
+}
+
+float3 patGalaxy(float2 p, float t) {
+	float a = fbm(p * 0.8 + t * 0.05);
+	float b = fbm(p * 1.6 - t * 0.08 + a);
+	float x = saturate(a * 0.6 + b * 0.6 - 0.1);
+	float3 col = palette(x);
+	float s = hash21(floor(p * 18.0));
+	float star = step(0.985, s) * (0.6 + 0.4 * sin(t * 3.0 + s * 50.0));
+	col += star;
+	return col;
+}
+
+float3 evalPattern(float2 uv, float t) {
+	float aspect = resolution.x / max(resolution.y, 1.0);
+	float2 p = uv * float2(aspect, 1.0) * scale;
+	int st = (int)(style + 0.5);
+	float3 col;
+	if (st == 1) {
+		col = patFlame(p, t);
+	} else if (st == 2) {
+		col = patPlasma(p, t);
+	} else if (st == 3) {
+		col = patHologram(uv, p, t);
+	} else if (st == 4) {
+		col = patGalaxy(p, t);
+	} else {
+		col = patAurora(p, t);
+	}
+	col = pow(max(col, 0.0), contrast) * brightness;
+	return col;
+}
+
+float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
+	float4 scene = Scene.Sample(Linear, uv);
+	float t = time * speed;
+
+	float mask = getMask(scene.rgb);
+
+	float bloom = 0.0;
+	if (glowIntensity > 0.001 && glowSpread > 0.01) {
+		float2 texel = glowSpread / max(resolution, float2(1.0, 1.0));
+		const int SAMPLES = 10;
+		for (int i = 0; i < SAMPLES; i++) {
+			float ang = (float(i) / float(SAMPLES)) * 6.2831853;
+			float2 dir = float2(cos(ang), sin(ang));
+			bloom += getMask(Scene.Sample(Linear, uv + dir * texel).rgb);
+		}
+		bloom /= float(SAMPLES);
+	}
+
+	float3 cleanScene = scene.rgb;
+	float fringe = getFringeMask(cleanScene) * clamp(bloom * 4.0, 0.0, 1.0);
+	float remove = clamp(max(mask, fringe), 0.0, 1.0);
+	if (remove > 0.001) {
+		float rbMax = max(cleanScene.r, cleanScene.b);
+		if (cleanScene.g > rbMax) {
+			cleanScene.g = lerp(cleanScene.g, rbMax, remove);
+		}
+	}
+
+	float3 finalRGB = cleanScene;
+
+	if (mask > 0.001) {
+		float3 fx = evalPattern(uv, t);
+		finalRGB = lerp(cleanScene, fx, mask);
+	}
+
+	float edgeGlow = bloom * (1.0 - mask) * smoothstep(0.15, 0.75, bloom);
+	finalRGB += glowColor * edgeGlow * (glowIntensity * 0.42);
+
+	return float4(finalRGB, 1.0);
+}
+]]
 
 local view = {
     frame = 0, time = 0, dt = 0, fade = 1, angle = 0,
@@ -426,7 +714,7 @@ function Renderer.new(parent)
     root.BorderSizePixel = 0
     root.Size = UDim2.fromScale(1, 1)
     root.Parent = parent
-    
+
     local self = setmetatable({
         root = root, rects = {}, lines = {}, keyed = {}, keyList = {},
         nRect = 0, nLine = 0, hiRect = 0, hiLine = 0, frame = 0,
@@ -806,7 +1094,66 @@ local state = {
     hadEntities = false,
     hadItems = false,
     dead = false,
+    shader = nil,
+    appliedPreset = nil,
 }
+
+local function applyPreset(name)
+    local shader = state.shader
+    local preset = CHAMS_PRESETS[name] or CHAMS_PRESETS.Borealis
+    if not shader then return end
+    pcall(function()
+        shader:Set("color1", preset.Color1)
+        shader:Set("color2", preset.Color2)
+        shader:Set("color3", preset.Color3)
+        shader:Set("color4", preset.Color4)
+        shader:Set("color5", preset.Color5)
+        shader:Set("glowColor", preset.GlowColor)
+        shader:Set("brightness", preset.Brightness)
+        shader:Set("contrast", preset.Contrast)
+        shader:Set("glowIntensity", preset.GlowIntensity)
+        shader:Set("glowSpread", preset.GlowSpread)
+        shader:Set("speed", preset.Speed)
+        shader:Set("scale", preset.Scale)
+        shader:Set("style", preset.Style)
+    end)
+    state.appliedPreset = name
+end
+
+local function ensureShader()
+    if state.shader then return end
+    if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then return end
+    local ok, shader = pcall(function()
+        return Drawing.new("Shader")
+    end)
+    if not ok or not shader then return end
+    local built = pcall(function()
+        shader.Vertex = SHADER_VERTEX
+        shader.Pixel = SHADER_PIXEL
+        shader:Create()
+    end)
+    if not built then
+        pcall(function() shader:Remove() end)
+        return
+    end
+    state.shader = shader
+    applyPreset(espModule.Settings.ChamsPreset)
+end
+
+local function destroyShader()
+    if state.shader then
+        pcall(function() state.shader:Remove() end)
+        state.shader = nil
+        state.appliedPreset = nil
+    end
+end
+
+function espModule:SetChamsPreset(name)
+    if not CHAMS_PRESETS[name] then return false end
+    self.Settings.ChamsPreset = name
+    if state.shader then applyPreset(name) end
+    return true
+end
 
 local function hideRecord(rec)
     if rec.hidden then return end
@@ -881,6 +1228,15 @@ local function collectParts(character, names, out)
     end
 end
 
+local function collectAnyParts(character, out)
+    for _, d in ipairs(character:GetDescendants()) do
+        if d:IsA("BasePart") and d.Transparency < 0.95 and d.Name ~= "Base" and not d:FindFirstAncestorOfClass("Accessory") then
+            out[#out + 1] = d
+            if #out >= 40 then break end
+        end
+    end
+end
+
 local function bindCharacter(rec, character, humanoid, isVM)
     rec.character = character
     rec.humanoid = humanoid
@@ -889,11 +1245,7 @@ local function bindCharacter(rec, character, humanoid, isVM)
     if isVM then
         collectParts(character, VM_PARTS, rec.parts)
         if #rec.parts == 0 then
-            for _, d in ipairs(character:GetDescendants()) do
-                if d:IsA("BasePart") and d.Transparency < 0.95 and d.Name ~= "Base" then
-                    rec.parts[#rec.parts + 1] = d
-                end
-            end
+            collectAnyParts(character, rec.parts)
         end
         local torso = character:FindFirstChild("torso")
         if torso then
@@ -909,16 +1261,14 @@ local function bindCharacter(rec, character, humanoid, isVM)
             local p = character:FindFirstChild(names[i])
             if p and p:IsA("BasePart") then rec.parts[#rec.parts + 1] = p end
         end
-        for _, child in ipairs(character:GetChildren()) do
-            if child:IsA("Accessory") then
-                local h = child:FindFirstChild("Handle")
-                if h and h:IsA("BasePart") then rec.parts[#rec.parts + 1] = h end
-            end
+        if #rec.parts == 0 then
+            collectAnyParts(character, rec.parts)
         end
         rec.root = character:FindFirstChild("HumanoidRootPart")
             or character:FindFirstChild("Torso")
             or character:FindFirstChild("UpperTorso")
             or character.PrimaryPart
+            or character:FindFirstChildWhichIsA("BasePart", true)
     end
     rec.scanned = view.time
 end
@@ -961,12 +1311,12 @@ local function updateFlags(rec, entity, character, humanoid, cfg)
         if table.find(cfg.SelectedFlags, "Walking") and humanoid.MoveDirection.Magnitude > 0 then
             d.flags[#d.flags + 1] = "Walking"
         end
-        local ok, state = pcall(function() return humanoid:GetState() end)
+        local ok, hs = pcall(function() return humanoid:GetState() end)
         if ok then
-            if table.find(cfg.SelectedFlags, "Jumping") and (state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping) then
+            if table.find(cfg.SelectedFlags, "Jumping") and (hs == Enum.HumanoidStateType.Freefall or hs == Enum.HumanoidStateType.Jumping) then
                 d.flags[#d.flags + 1] = "Jumping"
             end
-            if table.find(cfg.SelectedFlags, "Swimming") and state == Enum.HumanoidStateType.Swimming then
+            if table.find(cfg.SelectedFlags, "Swimming") and hs == Enum.HumanoidStateType.Swimming then
                 d.flags[#d.flags + 1] = "Swimming"
             end
         end
@@ -979,57 +1329,83 @@ local function updateFlags(rec, entity, character, humanoid, cfg)
     end
 end
 
-local function boundsFromParts(parts)
-    local minX, minY, minZ = math.huge, math.huge, math.huge
-    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+local SIGNS = {
+    {-1, -1, -1}, {1, -1, -1}, {-1, 1, -1}, {1, 1, -1},
+    {-1, -1, 1}, {1, -1, 1}, {-1, 1, 1}, {1, 1, 1},
+}
+
+local function dynamicBounds(parts)
+    local sx1, sy1, sx2, sy2 = math.huge, math.huge, -math.huge, -math.huge
+    local any = false
     for i = 1, #parts do
         local p = parts[i]
         if p and p.Parent then
             local cf, size = p.CFrame, p.Size
             local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
-            for _, ox in ipairs({-hx, hx}) do
-                for _, oy in ipairs({-hy, hy}) do
-                    for _, oz in ipairs({-hz, hz}) do
-                        local w = cf * Vector3.new(ox, oy, oz)
-                        if w.X < minX then minX = w.X end
-                        if w.Y < minY then minY = w.Y end
-                        if w.Z < minZ then minZ = w.Z end
-                        if w.X > maxX then maxX = w.X end
-                        if w.Y > maxY then maxY = w.Y end
-                        if w.Z > maxZ then maxZ = w.Z end
-                    end
+            for s = 1, 8 do
+                local sg = SIGNS[s]
+                local w = cf * Vector3.new(hx * sg[1], hy * sg[2], hz * sg[3])
+                local sx, sy = project(w.X, w.Y, w.Z)
+                if sx then
+                    any = true
+                    if sx < sx1 then sx1 = sx end
+                    if sy < sy1 then sy1 = sy end
+                    if sx > sx2 then sx2 = sx end
+                    if sy > sy2 then sy2 = sy end
                 end
             end
         end
     end
-    if minX == math.huge then return nil end
-    return minX, minY, minZ, maxX, maxY, maxZ
+    if not any then return nil end
+    return sx1, sy1, sx2, sy2
 end
 
-local function screenBox(minX, minY, minZ, maxX, maxY, maxZ)
-    local sx1, sy1, sx2, sy2 = math.huge, math.huge, -math.huge, -math.huge
-    local any = false
-    local corners = {
-        {minX, minY, minZ}, {maxX, minY, minZ}, {minX, maxY, minZ}, {maxX, maxY, minZ},
-        {minX, minY, maxZ}, {maxX, minY, maxZ}, {minX, maxY, maxZ}, {maxX, maxY, maxZ},
-    }
-    local pts = {}
-    for i = 1, 8 do
-        local c = corners[i]
-        local sx, sy, depth = project(c[1], c[2], c[3])
-        if sx then
-            any = true
-            pts[i] = {sx, sy, true}
-            if sx < sx1 then sx1 = sx end
-            if sy < sy1 then sy1 = sy end
-            if sx > sx2 then sx2 = sx end
-            if sy > sy2 then sy2 = sy end
-        else
-            pts[i] = {0, 0, false}
+local function staticBounds(rec, parts)
+    local root = rec.root
+    if not root or not root.Parent then return nil end
+    local minY, maxY = math.huge, -math.huge
+    for i = 1, #parts do
+        local p = parts[i]
+        if p and p.Parent then
+            local cf, size = p.CFrame, p.Size
+            local ext = math.abs(cf.RightVector.Y) * size.X * 0.5
+                + math.abs(cf.UpVector.Y) * size.Y * 0.5
+                + math.abs(cf.LookVector.Y) * size.Z * 0.5
+            local py = cf.Position.Y
+            if py - ext < minY then minY = py - ext end
+            if py + ext > maxY then maxY = py + ext end
         end
     end
-    if not any then return nil end
-    return sx1, sy1, sx2, sy2, pts
+    if minY == math.huge then return nil end
+    local rp = root.Position
+    local tx, ty = project(rp.X, maxY, rp.Z)
+    local bx, by = project(rp.X, minY, rp.Z)
+    if not tx or not bx then return nil end
+    local h = by - ty
+    if h < 2 then return nil end
+    local w = h * 0.55
+    local cx = (tx + bx) * 0.5
+    return cx - w * 0.5, ty, cx + w * 0.5, by
+end
+
+local function box3D(rec)
+    local character = rec.character
+    if not character then return nil end
+    local ok, cf, size = pcall(function() return character:GetBoundingBox() end)
+    if not ok or not cf then return nil end
+    local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
+    local pts = {}
+    for s = 1, 8 do
+        local sg = SIGNS[s]
+        local w = cf * Vector3.new(hx * sg[1], hy * sg[2], hz * sg[3])
+        local sx, sy = project(w.X, w.Y, w.Z)
+        if sx then
+            pts[s] = {sx, sy, true}
+        else
+            pts[s] = {0, 0, false}
+        end
+    end
+    return pts
 end
 
 local function render(rec, cfg, rx, ry, rz, dist)
@@ -1039,33 +1415,35 @@ local function render(rec, cfg, rx, ry, rz, dist)
         return
     end
 
-    local minX, minY, minZ, maxX, maxY, maxZ = boundsFromParts(parts)
-    if not minX then
-        hideRecord(rec)
-        return
-    end
+    local settings = espModule.Settings
 
-    local sx1, sy1, sx2, sy2, pts = screenBox(minX, minY, minZ, maxX, maxY, maxZ)
+    local sx1, sy1, sx2, sy2
+    if settings.BoxMode == "Static" then
+        sx1, sy1, sx2, sy2 = staticBounds(rec, parts)
+    else
+        sx1, sy1, sx2, sy2 = dynamicBounds(parts)
+    end
     if not sx1 then
         hideRecord(rec)
         return
     end
 
-    local pad = 4
+    local pad = 2
     local x = math.floor(sx1 - pad + 0.5)
     local y = math.floor(sy1 - pad + 0.5)
     local w = math.max(math.floor(sx2 - sx1 + pad * 2 + 0.5), 8)
     local h = math.max(math.floor(sy2 - sy1 + pad * 2 + 0.5), 8)
 
     local box = rec.box
-    local smooth = espModule.Settings.BoxSmoothing or 0.35
-    if box.w == 0 then
+    local smooth = settings.BoxSmoothing or 0
+    if box.w == 0 or smooth <= 0 or rec.hidden then
         box.x, box.y, box.w, box.h = x, y, w, h
     else
-        box.x = box.x + (x - box.x) * (1 - smooth)
-        box.y = box.y + (y - box.y) * (1 - smooth)
-        box.w = box.w + (w - box.w) * (1 - smooth)
-        box.h = box.h + (h - box.h) * (1 - smooth)
+        local k = 1 - math.clamp(smooth, 0, 0.95)
+        box.x = box.x + (x - box.x) * k
+        box.y = box.y + (y - box.y) * k
+        box.w = box.w + (w - box.w) * k
+        box.h = box.h + (h - box.h) * k
     end
     x, y, w, h = math.floor(box.x + 0.5), math.floor(box.y + 0.5), math.floor(box.w + 0.5), math.floor(box.h + 0.5)
 
@@ -1083,7 +1461,6 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local renderer = rec.renderer
     renderer:Begin()
 
-    local settings = espModule.Settings
     local textFont = getFont(settings.TextFont)
     local flagsFont = getFont(settings.FlagsFont)
     local healthFont = getFont(settings.HealthFont)
@@ -1116,22 +1493,19 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if cfg.Chams then
+    if cfg.Chams and state.shader then
         if not rec.hl then
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillColor = KEY_COLOR
+            hl.FillTransparency = 0
+            hl.OutlineColor = KEY_COLOR
+            hl.OutlineTransparency = 1
             hl.Parent = state.gui
             rec.hl = hl
         end
-        rec.hl.Adornee = rec.character
-        rec.hl.FillColor = cfg.ChamsColor
-        rec.hl.FillTransparency = 1 - ((1 - cfg.ChamsFillTransparency) * (1 - tr))
-        if cfg.ChamsGlow then
-            rec.hl.OutlineColor = cfg.ChamsColor
-            rec.hl.OutlineTransparency = tr
-        else
-            rec.hl.OutlineColor = Color3.new(0, 0, 0)
-            rec.hl.OutlineTransparency = 1
+        if rec.hl.Adornee ~= rec.character then
+            rec.hl.Adornee = rec.character
         end
         rec.hl.Enabled = true
     else
@@ -1164,13 +1538,16 @@ local function render(rec, cfg, rx, ry, rz, dist)
                 b.color.BackgroundTransparency = tr
                 b.outline.BackgroundTransparency = tr
             end
-        elseif cfg.BoxType == "3D" and pts then
-            local edges = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
-            for i = 1, 12 do
-                local e = edges[i]
-                local a, b2 = pts[e[1]], pts[e[2]]
-                if a and b2 and a[3] and b2[3] then
-                    renderer:Line(a[1], a[2], b2[1], b2[2], thick, cfg.LineColor, cfg.LineColor, tr)
+        elseif cfg.BoxType == "3D" then
+            local pts = box3D(rec)
+            if pts then
+                local edges = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
+                for i = 1, 12 do
+                    local e = edges[i]
+                    local a, b2 = pts[e[1]], pts[e[2]]
+                    if a and b2 and a[3] and b2[3] then
+                        renderer:Line(a[1], a[2], b2[1], b2[2], thick, cfg.LineColor, cfg.LineColor, tr)
+                    end
                 end
             end
         else
@@ -1178,27 +1555,27 @@ local function render(rec, cfg, rx, ry, rz, dist)
             renderer.cornerBox.Position = UDim2.fromOffset(x, y)
             renderer.cornerBox.Size = UDim2.fromOffset(w, h)
             local maxAllowed = math.min(50, math.floor(math.min(w, h) * 0.42))
-            local lineLen = math.clamp(40, 6, math.max(6, maxAllowed))
-            
+            local lineLen = math.clamp(math.floor(math.min(w, h) * 0.3), 4, math.max(4, maxAllowed))
+
             for _, c in ipairs(renderer.cornerBars) do
                 local sx, sy = c.xSign, c.ySign
                 local ox = sx == 0 and -1 or 1
                 local oy = sy == 0 and -1 or 1
-                
+
                 c.colorH.Size = UDim2.fromOffset(lineLen, thick)
                 c.colorH.Position = UDim2.fromScale(sx, sy)
                 c.colorH.BackgroundColor3 = cfg.LineColor
                 c.colorH.BackgroundTransparency = tr
-                
+
                 c.outlineH.Size = UDim2.fromOffset(lineLen + 2, thick + 2)
                 c.outlineH.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
                 c.outlineH.BackgroundTransparency = tr
-                
+
                 c.colorV.Size = UDim2.fromOffset(thick, lineLen)
                 c.colorV.Position = UDim2.fromScale(sx, sy)
                 c.colorV.BackgroundColor3 = cfg.LineColor
                 c.colorV.BackgroundTransparency = tr
-                
+
                 c.outlineV.Size = UDim2.fromOffset(thick + 2, lineLen + 2)
                 c.outlineV.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
                 c.outlineV.BackgroundTransparency = tr
@@ -1207,11 +1584,14 @@ local function render(rec, cfg, rx, ry, rz, dist)
     end
 
     if cfg.HeadDot then
-        local head = rec.character and rec.character:FindFirstChild("Head")
+        local head = rec.character and (rec.character:FindFirstChild("Head") or rec.character:FindFirstChild("head"))
         if head then
-            local hx, hy = project(head.Position.X, head.Position.Y, head.Position.Z)
-            if hx then
-                renderer:Dot("headdot", hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
+            local hp = head:IsA("BasePart") and head.Position or (head:FindFirstChildWhichIsA("BasePart", true) and head:FindFirstChildWhichIsA("BasePart", true).Position)
+            if hp then
+                local hx, hy = project(hp.X, hp.Y, hp.Z)
+                if hx then
+                    renderer:Dot("headdot", hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
+                end
             end
         end
     end
@@ -1633,19 +2013,21 @@ function espModule:RemoveItem(name)
     fireRegistry()
 end
 
-local function setHighlight(meta, key, adornee, fillColor, fillTr, outlineColor, outlineTr)
+local function setChamHighlight(meta, key, adornee)
     local hl = meta[key]
     if not hl then
         hl = Instance.new("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.FillColor = KEY_COLOR
+        hl.FillTransparency = 0
+        hl.OutlineColor = KEY_COLOR
+        hl.OutlineTransparency = 1
         hl.Parent = state.gui
         meta[key] = hl
     end
-    hl.Adornee = adornee
-    hl.FillColor = fillColor
-    hl.FillTransparency = fillTr
-    hl.OutlineColor = outlineColor
-    hl.OutlineTransparency = outlineTr
+    if hl.Adornee ~= adornee then
+        hl.Adornee = adornee
+    end
     hl.Enabled = true
 end
 
@@ -1738,8 +2120,8 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
         end
     end
 
-    if cfg.Chams then
-        setHighlight(meta, "hl", item, color, 1 - (1 - cfg.ChamsFillTransparency) * view.fade, Color3.new(0, 0, 0), 1)
+    if cfg.Chams and state.shader then
+        setChamHighlight(meta, "hl", item)
     else
         clearHighlight(meta, "hl")
     end
@@ -1792,6 +2174,20 @@ local function step()
         state.hadItems = false
         clearItems()
     end
+
+    local anyChams = (settings.Enemy.Enabled and settings.Enemy.Chams)
+        or (settings.Teammate.Enabled and settings.Teammate.Chams)
+        or (settings.AI.Enabled and settings.AI.Chams)
+        or (settings.Items.Enabled and settings.Items.Chams)
+    if anyChams then
+        ensureShader()
+        if state.shader and state.appliedPreset ~= settings.ChamsPreset then
+            applyPreset(settings.ChamsPreset)
+        end
+    elseif state.shader then
+        destroyShader()
+    end
+
     if not anyEntity and not anyItem then return end
 
     if now - state.last < 1 / math.clamp(settings.RefreshRate, 30, 360) then return end
@@ -1908,6 +2304,7 @@ function espModule:Stop()
     state.vms, state.vmAt = {}, -1
     state.hadEntities, state.hadItems, state.dead = false, false, false
     view.fade = 1
+    destroyShader()
     if state.gui then
         state.gui:Destroy()
         state.gui = nil

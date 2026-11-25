@@ -1,4 +1,4 @@
-print('-1')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -387,8 +387,8 @@ function espModule.Layout(cfg, x, y, w, h, o)
             rx, ry, rw, rh, vertical = x, y - 4 - off.Top, w, 1, false
             off.Top += 5
         else
-            rx, ry, rw, rh, vertical = x, y + h + 3 + off.Bottom, w, 1, false
-            off.Bottom += 6
+            rx, ry, rw, rh, vertical = x, y + h + 2 + off.Bottom, w, 1, false
+            off.Bottom += 4
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
         return rx, ry
@@ -400,7 +400,7 @@ function espModule.Layout(cfg, x, y, w, h, o)
             p = { x = x + w * 0.5, y = y - 3 - off.Top, ax = 0.5, ay = 1 }
             off.Top += step
         elseif side == "Bottom" then
-            p = { x = x + w * 0.5, y = y + h + 3 + off.Bottom, ax = 0.5, ay = 0 }
+            p = { x = x + w * 0.5, y = y + h + 2 + off.Bottom, ax = 0.5, ay = 0 }
             off.Bottom += step
         elseif side == "Left" then
             p = { x = x - 4 - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
@@ -626,8 +626,8 @@ float3 glowCol(Grp g) {
 float keyAmount(float3 c, int k) {
 	if (k == 2) {
 		float s = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l = smoothstep(0.65, 0.88, c.b);
-		return smoothstep(0.92, 0.99, s) * l;
+		float l = smoothstep(0.45, 0.75, c.b);
+		return smoothstep(0.82, 0.95, s) * l;
 	}
 	float lo, a, b;
 	if (k == 0) {
@@ -643,9 +643,9 @@ float keyAmount(float3 c, int k) {
 	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
 	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.05, 0.2, abs(a - b) * inv);
-	float lum = smoothstep(0.55, 0.85, mn);
-	return smoothstep(0.9, 0.98, s) * bal * lum;
+	float bal = 1.0 - smoothstep(0.12, 0.35, abs(a - b) * inv);
+	float lum = smoothstep(0.35, 0.7, mn);
+	return smoothstep(0.78, 0.93, s) * bal * lum;
 }
 
 float fringeAmount(float3 c, int k) {

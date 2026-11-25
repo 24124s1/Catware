@@ -355,8 +355,6 @@ function espModule.HealthColor(t, high, mid, low)
     return low:Lerp(mid, t * 2)
 end
 
-local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
-
 function espModule.Layout(cfg, x, y, w, h, o)
     local size = o.size or 12
     local step = size + 1
@@ -386,8 +384,25 @@ function espModule.Layout(cfg, x, y, w, h, o)
         return rx, ry
     end
 
-    if o.health then
-        local side = pick(cfg.HealthBarPos, "Left")
+    local function placeText(side)
+        local p
+        if side == "Top" then
+            p = { x = x + w * 0.5, y = y - 3 - off.Top, ax = 0.5, ay = 1 }
+            off.Top += step
+        elseif side == "Bottom" then
+            p = { x = x + w * 0.5, y = y + h + 3 + off.Bottom, ax = 0.5, ay = 0 }
+            off.Bottom += step
+        elseif side == "Left" then
+            p = { x = x - 4 - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
+            rows.Left += 1
+        else
+            p = { x = x + w + 4 + off.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
+            rows.Right += 1
+        end
+        return p
+    end
+
+    local function doHealth(side)
         local rx, ry = placeBar("health", side)
         if cfg.HealthText then
             local ty = math.clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
@@ -408,31 +423,39 @@ function espModule.Layout(cfg, x, y, w, h, o)
         end
     end
 
-    if o.armor then
-        placeBar("armor", pick(cfg.ArmorBarPos, "Bottom"))
-    end
-
-    local function placeText(side)
-        local p
-        if side == "Top" then
-            p = { x = x + w * 0.5, y = y - 3 - off.Top, ax = 0.5, ay = 1 }
-            off.Top += step
-        elseif side == "Bottom" then
-            p = { x = x + w * 0.5, y = y + h + 3 + off.Bottom, ax = 0.5, ay = 0 }
-            off.Bottom += step
-        elseif side == "Left" then
-            p = { x = x - 4 - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
-            rows.Left += 1
-        else
-            p = { x = x + w + 4 + off.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
-            rows.Right += 1
+    local items = {}
+    local function add(key, kind, enabled, side, slot, n)
+        if enabled then
+            items[#items + 1] = { key = key, kind = kind, side = side, slot = slot, n = n }
         end
-        return p
+    end
+    add("health", "healthbar", o.health, pick(cfg.HealthBarPos, "Left"), cfg.HealthBarSlot or 1, 1)
+    add("armor", "bar", o.armor, pick(cfg.ArmorBarPos, "Bottom"), cfg.ArmorBarSlot or 2, 2)
+    add("name", "text", cfg.Names, pick(cfg.NamePos, "Top"), cfg.NameSlot or 3, 3)
+    add("distance", "text", cfg.Distance, pick(cfg.DistancePos, "Right"), cfg.DistanceSlot or 4, 4)
+    add("tool", "text", cfg.Tool, pick(cfg.ToolPos, "Bottom"), cfg.ToolSlot or 5, 5)
+
+    table.sort(items, function(a, b)
+        if a.slot ~= b.slot then return a.slot < b.slot end
+        return a.n < b.n
+    end)
+
+    local deferred = {}
+    for _, it in ipairs(items) do
+        if it.kind == "healthbar" then
+            doHealth(it.side)
+        elseif it.kind == "bar" then
+            placeBar(it.key, it.side)
+        elseif it.side == "Left" or it.side == "Right" then
+            deferred[#deferred + 1] = it
+        else
+            out[it.key] = placeText(it.side)
+        end
+    end
+    for _, it in ipairs(deferred) do
+        out[it.key] = placeText(it.side)
     end
 
-    if cfg.Names then out.name = placeText(pick(cfg.NamePos, "Top")) end
-    if cfg.Distance then out.distance = placeText(pick(cfg.DistancePos, "Right")) end
-    if cfg.Tool then out.tool = placeText(pick(cfg.ToolPos, "Bottom")) end
     local fc = o.flagCount or 0
     if cfg.Flags and fc > 0 then
         local side = pick(cfg.FlagsPos, "Right")

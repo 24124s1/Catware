@@ -1,4 +1,4 @@
-print('-11')
+print('-1111')
 
 local cloneref = cloneref or function(o) return o end
 local function svc(n) return cloneref(game:GetService(n)) end
@@ -4255,17 +4255,22 @@ local Enemy, Team, Setting = left:multi_section({
     fills = false,
 })
 
-local function setVisible(obj, vis)
-    if not obj then return end
-    if typeof(obj) == "Instance" and obj:IsA("GuiObject") then
-        obj.Visible = vis
-    elseif type(obj) == "table" then
-        for _, v in pairs(obj) do
-            if typeof(v) == "Instance" and v:IsA("GuiObject") then
-                v.Visible = vis
-                break
-            end
+local function getPopupRow(el)
+    if type(el) ~= "table" then return nil end
+    if typeof(el.row) == "Instance" and el.row:IsA("GuiObject") then return el.row end
+    if typeof(el.holder) == "Instance" and el.holder:IsA("GuiObject") then return el.holder end
+    for _, v in pairs(el) do
+        if typeof(v) == "Instance" and v:IsA("GuiObject") and v.Name ~= "Popup" and v.Name ~= "Gear" then
+            return v
         end
+    end
+    return nil
+end
+
+local function setPopupElemVisible(el, vis)
+    local row = getPopupRow(el)
+    if row then
+        row.Visible = vis
     end
 end
 
@@ -4297,12 +4302,14 @@ local function addESPSection(sec, tbl, prefix)
 
     local function syncChamsUI(mode)
         local isShader = (mode == "Shader")
-        setVisible(cp3, isShader)
+        if type(cp3) == "table" and typeof(cp3.button) == "Instance" and cp3.button:IsA("GuiObject") then
+            cp3.button.Visible = isShader
+        end
         for _, el in ipairs(shaderElems) do
-            setVisible(el, isShader)
+            setPopupElemVisible(el, isShader)
         end
         for _, el in ipairs(adornElems) do
-            setVisible(el, not isShader)
+            setPopupElemVisible(el, not isShader)
         end
     end
 
@@ -4506,5 +4513,3 @@ function Stardust.unload()
 end
 
 if env then env.Stardust = Stardust end
-
-return Stardust

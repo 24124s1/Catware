@@ -3026,25 +3026,43 @@ function Column:preview(o)
     local elems = {}
     local hoverKey = nil
     local dragEl, dragPrefix = nil, nil
+    local dragStartMouse, dragStartCenter = nil, nil
+    local hits, hitCenter = {}, {}
 
-    rotBtn.MouseButton1Down:Connect(function()
-        if hoverKey then
-            dragEl = hoverKey
-            dragPrefix = last
-        else
-            dragging = true
-            lastX = UIS:GetMouseLocation().X
-            lastDrag = tick()
-        end
-    end)
-    rotBtn.MouseButton2Click:Connect(function()
+    local function resetLayout()
         for flag, side in pairs(POS_DEFAULT) do
             local fn = lib.setters[last .. "_" .. flag]
             if fn then pcall(fn, side) end
         end
         local ofn = lib.setters[last .. "_order"]
         if ofn then pcall(ofn, resolveOrder(nil)) end
+    end
+
+    for _, key in ipairs(HOVER_ORDER) do
+        local b = new("TextButton", {
+            Parent = area, Size = off(0, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 21,
+        })
+        hits[key] = b
+        b.MouseEnter:Connect(function() hoverKey = key end)
+        b.MouseLeave:Connect(function()
+            if hoverKey == key then hoverKey = nil end
+        end)
+        b.MouseButton1Down:Connect(function()
+            if not hitCenter[key] then return end
+            dragEl = key
+            dragPrefix = last
+            dragStartMouse = UIS:GetMouseLocation()
+            dragStartCenter = hitCenter[key]
+        end)
+        b.MouseButton2Click:Connect(resetLayout)
+    end
+
+    rotBtn.MouseButton1Down:Connect(function()
+        dragging = true
+        lastX = UIS:GetMouseLocation().X
+        lastDrag = tick()
     end)
+    rotBtn.MouseButton2Click:Connect(resetLayout)
     lib:connect(UIS.InputEnded, function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
@@ -3244,6 +3262,7 @@ function Column:preview(o)
         hpT.label.Visible = false
         hoverGlow.Visible = false
         hoverBox.Visible = false
+        for _, b in pairs(hits) do b.Visible = false end
         hoverKey = nil
         table.clear(elems)
     end
@@ -3372,8 +3391,6 @@ function Column:preview(o)
         local y = floor(minY - pad + 0.5)
         local sx = math.max(floor(maxX - minX + pad * 2 + 0.5), 8)
         local sy = math.max(floor(maxY - minY + pad * 2 + 0.5), 8)
-
-        local mrel = lib:mouse() - area.AbsolutePosition
 
         local showBox = on("box")
         local boxType = str("box_type", "Corner")
@@ -3616,10 +3633,34 @@ function Column:preview(o)
             toolT.label.Visible = false
         end
 
-        if dragEl and elems[dragEl] then
+        for _, key in ipairs(HOVER_ORDER) do
+            local b = hits[key]
+            local list = elems[key]
+            if list then
+                local ux1, uy1, ux2, uy2 = math.huge, math.huge, -math.huge, -math.huge
+                for _, r in ipairs(list) do
+                    if r.x < ux1 then ux1 = r.x end
+                    if r.y < uy1 then uy1 = r.y end
+                    if r.x + r.w > ux2 then ux2 = r.x + r.w end
+                    if r.y + r.h > uy2 then uy2 = r.y + r.h end
+                end
+                b.Position = off(floor(ux1 - 4), floor(uy1 - 4))
+                b.Size = off(floor(ux2 - ux1 + 8), floor(uy2 - uy1 + 8))
+                b.Visible = true
+                hitCenter[key] = v2((ux1 + ux2) * 0.5, (uy1 + uy2) * 0.5)
+            else
+                b.Visible = false
+                hitCenter[key] = nil
+            end
+        end
+
+        if dragEl and elems[dragEl] and dragStartCenter then
+            local mp = UIS:GetMouseLocation()
+            local vx = dragStartCenter.X + (mp.X - dragStartMouse.X)
+            local vy = dragStartCenter.Y + (mp.Y - dragStartMouse.Y)
             local cx, cy = x + sx * 0.5, y + sy * 0.5
-            local nx = (mrel.X - cx) / (sx * 0.5)
-            local ny = (mrel.Y - cy) / (sy * 0.5)
+            local nx = (vx - cx) / (sx * 0.5)
+            local ny = (vy - cy) / (sy * 0.5)
             local side
             if math.abs(nx) > math.abs(ny) then
                 side = nx < 0 and "Left" or "Right"
@@ -3636,7 +3677,7 @@ function Column:preview(o)
                 return rcy - (y + sy)
             end
 
-            local mouseRank = rankOf(dragEl, side, mrel.X, mrel.Y, 0, 0)
+            local mouseRank = rankOf(dragEl, side, vx, vy, 0, 0)
             local base = resolveOrder(lib.flags[dragPrefix .. "_order"])
             local rest = {}
             for _, k in ipairs(base) do
@@ -3685,23 +3726,8 @@ function Column:preview(o)
             end
         end
 
-        local active = dragEl
-        if not active and not dragging and #lib.stack == 0
-            and mrel.X >= 0 and mrel.Y >= 0 and mrel.X <= w and mrel.Y <= h then
-            for _, key in ipairs(HOVER_ORDER) do
-                local list = elems[key]
-                if list then
-                    for _, r in ipairs(list) do
-                        if mrel.X >= r.x - 4 and mrel.X <= r.x + r.w + 4 and mrel.Y >= r.y - 4 and mrel.Y <= r.y + r.h + 4 then
-                            active = key
-                            break
-                        end
-                    end
-                end
-                if active then break end
-            end
-        end
-        hoverKey = active
+        local active = dragEl or ((not dragging) and hoverKey) or nil
+        if active and not elems[active] then active = nil end
 
         if active and elems[active] then
             local ux1, uy1, ux2, uy2 = math.huge, math.huge, -math.huge, -math.huge

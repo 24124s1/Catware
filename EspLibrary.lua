@@ -363,10 +363,17 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
     local rows = { Left = 0, Right = 0 }
 
-    local function pick(v, d)
-        if SIDE_OK[v] then return v end
-        return d
-    end
+	local SIDE_OK = {
+	    Top = true,
+	    Bottom = true,
+	    Left = true,
+	    Right = true,
+	}
+	
+	local function pick(v, d)
+	    if SIDE_OK[v] then return v end
+	    return d
+	end
 
     local function placeBar(key, side)
         local rx, ry, rw, rh, vertical

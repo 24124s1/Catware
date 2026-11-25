@@ -4269,7 +4269,7 @@ local function addESPSection(sec, tbl, prefix)
     local fillPop = fill:gear({title = "Box Fill Options"})
     fillPop:slider({name = "Fill Transparency", min = 0, max = 1, default = tbl.BoxFillTransparency, interval = 0.05, flag = prefix.."_boxfill_trans", callback = function(v) tbl.BoxFillTransparency = v end})
 
-    local cs = tbl.ChamsSettings
+local cs = tbl.ChamsSettings
     local chams = sec:toggle({name = "Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
     local cp1 = chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
     local cp2 = chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
@@ -4277,6 +4277,7 @@ local function addESPSection(sec, tbl, prefix)
 
     local chamsPop = chams:gear({title = "Chams Options"})
     local shaderElems = {}
+    local adornElems = {}
 
     local function syncChamsUI(mode)
         local isShader = (mode == "Shader")
@@ -4286,6 +4287,11 @@ local function addESPSection(sec, tbl, prefix)
         for _, el in ipairs(shaderElems) do
             if el and el.row then
                 el.row.Visible = isShader
+            end
+        end
+        for _, el in ipairs(adornElems) do
+            if el and el.row then
+                el.row.Visible = not isShader
             end
         end
     end
@@ -4299,6 +4305,23 @@ local function addESPSection(sec, tbl, prefix)
             tbl.ChamsType = v
             syncChamsUI(v)
         end
+    })
+
+    adornElems[#adornElems + 1] = chamsPop:slider({
+        name = "Chams Transparency",
+        min = 0, max = 1,
+        default = tbl.AdornmentTransparency or 0.55,
+        interval = 0.05,
+        flag = prefix.."_adorn_trans",
+        callback = function(v) tbl.AdornmentTransparency = v end
+    })
+    adornElems[#adornElems + 1] = chamsPop:slider({
+        name = "Glow Transparency",
+        min = 0, max = 1,
+        default = tbl.AdornmentGlowTransparency or 0.78,
+        interval = 0.05,
+        flag = prefix.."_adorn_glow_trans",
+        callback = function(v) tbl.AdornmentGlowTransparency = v end
     })
 
     shaderElems[#shaderElems + 1] = chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
@@ -4317,6 +4340,7 @@ local function addESPSection(sec, tbl, prefix)
     shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Scale", min = 0.5, max = 8, default = cs.Scale, interval = 0.1, flag = prefix.."_chams_scale", callback = function(v) cs.Scale = v end})
 
     syncChamsUI(tbl.ChamsType or "Shader")
+
     local names = sec:toggle({name = "Names", default = tbl.Names, flag = prefix.."_names", callback = function(v) tbl.Names = v end})
     names:colorpicker({flag = prefix.."_name_color", color = tbl.NameColor, callback = function(c) tbl.NameColor = c end})
     names:colorpicker({flag = prefix.."_name_color2", color = tbl.NameColor2, callback = function(c) tbl.NameColor2 = c end})

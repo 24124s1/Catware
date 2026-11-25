@@ -1,4 +1,4 @@
-print('-3')
+print('-4')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -11,12 +11,6 @@ local LocalPlayer = Players.LocalPlayer
 local rgb = Color3.fromRGB
 
 local espModule = {}
-
-local KEY_COLORS = {
-    [0] = rgb(255, 0, 255),
-    [1] = rgb(0, 255, 255),
-    [2] = rgb(0, 0, 255),
-}
 
 local CHAMS_DESIGNS = {
     Borealis = {
@@ -132,7 +126,6 @@ espModule.ChamsDesigns = CHAMS_DESIGNS
 espModule.ChamsDesignNames = CHAMS_DESIGN_NAMES
 espModule.ChamsPresetNames = CHAMS_DESIGN_NAMES
 espModule.ChamsPresets = CHAMS_DESIGNS
-espModule.KeyColors = KEY_COLORS
 
 local registryListeners = {}
 local fontListeners = {}
@@ -1361,24 +1354,9 @@ local function pushShader()
 end
 
 local function ensureShader()
-    if state.shader then return end
-    if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then return end
-    local ok, shader = pcall(function()
-        return Drawing.new("Shader")
-    end)
-    if not ok or not shader then return end
-    local built = pcall(function()
-        shader.Vertex = SHADER_VERTEX
-        shader.Pixel = SHADER_PIXEL
-        shader:Create()
-    end)
-    if not built then
-        pcall(function() shader:Remove() end)
-        return
+    if state.shader then
+        destroyShader()
     end
-    state.shader = shader
-    state.shaderParams = {}
-    pushShader()
 end
 
 local function destroyShader()
@@ -1700,7 +1678,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
     local healthFont = getFont(settings.HealthFont)
     local meters = math.floor(dist + 0.5)
     local d = rec.d
-    local chamsOn = cfg.Chams and state.shader ~= nil
+    local chamsOn = cfg.Chams
 
     if cfg.BoxFill and cfg.BoxEnabled then
         if cfg.BoxType == "3D" then
@@ -1732,22 +1710,18 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-    if chamsOn then
-        local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
+    if cfg.Chams then
+        local col = (cfg.ChamsSettings and cfg.ChamsSettings.Color1) or Color3.fromRGB(255, 0, 255)
         if not rec.hl then
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = keyCol
-            hl.FillTransparency = 0
-            hl.OutlineColor = keyCol
-            hl.OutlineTransparency = 1
+            hl.FillTransparency = 0.35
+            hl.OutlineTransparency = 0.15
             hl.Parent = state.gui
             rec.hl = hl
         end
-        if rec.hl.FillColor ~= keyCol then
-            rec.hl.FillColor = keyCol
-            rec.hl.OutlineColor = keyCol
-        end
+        rec.hl.FillColor = col
+        rec.hl.OutlineColor = col
         if rec.hl.Adornee ~= rec.character then
             rec.hl.Adornee = rec.character
         end
@@ -2271,9 +2245,9 @@ local function setChamHighlight(meta, key, adornee)
     if not hl then
         hl = Instance.new("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.FillColor = KEY_COLORS[2]
+        hl.FillColor = Color3.fromRGB(0, 0, 255)
         hl.FillTransparency = 0
-        hl.OutlineColor = KEY_COLORS[2]
+        hl.OutlineColor = Color3.fromRGB(0, 0, 255)
         hl.OutlineTransparency = 1
         hl.Parent = state.gui
         meta[key] = hl

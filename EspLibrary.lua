@@ -1755,7 +1755,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
             local hl = Instance.new("Highlight")
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             hl.FillColor = keyCol
-            hl.FillTransparency = 0
+            hl.FillTransparency = 1
             hl.OutlineColor = keyCol
             hl.OutlineTransparency = 1
             hl.Parent = state.gui

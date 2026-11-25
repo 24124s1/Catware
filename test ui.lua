@@ -2993,7 +2993,7 @@ function Column:preview(o)
     local dragging, lastX, lastDrag = false, 0, 0
     local hpKey, arKey = nil, nil
 
-    local ORDER = { "name", "distance", "tool", "health", "armor" }
+    local HOVER_ORDER = { "name", "distance", "tool", "health", "armor" }
     local POS_FLAG = {
         name = "name_pos", distance = "distance_pos", tool = "tool_pos",
         health = "healthbar_pos", armor = "armorbar_pos",
@@ -3003,6 +3003,25 @@ function Column:preview(o)
         healthbar_pos = "Left", armorbar_pos = "Bottom",
     }
     local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
+    local TEXT_KEYS = { name = true, distance = true, tool = true }
+    local ORDER_KEYS = { health = true, armor = true, name = true, distance = true, tool = true }
+    local DEFAULT_ORDER = { "health", "armor", "name", "distance", "tool" }
+
+    local function resolveOrder(list)
+        local out, seen = {}, {}
+        if type(list) == "table" then
+            for _, k in ipairs(list) do
+                if ORDER_KEYS[k] and not seen[k] then
+                    seen[k] = true
+                    out[#out + 1] = k
+                end
+            end
+        end
+        for _, k in ipairs(DEFAULT_ORDER) do
+            if not seen[k] then out[#out + 1] = k end
+        end
+        return out
+    end
 
     local elems = {}
     local hoverKey = nil
@@ -3023,6 +3042,8 @@ function Column:preview(o)
             local fn = lib.setters[last .. "_" .. flag]
             if fn then pcall(fn, side) end
         end
+        local ofn = lib.setters[last .. "_order"]
+        if ofn then pcall(ofn, resolveOrder(nil)) end
     end)
     lib:connect(UIS.InputEnded, function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3075,9 +3096,15 @@ function Column:preview(o)
         lbl.Visible = true
     end
 
-    local function textRect(t, p)
-        local b = t.label.TextBounds
-        return p.x - p.ax * b.X, p.y - p.ay * b.Y, b.X, b.Y
+    local function textRect(t, p, size)
+        local bw, bh = t.label.TextBounds.X, t.label.TextBounds.Y
+        if bw < 1 or bh < 1 then
+            bw, bh = t.label.AbsoluteSize.X, t.label.AbsoluteSize.Y
+        end
+        if bw < 1 or bh < 1 then
+            bw, bh = #(t.text or "") * size * 0.55, size + 2
+        end
+        return p.x - p.ax * bw, p.y - p.ay * bh, bw, bh
     end
 
     local function layoutPreview(cfg, x, y, w, h, opt)
@@ -3109,7 +3136,25 @@ function Column:preview(o)
             return rx, ry
         end
 
-        if opt.health then
+        local function placeText(side)
+            local p
+            if side == "Top" then
+                p = { x = x + w * 0.5, y = y - 3 - offs.Top, ax = 0.5, ay = 1 }
+                offs.Top += step
+            elseif side == "Bottom" then
+                p = { x = x + w * 0.5, y = y + h + 3 + offs.Bottom, ax = 0.5, ay = 0 }
+                offs.Bottom += step
+            elseif side == "Left" then
+                p = { x = x - 4 - offs.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
+                rows.Left += 1
+            else
+                p = { x = x + w + 4 + offs.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
+                rows.Right += 1
+            end
+            return p
+        end
+
+        local function doHealth()
             local side = pick(cfg.HealthBarPos, "Left")
             local rx, ry = placeBar("health", side)
             if cfg.HealthText then
@@ -3131,31 +3176,32 @@ function Column:preview(o)
             end
         end
 
-        if opt.armor then
-            placeBar("armor", pick(cfg.ArmorBarPos, "Bottom"))
-        end
+        local textInfo = {
+            name = { on = cfg.Names, side = pick(cfg.NamePos, "Top") },
+            distance = { on = cfg.Distance, side = pick(cfg.DistancePos, "Right") },
+            tool = { on = cfg.Tool, side = pick(cfg.ToolPos, "Bottom") },
+        }
 
-        local function placeText(side)
-            local p
-            if side == "Top" then
-                p = { x = x + w * 0.5, y = y - 3 - offs.Top, ax = 0.5, ay = 1 }
-                offs.Top += step
-            elseif side == "Bottom" then
-                p = { x = x + w * 0.5, y = y + h + 3 + offs.Bottom, ax = 0.5, ay = 0 }
-                offs.Bottom += step
-            elseif side == "Left" then
-                p = { x = x - 4 - offs.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
-                rows.Left += 1
+        local deferred = {}
+        for _, key in ipairs(resolveOrder(cfg.Order)) do
+            if key == "health" then
+                if opt.health then doHealth() end
+            elseif key == "armor" then
+                if opt.armor then placeBar("armor", pick(cfg.ArmorBarPos, "Bottom")) end
             else
-                p = { x = x + w + 4 + offs.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
-                rows.Right += 1
+                local info = textInfo[key]
+                if info and info.on then
+                    if info.side == "Left" or info.side == "Right" then
+                        deferred[#deferred + 1] = key
+                    else
+                        out[key] = placeText(info.side)
+                    end
+                end
             end
-            return p
         end
-
-        if cfg.Names then out.name = placeText(pick(cfg.NamePos, "Top")) end
-        if cfg.Distance then out.distance = placeText(pick(cfg.DistancePos, "Right")) end
-        if cfg.Tool then out.tool = placeText(pick(cfg.ToolPos, "Bottom")) end
+        for _, key in ipairs(deferred) do
+            out[key] = placeText(textInfo[key].side)
+        end
 
         return out
     end
@@ -3329,23 +3375,6 @@ function Column:preview(o)
 
         local mrel = lib:mouse() - area.AbsolutePosition
 
-        if dragEl then
-            local cx, cy = x + sx * 0.5, y + sy * 0.5
-            local nx = (mrel.X - cx) / (sx * 0.5)
-            local ny = (mrel.Y - cy) / (sy * 0.5)
-            local side
-            if math.abs(nx) > math.abs(ny) then
-                side = nx < 0 and "Left" or "Right"
-            else
-                side = ny < 0 and "Top" or "Bottom"
-            end
-            local flag = POS_FLAG[dragEl]
-            if str(flag, POS_DEFAULT[flag]) ~= side then
-                local fn = lib.setters[dragPrefix .. "_" .. flag]
-                if fn then pcall(fn, side) end
-            end
-        end
-
         local showBox = on("box")
         local boxType = str("box_type", "Corner")
         local thick = math.max(1, num("box_thickness", 1))
@@ -3471,6 +3500,7 @@ function Column:preview(o)
             Names = on("names"), NamePos = str("name_pos", "Top"),
             Distance = on("distance"), DistancePos = str("distance_pos", "Right"),
             Tool = on("tool"), ToolPos = str("tool_pos", "Bottom"),
+            Order = lib.flags[last .. "_order"],
         }, x, y, sx, sy, { size = size, ratio = hpRatio, health = healthOn, armor = armorOn })
 
         table.clear(elems)
@@ -3517,7 +3547,7 @@ function Column:preview(o)
             local t2 = clamp(hpRatio, 0, 1)
             local hc = t2 >= 0.5 and mid:Lerp(hi, (t2 - 0.5) * 2) or lo:Lerp(mid, t2 * 2)
             putText(hpT, tostring(floor(hpRatio * 100 + 0.5)), healthFont, size, hc, hc, 0, lay.healthText)
-            local tx, ty, tw, th = textRect(hpT, lay.healthText)
+            local tx, ty, tw, th = textRect(hpT, lay.healthText, size)
             addRect("health", tx, ty, tw, th)
         else
             hpT.label.Visible = false
@@ -3564,7 +3594,7 @@ function Column:preview(o)
                 txt = lp.DisplayName .. " (@" .. lp.Name .. ")"
             end
             putText(nameT, txt, textFont, size, col("name_color", WHITE), col("name_color2", WHITE), rotG, lay.name)
-            local tx, ty, tw, th = textRect(nameT, lay.name)
+            local tx, ty, tw, th = textRect(nameT, lay.name, size)
             addRect("name", tx, ty, tw, th)
         else
             nameT.label.Visible = false
@@ -3572,7 +3602,7 @@ function Column:preview(o)
 
         if lay.distance then
             putText(distT, "[45m]", flagsFont, size, col("dist_color", WHITE), col("dist_color2", WHITE), rotG, lay.distance)
-            local tx, ty, tw, th = textRect(distT, lay.distance)
+            local tx, ty, tw, th = textRect(distT, lay.distance, size)
             addRect("distance", tx, ty, tw, th)
         else
             distT.label.Visible = false
@@ -3580,16 +3610,85 @@ function Column:preview(o)
 
         if lay.tool then
             putText(toolT, "Weapon", textFont, size, col("tool_color", WHITE), col("tool_color2", WHITE), rotG, lay.tool)
-            local tx, ty, tw, th = textRect(toolT, lay.tool)
+            local tx, ty, tw, th = textRect(toolT, lay.tool, size)
             addRect("tool", tx, ty, tw, th)
         else
             toolT.label.Visible = false
         end
 
+        if dragEl and elems[dragEl] then
+            local cx, cy = x + sx * 0.5, y + sy * 0.5
+            local nx = (mrel.X - cx) / (sx * 0.5)
+            local ny = (mrel.Y - cy) / (sy * 0.5)
+            local side
+            if math.abs(nx) > math.abs(ny) then
+                side = nx < 0 and "Left" or "Right"
+            else
+                side = ny < 0 and "Top" or "Bottom"
+            end
+
+            local function rankOf(key, s, px, py, pw, ph)
+                local rcx, rcy = px + pw * 0.5, py + ph * 0.5
+                if (s == "Left" or s == "Right") and TEXT_KEYS[key] then return rcy end
+                if s == "Left" then return x - rcx end
+                if s == "Right" then return rcx - (x + sx) end
+                if s == "Top" then return y - rcy end
+                return rcy - (y + sy)
+            end
+
+            local mouseRank = rankOf(dragEl, side, mrel.X, mrel.Y, 0, 0)
+            local base = resolveOrder(lib.flags[dragPrefix .. "_order"])
+            local rest = {}
+            for _, k in ipairs(base) do
+                if k ~= dragEl then rest[#rest + 1] = k end
+            end
+
+            local insertAt, lastSame
+            for i, k in ipairs(rest) do
+                local list = elems[k]
+                local kFlag = POS_FLAG[k]
+                local kSide = lib.flags[dragPrefix .. "_" .. kFlag]
+                if type(kSide) ~= "string" then kSide = POS_DEFAULT[kFlag] end
+                local comparable = side == "Top" or side == "Bottom" or (TEXT_KEYS[k] == TEXT_KEYS[dragEl])
+                if list and list[1] and kSide == side and comparable then
+                    lastSame = i
+                    local r = list[1]
+                    if not insertAt and rankOf(k, side, r.x, r.y, r.w, r.h) > mouseRank then
+                        insertAt = i
+                    end
+                end
+            end
+
+            if lastSame then
+                table.insert(rest, insertAt or (lastSame + 1), dragEl)
+            else
+                local pos = table.find(base, dragEl) or (#rest + 1)
+                table.insert(rest, math.min(pos, #rest + 1), dragEl)
+            end
+
+            local changed = false
+            for i = 1, #base do
+                if base[i] ~= rest[i] then
+                    changed = true
+                    break
+                end
+            end
+            if changed then
+                local ofn = lib.setters[dragPrefix .. "_order"]
+                if ofn then pcall(ofn, rest) end
+            end
+
+            local flag = POS_FLAG[dragEl]
+            if str(flag, POS_DEFAULT[flag]) ~= side then
+                local fn = lib.setters[dragPrefix .. "_" .. flag]
+                if fn then pcall(fn, side) end
+            end
+        end
+
         local active = dragEl
         if not active and not dragging and #lib.stack == 0
             and mrel.X >= 0 and mrel.Y >= 0 and mrel.X <= w and mrel.Y <= h then
-            for _, key in ipairs(ORDER) do
+            for _, key in ipairs(HOVER_ORDER) do
                 local list = elems[key]
                 if list then
                     for _, r in ipairs(list) do

@@ -1,4 +1,4 @@
-print('1')
+print('2')
 
 local cloneref = cloneref or function(o) return o end
 

@@ -626,10 +626,9 @@ float3 glowCol(Grp g) {
 float keyAmount(float3 c, int k) {
 	if (k == 2) {
 		float s = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l = smoothstep(0.6, 0.85, c.b);
-		return smoothstep(0.9, 0.98, s) * l;
+		float l = smoothstep(0.65, 0.88, c.b);
+		return smoothstep(0.92, 0.99, s) * l;
 	}
-
 	float lo, a, b;
 	if (k == 0) {
 		lo = c.g;
@@ -640,36 +639,17 @@ float keyAmount(float3 c, int k) {
 		a = c.g;
 		b = c.b;
 	}
-
 	float mx = max(a, b);
 	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
 	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.08, 0.25, abs(a - b) * inv);
-	float lum = smoothstep(0.5, 0.8, mn);
-	return smoothstep(0.88, 0.97, s) * bal * lum;
+	float bal = 1.0 - smoothstep(0.05, 0.2, abs(a - b) * inv);
+	float lum = smoothstep(0.55, 0.85, mn);
+	return smoothstep(0.9, 0.98, s) * bal * lum;
 }
 
 float fringeAmount(float3 c, int k) {
-	if (k == 2) {
-		float s2 = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l2 = smoothstep(0.1, 0.3, c.b);
-		return smoothstep(0.3, 0.6, s2) * l2;
-	}
-	float lo = c.g;
-	float a = c.r;
-	float b = c.b;
-	if (k == 1) {
-		lo = c.r;
-		a = c.g;
-	}
-	float mx = max(a, b);
-	float mn = min(a, b);
-	float inv = 1.0 / max(mx, 0.0001);
-	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.4, 0.8, abs(a - b) * inv);
-	float lum = smoothstep(0.08, 0.25, mn);
-	return smoothstep(0.1, 0.35, s) * bal * lum;
+	return 0.0;
 }
 
 float3 cleanKey(float3 c, int k, float remove) {

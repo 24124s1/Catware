@@ -1,4 +1,4 @@
-print('3')
+print('4')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -49,6 +49,7 @@ local function entitySettings(p)
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
         Chams = false, ChamsKey = p.key, ChamsType = "Shader",
+        AdornmentTransparency = 0.55, AdornmentGlowTransparency = 0.78,
         ChamsSettings = chamsFromDesign(p.design, {
             Color1 = p.c1 or rgb(12, 120, 110),
             Color2 = p.c2 or rgb(48, 220, 245),
@@ -1805,12 +1806,13 @@ local function render(rec, cfg, rx, ry, rz, dist)
         if rec.fillHl then rec.fillHl.Enabled = false end
     end
 
-	if cfg.Chams then
-        if chamsType == "Adornment" then
+	if chamsType == "Adornment" then
             if rec.hl then rec.hl.Enabled = false end
             local c1 = cfg.ChamsSettings.Color1
             local c2 = cfg.ChamsSettings.Color2
-            local adTr = 1 - (0.45 * (1 - tr))
+            local fillOpacity = 1 - (cfg.AdornmentTransparency or 0.55)
+            local glowOpacity = 1 - (cfg.AdornmentGlowTransparency or 0.78)
+            local adTr = 1 - (fillOpacity * (1 - tr))
 
             if rec.adornChar ~= rec.character or not rec.adornments then
                 clearAdornments(rec)
@@ -1881,20 +1883,22 @@ local function render(rec, cfg, rx, ry, rz, dist)
                         fill.Height = h
                         for i, g in ipairs(entry.glow) do
                             local pad = i * 0.055
+                            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
                             g.Radius = rad + pad
                             g.InnerRadius = 0
                             g.Height = h + pad * 2
                             g.Color3 = c2
-                            g.Transparency = 1 - ((0.22 - (i - 1) * 0.045) * (1 - tr))
+                            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
                             g.Visible = true
                         end
                     else
                         fill.Size = part.Size
                         for i, g in ipairs(entry.glow) do
                             local pad = i * 0.11
+                            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
                             g.Size = part.Size + Vector3.new(pad, pad, pad)
                             g.Color3 = c2
-                            g.Transparency = 1 - ((0.22 - (i - 1) * 0.045) * (1 - tr))
+                            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
                             g.Visible = true
                         end
                     end

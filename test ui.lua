@@ -2985,13 +2985,35 @@ function Column:preview(o)
     local dragging, lastX, lastDrag = false, 0, 0
     local hpKey, arKey = nil, nil
 
+    local espOx, espOy = 0, 0
+    local dragMode = nil
+    local dragFrom = v2(0, 0)
+    local startOx, startOy = 0, 0
+    local lastRect = nil
+
     rotBtn.MouseButton1Down:Connect(function()
-        dragging = true
-        lastX = UIS:GetMouseLocation().X
-        lastDrag = tick()
+        local rel = lib:mouse() - area.AbsolutePosition
+        local r = lastRect
+        if r and rel.X >= r.x - 40 and rel.X <= r.x + r.w + 40 and rel.Y >= r.y - 20 and rel.Y <= r.y + r.h + 20 then
+            dragMode = "esp"
+            dragFrom = rel
+            startOx, startOy = espOx, espOy
+        else
+            dragMode = "rot"
+            dragging = true
+            lastX = UIS:GetMouseLocation().X
+            lastDrag = tick()
+        end
+    end)
+    rotBtn.MouseButton2Click:Connect(function()
+        espOx, espOy = 0, 0
+        ov.Position = off(0, 0)
     end)
     lib:connect(UIS.InputEnded, function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+            dragMode = nil
+        end
     end)
 
     local function on(k) return lib.flags[last .. "_" .. k] == true end
@@ -3124,6 +3146,8 @@ function Column:preview(o)
     local function render(dt)
         if not (lib.root.Visible and tab.page.Visible) then return end
 
+        lastRect = nil
+
         local want = lib.flags.preview_model or "Local Player"
         if want ~= currentName and not loading then switchTo(want) end
 
@@ -3143,7 +3167,7 @@ function Column:preview(o)
             return
         end
 
-        if dragging then
+        if dragging and dragMode == "rot" then
             local mx = UIS:GetMouseLocation().X
             rot = rot + (mx - lastX) * 0.012
             lastX = mx
@@ -3155,6 +3179,13 @@ function Column:preview(o)
 
         local w, h = area.AbsoluteSize.X, area.AbsoluteSize.Y
         if w < 20 or h < 20 then return end
+
+        if dragMode == "esp" then
+            local rel = lib:mouse() - area.AbsolutePosition
+            espOx = clamp(startOx + (rel.X - dragFrom.X), -w * 0.5, w * 0.5)
+            espOy = clamp(startOy + (rel.Y - dragFrom.Y), -h * 0.5, h * 0.5)
+        end
+        ov.Position = off(espOx, espOy)
 
         local tanHalf = math.tan(math.rad(cam.FieldOfView) / 2)
         local distV = (current.height * 0.5) / (0.8 * tanHalf)
@@ -3192,6 +3223,8 @@ function Column:preview(o)
         local y = floor(minY - pad + 0.5)
         local sx = math.max(floor(maxX - minX + pad * 2 + 0.5), 8)
         local sy = math.max(floor(maxY - minY + pad * 2 + 0.5), 8)
+
+        lastRect = { x = x + espOx, y = y + espOy, w = sx, h = sy }
 
         local showBox = on("box")
         local boxType = str("box_type", "Corner")
@@ -3408,6 +3441,7 @@ function Column:preview(o)
             else
                 from = v2(w * 0.5, h * 0.5)
             end
+            from = from - v2(espOx, espOy)
             tracer.thickness = num("tracer_thickness", 1)
             tracer.color(col("tracer_color", WHITE))
             tracer.set(from, v2(x + sx * 0.5, y + sy))

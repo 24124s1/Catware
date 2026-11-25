@@ -16,7 +16,6 @@ local KEY_COLORS = {
     [0] = rgb(255, 0, 255),
     [1] = rgb(0, 255, 255),
     [2] = rgb(0, 0, 255),
-	[3] = rgb(255, 255, 255),
 }
 
 local CHAMS_DESIGNS = {
@@ -364,31 +363,34 @@ function espModule.Layout(cfg, x, y, w, h, o)
     local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
     local rows = { Left = 0, Right = 0 }
 
-	local SIDE_OK = {
-	    Top = true,
-	    Bottom = true,
-	    Left = true,
-	    Right = true,
-	}
-	
-	local function pick(v, d)
-	    if SIDE_OK[v] then return v end
-	    return d
-	end
+    local SIDE_OK = {
+        Top = true,
+        Bottom = true,
+        Left = true,
+        Right = true,
+    }
+
+    local function pick(v, d)
+        if SIDE_OK[v] then return v end
+        return d
+    end
 
     local function placeBar(key, side)
         local rx, ry, rw, rh, vertical
         if side == "Left" then
             rx, ry, rw, rh, vertical = x - 4 - off.Left, y, 1, h, true
+            off.Left += 5
         elseif side == "Right" then
             rx, ry, rw, rh, vertical = x + w + 3 + off.Right, y, 1, h, true
+            off.Right += 5
         elseif side == "Top" then
             rx, ry, rw, rh, vertical = x, y - 4 - off.Top, w, 1, false
+            off.Top += 5
         else
             rx, ry, rw, rh, vertical = x, y + h + 3 + off.Bottom, w, 1, false
+            off.Bottom += 6
         end
         out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
-        off[side] += 4
         return rx, ry
     end
 
@@ -624,8 +626,8 @@ float3 glowCol(Grp g) {
 float keyAmount(float3 c, int k) {
 	if (k == 2) {
 		float s = (c.b - max(c.r, c.g)) / max(c.b, 0.0001);
-		float l = smoothstep(0.45, 0.75, c.b);
-		return smoothstep(0.78, 0.95, s) * l;
+		float l = smoothstep(0.55, 0.82, c.b);
+		return smoothstep(0.86, 0.97, s) * l;
 	}
 
 	float lo, a, b;
@@ -643,9 +645,9 @@ float keyAmount(float3 c, int k) {
 	float mn = min(a, b);
 	float inv = 1.0 / max(mx, 0.0001);
 	float s = (mn - lo) * inv;
-	float bal = 1.0 - smoothstep(0.18, 0.42, abs(a - b) * inv);
-	float lum = smoothstep(0.35, 0.65, mn);
-	return smoothstep(0.72, 0.92, s) * bal * lum;
+	float bal = 1.0 - smoothstep(0.12, 0.32, abs(a - b) * inv);
+	float lum = smoothstep(0.45, 0.75, mn);
+	return smoothstep(0.82, 0.96, s) * bal * lum;
 }
 
 float fringeAmount(float3 c, int k) {

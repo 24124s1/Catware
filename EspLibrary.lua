@@ -250,82 +250,114 @@ end
 
 local fallbackFont = Font.new("rbxasset://fonts/families/GothamSSm.json")
 
-local function getFont(name)
-    return espModule.Fonts[name] or fallbackFont
-end
+local fontFileMap = {}
+for _, entry in ipairs(fontFiles) do fontFileMap[entry[1]] = entry[2] end
 
-local function loadFonts()
-    local canLoad = typeof(writefile) == "function"
+local fontPending, fontFailAt = {}, {}
+
+local function fsReady()
+    return typeof(writefile) == "function"
         and typeof(isfile) == "function"
         and typeof(getcustomasset) == "function"
+end
 
-    if canLoad then
-        pcall(function()
-            if typeof(makefolder) == "function" then
-                if not (typeof(isfolder) == "function" and isfolder("catware_fonts")) then
-                    makefolder("catware_fonts")
-                end
+local function loadOneFont(name)
+    if espModule.Fonts[name] then return true end
+    local file = fontFileMap[name]
+    if not file or fontPending[name] or not fsReady() then return false end
+    fontPending[name] = true
+    local ok, font = pcall(function()
+        local path = "catware_fonts/" .. file
+        if not isfile(path) then
+            local url = "https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/" .. (file:gsub(" ", "%%20"))
+            local data = game:HttpGet(url)
+            if type(data) ~= "string" or #data < 100 then
+                error("font download failed")
             end
-        end)
-        for _, entry in ipairs(fontFiles) do
-            local name, file = entry[1], entry[2]
-            if not espModule.Fonts[name] then
-                local ok, font = pcall(function()
-                    local path = "catware_fonts/" .. file
-                    if not isfile(path) then
-                        local url = "https://raw.githubusercontent.com/24124s1/Catware/refs/heads/main/fonts/" .. file:gsub(" ", "%%20")
-                        local data = game:HttpGet(url)
-                        if type(data) ~= "string" or #data < 100 then
-                            error("font download failed")
-                        end
-                        writefile(path, data)
-                    end
-                    local asset = getcustomasset(path)
-                    local jsonPath = "catware_fonts/" .. (name:gsub("%s", "_")) .. ".json"
-                    writefile(jsonPath, HttpService:JSONEncode({
-                        name = name,
-                        faces = {{
-                            name = "Regular",
-                            weight = 400,
-                            style = "normal",
-                            assetId = asset,
-                        }},
-                    }))
-                    return Font.new(getcustomasset(jsonPath), Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-                end)
-                if ok and font then
-                    espModule.Fonts[name] = font
-                else
-                    pcall(function()
-                        local path = "catware_fonts/" .. file
-                        if isfile(path) then
-                            local f = Font.new(getcustomasset(path), Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-                            if f then espModule.Fonts[name] = f end
-                        end
-                    end)
-                end
-            end
+            writefile(path, data)
         end
-        if not espModule.Fonts["Tahoma"] then
-            espModule.Fonts["Tahoma"] = espModule.Fonts["Tahoma Modern"]
-                or espModule.Fonts["Tahoma 8px"]
-                or espModule.Fonts["Tahoma Bold"]
-        end
-        if not espModule.Fonts["Gojiberry Quibble"] then
-            espModule.Fonts["Gojiberry Quibble"] = espModule.Fonts["Tahoma"] or fallbackFont
-        end
+        local jsonPath = "catware_fonts/" .. (name:gsub("%s", "_")) .. ".json"
+        writefile(jsonPath, HttpService:JSONEncode({
+            name = name,
+            faces = {{
+                name = "Regular",
+                weight = 400,
+                style = "normal",
+                assetId = getcustomasset(path),
+            }},
+        }))
+        return Font.new(getcustomasset(jsonPath), Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    end)
+    fontPending[name] = nil
+    if ok and font then
+        espModule.Fonts[name] = font
+        return true
     end
+    fontFailAt[name] = os.clock()
+    return false
+end
 
+local function requestFont(name)
+    if espModule.Fonts[name] or fontPending[name] or not fontFileMap[name] then return end
+    local failed = fontFailAt[name]
+    if failed and os.clock() - failed < 20 then return end
+    if not fsReady() then return end
+    task.spawn(loadOneFont, name)
+end
+
+local function getFont(name)
+    local f = espModule.Fonts[name]
+    if f then return f end
+    requestFont(name)
+    return espModule.Fonts["Tahoma"] or espModule.Fonts["Tahoma Modern"] or espModule.Fonts["Tahoma 8px"] or fallbackFont
+end
+
+local function finishFonts()
     if not next(espModule.Fonts) then
         pcall(function()
             espModule.Fonts["Tahoma"] = Font.fromEnum(Enum.Font.Code)
             espModule.Fonts["Gojiberry Quibble"] = Font.fromEnum(Enum.Font.Code)
         end)
     end
-
     espModule.FontsReady = true
     for _, fn in ipairs(fontListeners) do task.spawn(fn) end
     table.clear(fontListeners)
+end
+
+local function loadFonts()
+    if not fsReady() then
+        finishFonts()
+        return
+    end
+    pcall(function()
+        if typeof(makefolder) == "function" then
+            if not (typeof(isfolder) == "function" and isfolder("catware_fonts")) then
+                makefolder("catware_fonts")
+            end
+        end
+    end)
+    local s = espModule.Settings
+    local order, seen = {}, {}
+    local function push(n)
+        if n and not seen[n] and fontFileMap[n] then
+            seen[n] = true
+            order[#order + 1] = n
+        end
+    end
+    push(s.TextFont)
+    push(s.FlagsFont)
+    push(s.HealthFont)
+    push("Tahoma")
+    push("Gojiberry Quibble")
+    for _, entry in ipairs(fontFiles) do push(entry[1]) end
+    local left = #order
+    for _, n in ipairs(order) do
+        task.spawn(function()
+            loadOneFont(n)
+            left -= 1
+            if left == 0 then finishFonts() end
+        end)
+    end
 end
 
 local function getTeamValue(plr)
@@ -496,7 +528,7 @@ function espModule.Layout(cfg, x, y, w, h, o)
         n += 1
         setItem(n, "name", "text", pickSide(cfg.NamePos, "Top"), cfg.NameSlot or 3, 3)
     end
-    if cfg.Distance then
+    if cfg.Distance and not (cfg.Names and cfg.DistancePos == "Name") then
         n += 1
         setItem(n, "distance", "text", pickSide(cfg.DistancePos, "Right"), cfg.DistanceSlot or 4, 4)
     end
@@ -1181,6 +1213,12 @@ function Renderer:Keyed(key, build)
     return k
 end
 
+function Renderer:Width(key)
+    local t = self.keyed[key]
+    if not t or not t.shown then return 0 end
+    return t.root.TextBounds.X
+end
+
 function Renderer:Corner(x, y, w, h, thick, color, tr)
     ensureCorner(self)
     local box = self.cornerBox
@@ -1636,7 +1674,15 @@ local function restoreTransparency(rec)
     rec.trList = nil
 end
 
+local function offGlow(rec)
+    if rec.glowHl and rec.ghOn then
+        rec.glowHl.Enabled = false
+        rec.ghOn = false
+    end
+end
+
 local function clearAdornments(rec)
+    offGlow(rec)
     if rec.adornments then
         for _, entry in pairs(rec.adornments) do
             if entry.fill then entry.fill:Destroy() end
@@ -1670,6 +1716,7 @@ local function hideRecord(rec)
     if rec.renderer then rec.renderer:Clear() end
     offHl(rec)
     offFill(rec)
+    offGlow(rec)
     if rec.adornments then
         for _, entry in pairs(rec.adornments) do
             if entry.fill then entry.fill.Visible = false end
@@ -1688,6 +1735,7 @@ local function dropRecord(entity)
     if rec.renderer then rec.renderer:Destroy() end
     if rec.hl then rec.hl:Destroy() end
     if rec.fillHl then rec.fillHl:Destroy() end
+    if rec.glowHl then rec.glowHl:Destroy() end
     clearAdornments(rec)
     state.records[entity] = nil
 end
@@ -2031,66 +2079,30 @@ local function box3D(rec, now)
     return true
 end
 
-local GLOW_LAYERS = 3
+local HIDE_TR = 0.99
 
 local function makeAdornEntry(part)
     local lname = part.Name:lower()
     local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
-    local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
-
-    local glow = {}
-    for i = 1, GLOW_LAYERS do
-        local g = Instance.new(className)
-        g.Adornee = part
-        g.AlwaysOnTop = true
-        g.ZIndex = GLOW_LAYERS - i + 1
-        if isHead then g.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
-        g.Parent = state.gui
-        glow[i] = g
-    end
-
-    local fill = Instance.new(className)
+    local fill = Instance.new(isHead and "CylinderHandleAdornment" or "BoxHandleAdornment")
     fill.Adornee = part
     fill.AlwaysOnTop = true
-    fill.ZIndex = GLOW_LAYERS + 1
+    fill.ZIndex = 2
     if isHead then fill.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
     fill.Parent = state.gui
-
-    return { fill = fill, glow = glow, isHead = isHead, sz = nil, seen = 0 }
+    return { fill = fill, isHead = isHead, sz = nil, seen = 0 }
 end
 
-local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
+local function updateAdornEntry(entry, part, c1, adTr)
     local fill = entry.fill
     local sz = part.Size
     entry.sz = sz
     if entry.isHead then
-        local rad = mmax(sz.X, sz.Z) * 0.52
-        local h = sz.Y * 1.05
-        fill.Radius = rad
+        fill.Radius = mmax(sz.X, sz.Z) * 0.52
         fill.InnerRadius = 0
-        fill.Height = h
-        for i = 1, GLOW_LAYERS do
-            local g = entry.glow[i]
-            local pad = i * 0.147
-            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-            g.Radius = rad + pad
-            g.InnerRadius = 0
-            g.Height = h + pad * 2
-            g.Color3 = c2
-            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
-            g.Visible = true
-        end
+        fill.Height = sz.Y * 1.05
     else
         fill.Size = sz
-        for i = 1, GLOW_LAYERS do
-            local g = entry.glow[i]
-            local pad = i * 0.147
-            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-            g.Size = sz + Vector3.new(pad, pad, pad)
-            g.Color3 = c2
-            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
-            g.Visible = true
-        end
     end
     fill.Color3 = c1
     fill.Transparency = adTr
@@ -2127,9 +2139,9 @@ local function applyTransparency(rec)
     for i = 1, #parts do
         local obj = parts[i]
         local cur = obj.LocalTransparencyModifier
-        if cur ~= 1 then
+        if cur < 0.98 then
             if orig[obj] == nil then orig[obj] = cur end
-            obj.LocalTransparencyModifier = 1
+            obj.LocalTransparencyModifier = HIDE_TR
         end
     end
     for i = 1, #decals do
@@ -2147,7 +2159,7 @@ local function drawAdornments(rec, cfg, tr)
     local cs = cfg.ChamsSettings
     local c1, c2 = cs.Color1, cs.Color2
     local fillOpacity = 1 - (cfg.AdornmentTransparency or 0.55)
-    local glowOpacity = 1 - (cfg.AdornmentGlowTransparency or 0.78)
+    local glowTr = cfg.AdornmentGlowTransparency or 0.78
     local adTr = 1 - (fillOpacity * (1 - tr))
 
     if rec.adornChar ~= rec.character or not rec.adornments then
@@ -2161,7 +2173,7 @@ local function drawAdornments(rec, cfg, tr)
     if not rec.trList or now - rec.trAt > 1 then refreshTrList(rec) end
     if now - rec.trApply > 0.25 then applyTransparency(rec) end
 
-    local dirty = rec.adDirty or rec.adC1 ~= c1 or rec.adC2 ~= c2 or rec.adFill ~= adTr or rec.adGlow ~= glowOpacity or rec.adFade ~= tr
+    local dirty = rec.adDirty or rec.adC1 ~= c1 or rec.adFill ~= adTr
     local scanChanged = rec.adScan ~= rec.scanned
     local stamp = rec.adStamp or 0
     if scanChanged then
@@ -2183,7 +2195,7 @@ local function drawAdornments(rec, cfg, tr)
                 end
                 entry.seen = stamp
                 if dirty or entry.sz ~= part.Size then
-                    updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
+                    updateAdornEntry(entry, part, c1, adTr)
                 end
             end
         end
@@ -2193,14 +2205,39 @@ local function drawAdornments(rec, cfg, tr)
         for part, entry in pairs(adorn) do
             if entry.seen ~= stamp then
                 entry.fill:Destroy()
-                for _, g in ipairs(entry.glow) do g:Destroy() end
                 adorn[part] = nil
             end
         end
     end
 
     rec.adDirty = false
-    rec.adC1, rec.adC2, rec.adFill, rec.adGlow, rec.adFade = c1, c2, adTr, glowOpacity, tr
+    rec.adC1, rec.adFill = c1, adTr
+
+    local hl = rec.glowHl
+    if not hl then
+        hl = Instance.new("Highlight")
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.FillTransparency = 1
+        hl.Parent = state.gui
+        rec.glowHl = hl
+        rec.ghColor, rec.ghTr = nil, nil
+    end
+    if hl.Adornee ~= rec.character then hl.Adornee = rec.character end
+    if rec.ghColor ~= c2 then
+        rec.ghColor = c2
+        hl.OutlineColor = c2
+        hl.FillColor = c2
+    end
+    local glowOpacity = clamp((1 - glowTr) * 2.2, 0, 1)
+    local ot = 1 - (glowOpacity * (1 - tr))
+    if rec.ghTr ~= ot then
+        rec.ghTr = ot
+        hl.OutlineTransparency = ot
+    end
+    if not rec.ghOn then
+        hl.Enabled = true
+        rec.ghOn = true
+    end
 end
 
 local function drawShaderHl(rec, cfg)
@@ -2317,7 +2354,7 @@ local function render(rec, cfg, dist)
     local meters = floor(dist + 0.5)
     if rec.mVal ~= meters then
         rec.mVal = meters
-        rec.mStr = meters .. "s"
+        rec.mStr = meters .. "st"
     end
     local d = rec.d
     local chamsOn = cfg.Chams and state.shader ~= nil
@@ -2418,7 +2455,29 @@ local function render(rec, cfg, dist)
 
     if lay.name and d.name then
         local p = lay.name
-        renderer:Text("name", d.name, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
+        if cfg.Distance and cfg.Names and cfg.DistancePos == "Name" then
+            local nw = renderer:Width("name")
+            local dw = renderer:Width("dist")
+            local gap = 4
+            local nx, dxp, nax, dax
+            if p.ax == 0.5 then
+                nx = p.x - (dw + gap) * 0.5
+                dxp = nx + nw * 0.5 + gap
+                nax, dax = 0.5, 0
+            elseif p.ax == 0 then
+                nx = p.x
+                dxp = p.x + nw + gap
+                nax, dax = 0, 0
+            else
+                nx = p.x - dw - gap
+                dxp = p.x
+                nax, dax = 1, 1
+            end
+            renderer:Text("name", d.name, nx, p.y, nax, p.ay, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
+            renderer:Text("dist", rec.mStr, dxp, p.y, dax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
+        else
+            renderer:Text("name", d.name, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
+        end
     end
 
     if lay.distance then
@@ -2934,11 +2993,11 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
         if meta.text == nil or meta.meters ~= meters or meta.showNames ~= cfg.ShowNames or meta.showDistance ~= cfg.ShowDistance then
             meta.meters, meta.showNames, meta.showDistance = meters, cfg.ShowNames, cfg.ShowDistance
             if cfg.ShowNames and cfg.ShowDistance then
-                meta.text = meta.label .. " " .. meters .. "s"
+                meta.text = meta.label .. " " .. meters .. "st"
             elseif cfg.ShowNames then
                 meta.text = meta.label
             else
-                meta.text = meters .. "s"
+                meta.text = meters .. "st"
             end
         end
         renderer:Text(item, meta.text, sx, sy - 12, 0.5, 0.5, getFont(cfg.ShowDistance and settings.FlagsFont or settings.TextFont), size, color, color, tr, false)

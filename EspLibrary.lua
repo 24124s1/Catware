@@ -1,3 +1,5 @@
+print('-1')
+
 local cloneref = cloneref or function(o) return o end
 
 local Players = cloneref(game:GetService("Players"))
@@ -3269,5 +3271,3 @@ function espModule:GetSettings()
 end
 
 return espModule
-
-print('-1')

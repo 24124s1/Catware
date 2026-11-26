@@ -1,3 +1,5 @@
+print('1')
+
 local cloneref = cloneref or function(o) return o end
 
 local Players = cloneref(game:GetService("Players"))
@@ -2080,53 +2082,33 @@ local function box3D(rec, now)
 end
 
 local HIDE_TR = 1
-local GLOW_LAYERS = 3
 
 local function makeAdornEntry(part)
-    local lname = part.Name:lower()
-    local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
-    local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
-    local glow = {}
-    for i = 1, GLOW_LAYERS do
-        local g = Instance.new(className)
-        g.Adornee = part
-        g.AlwaysOnTop = true
-        g.ZIndex = GLOW_LAYERS - i + 1
-        if isHead then g.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
-        g.Parent = state.gui
-        glow[i] = g
-    end
-    return { glow = glow, isHead = isHead, sz = nil, seen = 0 }
+    local core = Instance.new("SelectionBox")
+    core.Adornee = part
+    core.SurfaceTransparency = 1
+    core.LineThickness = 0.03
+    core.Parent = state.gui
+
+    local wide = Instance.new("SelectionBox")
+    wide.Adornee = part
+    wide.SurfaceTransparency = 1
+    wide.LineThickness = 0.14
+    wide.Parent = state.gui
+
+    return { glow = { wide, core }, sz = nil, seen = 0 }
 end
 
 local function updateAdornEntry(entry, part, color, glowOpacity, tr)
-    local sz = part.Size
-    entry.sz = sz
-    if entry.isHead then
-        local rad = mmax(sz.X, sz.Z) * 0.52
-        local h = sz.Y * 1.05
-        for i = 1, GLOW_LAYERS do
-            local g = entry.glow[i]
-            local pad = i * 0.147
-            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-            g.Radius = rad + pad
-            g.InnerRadius = 0
-            g.Height = h + pad * 2
-            g.Color3 = color
-            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
-            g.Visible = true
-        end
-    else
-        for i = 1, GLOW_LAYERS do
-            local g = entry.glow[i]
-            local pad = i * 0.147
-            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-            g.Size = sz + Vector3.new(pad, pad, pad)
-            g.Color3 = color
-            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
-            g.Visible = true
-        end
-    end
+    entry.sz = part.Size
+    local wide, core = entry.glow[1], entry.glow[2]
+    local fade = 1 - tr
+    wide.Color3 = color
+    wide.Transparency = 1 - (glowOpacity * 0.35 * fade)
+    wide.Visible = true
+    core.Color3 = color
+    core.Transparency = 1 - (clamp(glowOpacity * 1.6, 0, 1) * fade)
+    core.Visible = true
 end
 
 local function refreshTrList(rec)

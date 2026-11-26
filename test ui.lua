@@ -1,5 +1,3 @@
-print('-1111')
-
 local cloneref = cloneref or function(o) return o end
 local function svc(n) return cloneref(game:GetService(n)) end
 
@@ -2193,6 +2191,7 @@ function Section:toggle(o)
         hot(box, false)
     end)
 
+    cfg.row = row
     lib.setters[cfg.flag] = cfg.set
     cfg.set(o.default or false, true)
 
@@ -2467,6 +2466,7 @@ function Element:colorpicker(o)
     lib.setters[cp.flag] = cp.set
     apply()
 
+    self.lastSwatch = swOuter
     return self
 end
 
@@ -2718,6 +2718,7 @@ function Section:dropdown(o)
         if P then P.toggle() end
     end)
 
+    cfg.row = holder
     build()
     lib.setters[cfg.flag] = cfg.set
     cfg.set(default)
@@ -2834,6 +2835,7 @@ function Section:slider(o)
         end
     end)
 
+    cfg.row = row
     lib.setters[cfg.flag] = cfg.set
     cfg.set(o.default or cfg.min)
     lib:register(self, cfg.name, row)
@@ -2870,6 +2872,7 @@ function Section:textbox(o)
         cfg.callback(text)
     end
 
+    cfg.row = holder
     lib.setters[cfg.flag] = cfg.set
     cfg.set(o.default or "")
     lib:register(self, cfg.name, holder)
@@ -3868,7 +3871,7 @@ function Library:configTab(tab)
     local cfgFolder = rootFolder .. "/" .. tostring(game.PlaceId)
     local themeFolder = base .. "_themes"
     local canFs = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(listfiles) == "function"
-    
+
     if canFs and typeof(makefolder) == "function" then
         for _, f in ipairs({ rootFolder, cfgFolder, themeFolder }) do
             local exists = typeof(isfolder) == "function" and isfolder(f)
@@ -4259,11 +4262,6 @@ local function getPopupRow(el)
     if type(el) ~= "table" then return nil end
     if typeof(el.row) == "Instance" and el.row:IsA("GuiObject") then return el.row end
     if typeof(el.holder) == "Instance" and el.holder:IsA("GuiObject") then return el.holder end
-    for _, v in pairs(el) do
-        if typeof(v) == "Instance" and v:IsA("GuiObject") and v.Name ~= "Popup" and v.Name ~= "Gear" then
-            return v
-        end
-    end
     return nil
 end
 
@@ -4294,7 +4292,8 @@ local function addESPSection(sec, tbl, prefix)
     local chams = sec:toggle({name = "Chams", risky = true, default = tbl.Chams, flag = prefix.."_chams", callback = function(v) tbl.Chams = v end})
     chams:colorpicker({flag = prefix.."_chams_c1", color = cs.Color1, callback = function(c) cs.Color1 = c end})
     chams:colorpicker({flag = prefix.."_chams_c2", color = cs.Color2, callback = function(c) cs.Color2 = c end})
-    local cp3 = chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
+    chams:colorpicker({flag = prefix.."_chams_c3", color = cs.Color3, callback = function(c) cs.Color3 = c end})
+    local cp3Swatch = chams.lastSwatch
 
     local chamsPop = chams:gear({title = "Chams Options"})
     local shaderElems = {}
@@ -4302,8 +4301,8 @@ local function addESPSection(sec, tbl, prefix)
 
     local function syncChamsUI(mode)
         local isShader = (mode == "Shader")
-        if type(cp3) == "table" and typeof(cp3.button) == "Instance" and cp3.button:IsA("GuiObject") then
-            cp3.button.Visible = isShader
+        if cp3Swatch then
+            cp3Swatch.Visible = isShader
         end
         for _, el in ipairs(shaderElems) do
             setPopupElemVisible(el, isShader)

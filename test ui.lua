@@ -4369,7 +4369,7 @@ local function addESPSection(sec, tbl, prefix)
     dist:colorpicker({flag = prefix.."_dist_color", color = tbl.DistanceColor, callback = function(c) tbl.DistanceColor = c end})
     dist:colorpicker({flag = prefix.."_dist_color2", color = tbl.DistanceColor2, callback = function(c) tbl.DistanceColor2 = c end})
     local distPop = dist:gear({title = "Distance Options"})
-    distPop:dropdown({name = "Distance Position", items = {"Top", "Bottom", "Left", "Right"}, default = tbl.DistancePos, flag = prefix.."_distance_pos", callback = function(v) tbl.DistancePos = v end})
+    distPop:dropdown({name = "Distance Position", items = {"Top", "Bottom", "Left", "Right", "Name"}, default = tbl.DistancePos, flag = prefix.."_distance_pos", callback = function(v) tbl.DistancePos = v end})
     distPop:slider({name = "Distance Slot", min = 1, max = 10, default = tbl.DistanceSlot or 4, interval = 1, flag = prefix.."_distance_slot", callback = function(v) tbl.DistanceSlot = v end})
 
     local tool = sec:toggle({name = "Tool", default = tbl.Tool, flag = prefix.."_tool", callback = function(v) tbl.Tool = v end})

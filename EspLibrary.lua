@@ -1,5 +1,3 @@
-print('1')
-
 local cloneref = cloneref or function(o) return o end
 
 local Players = cloneref(game:GetService("Players"))
@@ -81,7 +79,7 @@ local function entitySettings(p)
         ArmorBar = false, ArmorBarPos = "Bottom",
         ArmorHigh = rgb(0, 255, 0), ArmorMid = rgb(255, 255, 0), ArmorLow = rgb(255, 0, 0),
         HeadDot = false, HeadDotColor = rgb(255, 255, 255), HeadDotSize = 20, HeadDotOutlineThickness = 1,
-        Skeleton = false, SkeletonThickness = 1, SkeletonColor = p.main, SkeletonColor2 = p.skel2,
+        Skeleton = false, SkeletonThickness = 1, SkeletonMaxDistance = 400, SkeletonColor = p.main, SkeletonColor2 = p.skel2,
         Tracers = false, TracerThickness = 1, TracerOrigin = "Bottom", TracerColor = p.main,
         TextSize = 12,
     }
@@ -1265,7 +1263,7 @@ function Renderer:Full(x, y, w, h, thick, color, tr)
     end
 end
 
-function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr)
+function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr, outline)
     local n = self.nLine + 1
     self.nLine = n
     local l = self.lines[n]
@@ -1305,6 +1303,11 @@ function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr)
         l.tr = tr
         f.BackgroundTransparency = tr
         l.s.Transparency = tr
+    end
+    local want = outline ~= false
+    if l.outlineOn ~= want then
+        l.outlineOn = want
+        l.s.Enabled = want
     end
     if not l.shown then
         l.shown = true
@@ -1770,12 +1773,35 @@ local function collectAnyParts(character, out)
     end
 end
 
+local function buildBones(rec, list)
+    if #list == 0 then
+        rec.boneParts, rec.boneIdx = nil, nil
+        return
+    end
+    local parts, idx, map = {}, {}, {}
+    for i = 1, #list do
+        local a, b = list[i][1], list[i][2]
+        if not map[a] then
+            parts[#parts + 1] = a
+            map[a] = #parts
+        end
+        if not map[b] then
+            parts[#parts + 1] = b
+            map[b] = #parts
+        end
+        idx[#idx + 1] = map[a]
+        idx[#idx + 1] = map[b]
+    end
+    rec.boneParts, rec.boneIdx = parts, idx
+end
+
 local function bindCharacter(rec, character, humanoid, isVM)
     rec.character = character
     rec.humanoid = humanoid
     rec.parts = {}
-    rec.bones = {}
+    rec.boneParts, rec.boneIdx = nil, nil
     rec.isR15 = false
+    local pl = {}
     if isVM then
         collectParts(character, VM_PARTS, rec.parts)
         if #rec.parts == 0 then
@@ -1787,6 +1813,19 @@ local function bindCharacter(rec, character, humanoid, isVM)
         end
         if not rec.root then
             rec.root = character:FindFirstChildWhichIsA("BasePart", true)
+        end
+        local function vmPart(name)
+            local p = character:FindFirstChild(name)
+            if not p then return nil end
+            if p:IsA("BasePart") then return p end
+            return p:FindFirstChildWhichIsA("BasePart", true)
+        end
+        local head, torso = vmPart("head"), vmPart("torso")
+        if torso then
+            local others = { head, vmPart("arm1"), vmPart("arm2"), vmPart("leg1"), vmPart("leg2") }
+            for i = 1, 5 do
+                if others[i] then pl[#pl + 1] = { torso, others[i] } end
+            end
         end
     else
         rec.isR15 = character:FindFirstChild("UpperTorso") ~= nil
@@ -1808,10 +1847,11 @@ local function bindCharacter(rec, character, humanoid, isVM)
             local a = character:FindFirstChild(list[i][1])
             local b = character:FindFirstChild(list[i][2])
             if a and b and a:IsA("BasePart") and b:IsA("BasePart") then
-                rec.bones[#rec.bones + 1] = { a, b }
+                pl[#pl + 1] = { a, b }
             end
         end
     end
+    buildBones(rec, pl)
 
     rec.adParts = {}
     for i = 1, #rec.parts do
@@ -1889,6 +1929,7 @@ local SY = {-1, -1, 1, 1, -1, -1, 1, 1}
 local SZ = {-1, -1, -1, -1, 1, 1, 1, 1}
 local EDGES = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
 local BX, BY, BOK = {}, {}, {}
+local BPX, BPY, BPOK = {}, {}, {}
 local FLAGK = {}
 
 local function dynamicBounds(parts)
@@ -2417,21 +2458,28 @@ local function render(rec, cfg, dist)
         renderer:Line(fromX, fromY, x + w * 0.5, y + h, cfg.TracerThickness or 1, cfg.TracerColor, cfg.TracerColor, tr)
     end
 
-    if cfg.Skeleton then
-        local bones = rec.bones
-        if bones then
-            local th = cfg.SkeletonThickness or 1
-            for i = 1, #bones do
-                local pair = bones[i]
-                local p1, p2 = pair[1], pair[2]
-                if p1.Parent and p2.Parent then
-                    local a, b = p1.Position, p2.Position
-                    local ax, ay = project(a.X, a.Y, a.Z)
-                    local bx, by = project(b.X, b.Y, b.Z)
-                    if ax and bx then
-                        renderer:Line(ax, ay, bx, by, th, cfg.SkeletonColor, cfg.SkeletonColor2, tr)
-                    end
+    if cfg.Skeleton and rec.boneParts and dist <= (cfg.SkeletonMaxDistance or 400) and h >= 24 then
+        local bp, bi = rec.boneParts, rec.boneIdx
+        for i = 1, #bp do
+            local part = bp[i]
+            if part.Parent then
+                local pos = part.Position
+                local sx, sy = project(pos.X, pos.Y, pos.Z)
+                if sx then
+                    BPX[i], BPY[i], BPOK[i] = sx, sy, true
+                else
+                    BPOK[i] = false
                 end
+            else
+                BPOK[i] = false
+            end
+        end
+        local th = cfg.SkeletonThickness or 1
+        local ol = h >= 70
+        for i = 1, #bi, 2 do
+            local a, b = bi[i], bi[i + 1]
+            if BPOK[a] and BPOK[b] then
+                renderer:Line(BPX[a], BPY[a], BPX[b], BPY[b], th, cfg.SkeletonColor, cfg.SkeletonColor2, tr, ol)
             end
         end
     end
@@ -2637,6 +2685,17 @@ local function viewmodelIsTeam(rec, owner)
     return false
 end
 
+local function viewmodelWeapon(vm)
+    local fallback
+    for _, c in ipairs(vm:GetChildren()) do
+        if c:IsA("Model") then
+            if c:FindFirstChild("Gun") or c:FindFirstChild("StateObject") then return c.Name end
+            fallback = fallback or c.Name
+        end
+    end
+    return fallback
+end
+
 local function processViewmodel(vm)
     local settings = espModule.Settings
     local now = view.time
@@ -2719,7 +2778,7 @@ local function processViewmodel(vm)
     if now - rec.infoAt > 0.2 then
         rec.infoAt = now
         d.armor = (cfg.ArmorBar and ownerChar) and currentArmor(rec, ownerChar) or nil
-        d.tool = (cfg.Tool and ownerChar) and currentTool(rec, ownerChar) or nil
+        d.tool = cfg.Tool and (viewmodelWeapon(vm) or "None") or nil
         d.name = nil
         if cfg.Names then
             if owner then

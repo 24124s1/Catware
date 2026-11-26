@@ -1,4 +1,4 @@
-print('4')
+print('1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -9,6 +9,12 @@ local HttpService = cloneref(game:GetService("HttpService"))
 local LocalPlayer = Players.LocalPlayer
 
 local rgb = Color3.fromRGB
+local floor = math.floor
+local clamp = math.clamp
+local mmin = math.min
+local mmax = math.max
+local huge = math.huge
+local envTable = (typeof(getgenv) == "function" and getgenv()) or _G
 
 local espModule = {}
 
@@ -24,9 +30,18 @@ local CHAMS_DESIGNS = {
     Frost = { Style = 2, Brightness = 1.1, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 3.0 },
     Lava = { Style = 3, Brightness = 1.1, Contrast = 1.0, Bloom = 0.55, BloomSpread = 3.0, Speed = 1.0, Scale = 3.0 },
     Cyber = { Style = 4, Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.8, Scale = 2.2 },
+    Aurora = { Style = 5, Brightness = 1.1, Contrast = 1.05, Bloom = 0.45, BloomSpread = 3.0, Speed = 1.0, Scale = 2.8 },
+    Plasma = { Style = 6, Brightness = 1.1, Contrast = 1.0, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.2, Scale = 2.6 },
+    Galaxy = { Style = 7, Brightness = 1.15, Contrast = 1.1, Bloom = 0.4, BloomSpread = 3.0, Speed = 0.7, Scale = 3.0 },
+    Pulse = { Style = 8, Brightness = 1.1, Contrast = 1.0, Bloom = 0.5, BloomSpread = 3.0, Speed = 1.0, Scale = 2.0 },
+    Ripple = { Style = 9, Brightness = 1.1, Contrast = 1.05, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.0, Scale = 2.4 },
+    Stripes = { Style = 10, Brightness = 1.1, Contrast = 1.0, Bloom = 0.35, BloomSpread = 3.0, Speed = 0.9, Scale = 3.0 },
+    Gradient = { Style = 11, Brightness = 1.05, Contrast = 1.0, Bloom = 0.35, BloomSpread = 3.0, Speed = 0.8, Scale = 2.0 },
+    Waves = { Style = 12, Brightness = 1.1, Contrast = 1.05, Bloom = 0.4, BloomSpread = 3.0, Speed = 1.0, Scale = 2.6 },
+    Solid = { Style = 13, Brightness = 1.05, Contrast = 1.0, Bloom = 0.3, BloomSpread = 2.5, Speed = 0.6, Scale = 2.0 },
 }
 
-local CHAMS_DESIGN_NAMES = {"Neon", "Matrix", "Frost", "Lava", "Cyber"}
+local CHAMS_DESIGN_NAMES = {"Neon", "Matrix", "Frost", "Lava", "Cyber", "Aurora", "Plasma", "Galaxy", "Pulse", "Ripple", "Stripes", "Gradient", "Waves", "Solid"}
 
 local function chamsFromDesign(name, into)
     local d = CHAMS_DESIGNS[name] or CHAMS_DESIGNS.Neon
@@ -365,126 +380,177 @@ task.spawn(function()
 end)
 
 function espModule.HealthColor(t, high, mid, low)
-    t = math.clamp(t, 0, 1)
+    t = clamp(t, 0, 1)
     if t >= 0.5 then return mid:Lerp(high, (t - 0.5) * 2) end
     return low:Lerp(mid, t * 2)
 end
 
+local LAY = { flagLines = {} }
+local LPOOL = {}
+local FPOOL = {}
+local LOFF = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
+local LROWS = { Left = 0, Right = 0 }
+local LITEMS = {}
+for i = 1, 5 do LITEMS[i] = { key = "", kind = "", side = "", slot = 0, n = 0 } end
+local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
+local LPAD = 2
+local lstep = 12
+
+local function pickSide(v, d)
+    if SIDE_OK[v] then return v end
+    return d
+end
+
+local function poolGet(key)
+    local t = LPOOL[key]
+    if not t then
+        t = {}
+        LPOOL[key] = t
+    end
+    return t
+end
+
+local function layBar(key, side, x, y, w, h)
+    local gap = key == "health" and 3 or 4
+    local r = poolGet(key)
+    if side == "Left" then
+        r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
+        LOFF.Left += gap + 1
+    elseif side == "Right" then
+        r.x, r.y, r.w, r.h, r.vertical = x + w + gap + LOFF.Right, y, 1, h, true
+        LOFF.Right += gap + 1
+    elseif side == "Top" then
+        r.x, r.y, r.w, r.h, r.vertical = x, y - gap - 1 - LOFF.Top, w, 1, false
+        LOFF.Top += gap + 1
+    else
+        r.x, r.y, r.w, r.h, r.vertical = x, y + h + gap + LOFF.Bottom, w, 1, false
+        LOFF.Bottom += gap + 1
+    end
+    r.side = side
+    LAY[key] = r
+    return r.x, r.y
+end
+
+local function layText(r, side, x, y, w, h)
+    if side == "Top" then
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - LPAD - LOFF.Top, 0.5, 1
+        LOFF.Top += lstep
+    elseif side == "Bottom" then
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + LPAD + LOFF.Bottom, 0.5, 0
+        LOFF.Bottom += lstep
+    elseif side == "Left" then
+        r.x, r.y, r.ax, r.ay = x - LPAD - LOFF.Left, y - 1 + LROWS.Left * lstep, 1, 0
+        LROWS.Left += 1
+    else
+        r.x, r.y, r.ax, r.ay = x + w + LPAD + LOFF.Right, y - 1 + LROWS.Right * lstep, 0, 0
+        LROWS.Right += 1
+    end
+    return r
+end
+
+local function layHealth(side, cfg, x, y, w, h, size, ratio)
+    local rx, ry = layBar("health", side, x, y, w, h)
+    if cfg.HealthText then
+        local r = poolGet("healthText")
+        local ty = clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
+        local tx = clamp(x + w * ratio, x, x + w)
+        if side == "Left" then
+            r.x, r.y, r.ax, r.ay = rx - LPAD, ty, 1, 0
+            LOFF.Left += 16
+        elseif side == "Right" then
+            r.x, r.y, r.ax, r.ay = rx + LPAD, ty, 0, 0
+            LOFF.Right += 16
+        elseif side == "Top" then
+            r.x, r.y, r.ax, r.ay = tx, ry - LPAD, 0.5, 1
+            LOFF.Top += size + 2
+        else
+            r.x, r.y, r.ax, r.ay = tx, ry + LPAD, 0.5, 0
+            LOFF.Bottom += size + 2
+        end
+        LAY.healthText = r
+    end
+end
+
+local function setItem(i, key, kind, side, slot, n)
+    local it = LITEMS[i]
+    it.key, it.kind, it.side, it.slot, it.n = key, kind, side, slot, n
+end
+
 function espModule.Layout(cfg, x, y, w, h, o)
     local size = o.size or 12
-    local step = size
     local ratio = o.ratio or 1
-    local out = { flagLines = {} }
-    local off = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
-    local rows = { Left = 0, Right = 0 }
-    local pad = 2
+    lstep = size
 
-    local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
+    LAY.health, LAY.armor, LAY.name, LAY.distance, LAY.tool, LAY.healthText = nil, nil, nil, nil, nil, nil
+    LOFF.Top, LOFF.Bottom, LOFF.Left, LOFF.Right = 0, 0, 0, 0
+    LROWS.Left, LROWS.Right = 0, 0
 
-    local function pick(v, d)
-        if SIDE_OK[v] then return v end
-        return d
+    local n = 0
+    if o.health then
+        n += 1
+        setItem(n, "health", "healthbar", pickSide(cfg.HealthBarPos, "Left"), cfg.HealthBarSlot or 1, 1)
+    end
+    if o.armor then
+        n += 1
+        setItem(n, "armor", "bar", pickSide(cfg.ArmorBarPos, "Bottom"), cfg.ArmorBarSlot or 2, 2)
+    end
+    if cfg.Names then
+        n += 1
+        setItem(n, "name", "text", pickSide(cfg.NamePos, "Top"), cfg.NameSlot or 3, 3)
+    end
+    if cfg.Distance then
+        n += 1
+        setItem(n, "distance", "text", pickSide(cfg.DistancePos, "Right"), cfg.DistanceSlot or 4, 4)
+    end
+    if cfg.Tool then
+        n += 1
+        setItem(n, "tool", "text", pickSide(cfg.ToolPos, "Bottom"), cfg.ToolSlot or 5, 5)
     end
 
-	local function placeBar(key, side)
-        local rx, ry, rw, rh, vertical
-        local gap = (key == "health") and 3 or 4
-        if side == "Left" then
-            rx, ry, rw, rh, vertical = x - gap - 1 - off.Left, y, 1, h, true
-            off.Left += gap + 1
-        elseif side == "Right" then
-            rx, ry, rw, rh, vertical = x + w + gap + off.Right, y, 1, h, true
-            off.Right += gap + 1
-        elseif side == "Top" then
-            rx, ry, rw, rh, vertical = x, y - gap - 1 - off.Top, w, 1, false
-            off.Top += gap + 1
-        else
-            rx, ry, rw, rh, vertical = x, y + h + gap + off.Bottom, w, 1, false
-            off.Bottom += gap + 1
+    for i = 2, n do
+        local it = LITEMS[i]
+        local j = i - 1
+        while j >= 1 and (LITEMS[j].slot > it.slot or (LITEMS[j].slot == it.slot and LITEMS[j].n > it.n)) do
+            LITEMS[j + 1] = LITEMS[j]
+            j -= 1
         end
-        out[key] = { x = rx, y = ry, w = rw, h = rh, vertical = vertical, side = side }
-        return rx, ry
+        LITEMS[j + 1] = it
     end
 
-    local function placeText(side)
-        local p
-        if side == "Top" then
-            p = { x = x + w * 0.5, y = y - pad - off.Top, ax = 0.5, ay = 1 }
-            off.Top += step
-        elseif side == "Bottom" then
-            p = { x = x + w * 0.5, y = y + h + pad + off.Bottom, ax = 0.5, ay = 0 }
-            off.Bottom += step
-        elseif side == "Left" then
-            p = { x = x - pad - off.Left, y = y - 1 + rows.Left * step, ax = 1, ay = 0 }
-            rows.Left += 1
-        else
-            p = { x = x + w + pad + off.Right, y = y - 1 + rows.Right * step, ax = 0, ay = 0 }
-            rows.Right += 1
-        end
-        return p
-    end
-
-    local function doHealth(side)
-        local rx, ry = placeBar("health", side)
-        if cfg.HealthText then
-            local ty = math.clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
-            local tx = math.clamp(x + w * ratio, x, x + w)
-            if side == "Left" then
-                out.healthText = { x = rx - pad, y = ty, ax = 1, ay = 0 }
-                off.Left += 16
-            elseif side == "Right" then
-                out.healthText = { x = rx + pad, y = ty, ax = 0, ay = 0 }
-                off.Right += 16
-            elseif side == "Top" then
-                out.healthText = { x = tx, y = ry - pad, ax = 0.5, ay = 1 }
-                off.Top += size + 2
-            else
-                out.healthText = { x = tx, y = ry + pad, ax = 0.5, ay = 0 }
-                off.Bottom += size + 2
-            end
-        end
-    end
-
-    local items = {}
-    local function add(key, kind, enabled, side, slot, n)
-        if enabled then
-            items[#items + 1] = { key = key, kind = kind, side = side, slot = slot, n = n }
-        end
-    end
-    add("health", "healthbar", o.health, pick(cfg.HealthBarPos, "Left"), cfg.HealthBarSlot or 1, 1)
-    add("armor", "bar", o.armor, pick(cfg.ArmorBarPos, "Bottom"), cfg.ArmorBarSlot or 2, 2)
-    add("name", "text", cfg.Names, pick(cfg.NamePos, "Top"), cfg.NameSlot or 3, 3)
-    add("distance", "text", cfg.Distance, pick(cfg.DistancePos, "Right"), cfg.DistanceSlot or 4, 4)
-    add("tool", "text", cfg.Tool, pick(cfg.ToolPos, "Bottom"), cfg.ToolSlot or 5, 5)
-
-    table.sort(items, function(a, b)
-        if a.slot ~= b.slot then return a.slot < b.slot end
-        return a.n < b.n
-    end)
-
-    local deferred = {}
-    for _, it in ipairs(items) do
+    for i = 1, n do
+        local it = LITEMS[i]
         if it.kind == "healthbar" then
-            doHealth(it.side)
+            layHealth(it.side, cfg, x, y, w, h, size, ratio)
         elseif it.kind == "bar" then
-            placeBar(it.key, it.side)
-        elseif it.side == "Left" or it.side == "Right" then
-            deferred[#deferred + 1] = it
-        else
-            out[it.key] = placeText(it.side)
+            layBar(it.key, it.side, x, y, w, h)
+        elseif it.side ~= "Left" and it.side ~= "Right" then
+            LAY[it.key] = layText(poolGet(it.key), it.side, x, y, w, h)
         end
     end
-    for _, it in ipairs(deferred) do
-        out[it.key] = placeText(it.side)
+    for i = 1, n do
+        local it = LITEMS[i]
+        if it.kind == "text" and (it.side == "Left" or it.side == "Right") then
+            LAY[it.key] = layText(poolGet(it.key), it.side, x, y, w, h)
+        end
     end
 
     local fc = o.flagCount or 0
-    if cfg.Flags and fc > 0 then
-        local side = pick(cfg.FlagsPos, "Right")
-        for i = 1, fc do out.flagLines[i] = placeText(side) end
+    local count = (cfg.Flags and fc > 0) and fc or 0
+    local lines = LAY.flagLines
+    for i = #lines, count + 1, -1 do lines[i] = nil end
+    if count > 0 then
+        local side = pickSide(cfg.FlagsPos, "Right")
+        for i = 1, count do
+            local r = FPOOL[i]
+            if not r then
+                r = {}
+                FPOOL[i] = r
+            end
+            lines[i] = layText(r, side, x, y, w, h)
+        end
     end
 
-    return out
+    return LAY
 end
 
 local SHADER_VERTEX = [[
@@ -601,26 +667,11 @@ float noise2D(float2 p) {
 	float2 i = floor(p);
 	float2 f = frac(p);
 	f = f * f * (3.0 - 2.0 * f);
-
 	float a = hash21(i);
 	float b = hash21(i + float2(1.0, 0.0));
 	float c = hash21(i + float2(0.0, 1.0));
 	float d = hash21(i + float2(1.0, 1.0));
-
 	return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
-}
-
-float fbm(float2 p) {
-	float v = 0.0;
-	float amp = 0.52;
-	float2 shift = float2(37.0, 17.0);
-	float2x2 rot = float2x2(0.8775, 0.4794, -0.4794, 0.8775);
-	for (int i = 0; i < 4; i++) {
-		v += amp * noise2D(p);
-		p = mul(rot, p) * 2.05 + shift;
-		amp *= 0.5;
-	}
-	return v;
 }
 
 float3 palette(float x, Grp g) {
@@ -651,10 +702,6 @@ float keyAmount(float3 c, int k) {
 	return 1.0 - smoothstep(0.04, 0.12, err);
 }
 
-float fringeAmount(float3 c, int k) {
-	return 0.0;
-}
-
 float3 cleanKey(float3 c, int k, float remove) {
 	if (k == 2) {
 		float e2 = max(c.b - max(c.r, c.g), 0.0);
@@ -673,54 +720,101 @@ float3 cleanKey(float3 c, int k, float remove) {
 	return c;
 }
 
-float patAurora(float2 p, float t, out float extra) {
-	float w1 = fbm(p * 0.75 + float2(t * 0.28, -t * 0.14));
-	float w2 = fbm(p * 1.45 + float2(-t * 0.22, t * 0.19) + w1 * 1.1);
-
-	float coord = p.x * 1.35 + p.y * 0.85 + w1 * 2.35 + sin(p.y * 2.4 - t * 0.9) * 0.35;
-	float curtain1 = pow(clamp(1.0 - abs(sin(coord * 3.14159)), 0.0, 1.0), 2.4);
-	float curtain2 = pow(clamp(1.0 - abs(sin((coord * 1.85 - w2 * 1.6 + t * 0.35) * 3.14159)), 0.0, 1.0), 3.0);
-
-	float rays = 0.65 + 0.35 * sin((p.x * 9.0 + w2 * 5.5 - t * 1.4) * 3.14159);
-	float shimmer = curtain1 * rays;
-	float band = clamp(curtain1 * 0.65 + curtain2 * 0.55 + w2 * 0.35, 0.0, 1.0);
-
-	extra = smoothstep(0.72, 1.0, shimmer * curtain2) * 0.35;
-	return saturate(shimmer * 0.5 + band * 0.6);
+float2 patNeon(float2 p, float t) {
+	float w = sin(p.x * 1.3 + p.y * 0.9 + t) * 0.5 + sin(p.y * 2.1 - p.x * 0.7 - t * 1.3) * 0.5;
+	float v = 0.5 + 0.5 * sin((p.x * 0.8 + p.y * 1.2) * 2.0 + w * 1.6 - t * 0.8);
+	return float2(smoothstep(0.0, 1.0, v), smoothstep(0.88, 1.0, v) * 0.3);
 }
 
-float patFlame(float2 p, float t, out float extra) {
-	float n = fbm(float2(p.x * 1.2, p.y * 1.6 - t * 1.1));
-	float n2 = fbm(p * 2.0 + float2(0.0, -t * 1.8) + n);
-	float heat = saturate(n * 0.7 + n2 * 0.55 + sin(p.y * 1.5 - t * 1.5) * 0.2);
-	extra = smoothstep(0.85, 1.0, heat) * 0.3;
-	return heat;
+float2 patMatrix(float2 p, float t) {
+	float2 q = float2(p.x * 2.0, p.y);
+	float h = hash21(float2(floor(q.x), 7.0));
+	float y = frac(q.y * 0.35 - t * (0.18 + h * 0.3) + h * 9.0);
+	float fx = frac(q.x);
+	float mask = smoothstep(0.0, 0.15, fx) * smoothstep(1.0, 0.85, fx);
+	float v = saturate(pow(y, 2.2) * lerp(0.5, 1.0, mask) + 0.08);
+	return float2(v, smoothstep(0.9, 1.0, y) * mask * 0.35);
 }
 
-float patPlasma(float2 p, float t, out float extra) {
-	float2 q = p + float2(fbm(p + t * 0.2), fbm(p - t * 0.25)) * 1.2;
-	float v = sin(q.x * 1.7 + t) + sin(q.y * 2.1 - t * 1.2) + sin((q.x + q.y) * 1.3 + t * 0.7);
-	v += sin(length(q + float2(sin(t * 0.5), cos(t * 0.4)) * 2.0) * 2.5);
-	extra = 0.0;
-	return v * 0.125 + 0.5;
+float2 patFrost(float2 p, float t) {
+	float a = noise2D(p * 0.9 + float2(t * 0.15, -t * 0.1));
+	float b = noise2D(p * 2.1 - float2(t * 0.2, t * 0.12) + a * 1.5);
+	float v = smoothstep(0.15, 0.85, a * 0.6 + b * 0.4);
+	return float2(v, smoothstep(0.82, 0.98, b) * 0.25);
 }
 
-float patHologram(float2 uv, float2 p, float t, out float extra) {
-	float scan = 0.5 + 0.5 * sin(uv.y * resolution.y * 0.6 - t * 8.0);
-	float w = fbm(p * 1.1 + float2(0.0, -t * 0.4));
-	float x = saturate(0.3 + 0.25 * sin(p.y * 3.0 - t * 2.0) + w * 0.4 + scan * 0.15);
-	float flicker = 0.92 + 0.08 * sin(t * 30.0);
-	float grid = saturate(step(0.94, frac(p.x * 4.0)) + step(0.94, frac(p.y * 4.0)));
-	extra = (smoothstep(0.92, 1.0, scan) * 0.3 + grid * 0.2) * flicker;
-	return x * flicker;
+float2 patLava(float2 p, float t) {
+	float n = noise2D(float2(p.x * 1.1, p.y * 1.4 - t * 0.9));
+	float n2 = noise2D(p * 2.0 + float2(0.0, -t * 1.3) + n);
+	float v = saturate(n * 0.65 + n2 * 0.45 + sin(p.y * 1.4 - t * 1.2) * 0.12 + 0.05);
+	v = smoothstep(0.1, 0.9, v);
+	return float2(v, smoothstep(0.8, 1.0, v) * 0.25);
 }
 
-float patGalaxy(float2 p, float t, out float extra) {
-	float a = fbm(p * 0.8 + t * 0.05);
-	float b = fbm(p * 1.6 - t * 0.08 + a);
-	float s = hash21(floor(p * 18.0));
-	extra = step(0.985, s) * (0.6 + 0.4 * sin(t * 3.0 + s * 50.0));
-	return saturate(a * 0.6 + b * 0.6 - 0.1);
+float2 patCyber(float2 uv, float2 p, float t) {
+	float sweep = smoothstep(0.0, 1.0, 0.5 + 0.5 * sin(p.y * 2.4 - t * 2.0));
+	float lines = 0.5 + 0.5 * sin(uv.y * resolution.y * 0.9);
+	float gx = smoothstep(0.93, 0.98, frac(p.x * 3.0));
+	float gy = smoothstep(0.93, 0.98, frac(p.y * 3.0));
+	float v = saturate(0.25 + sweep * 0.55 + lines * 0.1);
+	return float2(v, max(gx, gy) * 0.2 + smoothstep(0.9, 1.0, sweep) * 0.2);
+}
+
+float2 patAurora(float2 p, float t) {
+	float w = noise2D(p * 0.7 + float2(t * 0.2, -t * 0.1));
+	float c = p.x * 1.2 + p.y * 0.7 + w * 2.0;
+	float k1 = pow(saturate(1.0 - abs(sin(c * 3.14159 + t * 0.4))), 2.0);
+	float k2 = pow(saturate(1.0 - abs(sin(c * 5.5 - t * 0.6))), 3.0);
+	float v = saturate(k1 * 0.7 + k2 * 0.4 + w * 0.25);
+	return float2(v, smoothstep(0.7, 1.0, k1 * k2) * 0.3);
+}
+
+float2 patPlasma(float2 p, float t) {
+	float v = sin(p.x * 1.7 + t) + sin(p.y * 2.1 - t * 1.2) + sin((p.x + p.y) * 1.3 + t * 0.7);
+	v += sin(length(p + float2(sin(t * 0.5), cos(t * 0.4)) * 2.0) * 2.5);
+	return float2(smoothstep(0.0, 1.0, v * 0.125 + 0.5), 0.0);
+}
+
+float2 patGalaxy(float2 p, float t) {
+	float a = noise2D(p * 0.8 + t * 0.05);
+	float b = noise2D(p * 1.7 - t * 0.08 + a);
+	float v = smoothstep(0.1, 0.9, a * 0.55 + b * 0.55);
+	float s = hash21(floor(p * 14.0));
+	float star = step(0.985, s) * (0.6 + 0.4 * sin(t * 3.0 + s * 50.0));
+	return float2(v, star);
+}
+
+float2 patPulse(float2 p, float t) {
+	float v = 0.5 + 0.5 * sin(t * 2.0 + p.y * 0.8);
+	v = lerp(0.2, 1.0, smoothstep(0.0, 1.0, v));
+	return float2(v, smoothstep(0.9, 1.0, v) * 0.2);
+}
+
+float2 patRipple(float2 p, float t) {
+	float d = length(p - float2(2.5, 1.5));
+	float v = 0.5 + 0.5 * sin(d * 3.0 - t * 2.5);
+	return float2(smoothstep(0.0, 1.0, v), smoothstep(0.92, 1.0, v) * 0.25);
+}
+
+float2 patStripes(float2 p, float t) {
+	float f = frac((p.x + p.y) * 0.9 - t * 0.35);
+	float tri = 1.0 - abs(f * 2.0 - 1.0);
+	return float2(smoothstep(0.0, 1.0, tri), smoothstep(0.92, 1.0, tri) * 0.2);
+}
+
+float2 patGradient(float2 p, float t) {
+	float v = 0.5 + 0.5 * sin(p.y * 0.9 + p.x * 0.25 - t * 0.6);
+	return float2(v, 0.0);
+}
+
+float2 patWaves(float2 p, float t) {
+	float y = p.y + sin(p.x * 1.6 + t) * 0.35 + sin(p.x * 3.1 - t * 1.4) * 0.12;
+	float v = 0.5 + 0.5 * sin(y * 3.2 - t * 0.9);
+	return float2(smoothstep(0.0, 1.0, v), smoothstep(0.9, 1.0, v) * 0.25);
+}
+
+float2 patSolid(float2 p, float t) {
+	return float2(0.7 + 0.2 * sin(p.y * 1.5 - t), 0.0);
 }
 
 float3 evalPattern(float2 uv, Grp g) {
@@ -728,20 +822,22 @@ float3 evalPattern(float2 uv, Grp g) {
 	float aspect = resolution.x / max(resolution.y, 1.0);
 	float2 p = uv * float2(aspect, 1.0) * g.sc;
 	int st = (int)(g.st + 0.5);
-	float extra = 0.0;
-	float v;
-	if (st == 1) {
-		v = patFlame(p, t, extra);
-	} else if (st == 2) {
-		v = patPlasma(p, t, extra);
-	} else if (st == 3) {
-		v = patHologram(uv, p, t, extra);
-	} else if (st == 4) {
-		v = patGalaxy(p, t, extra);
-	} else {
-		v = patAurora(p, t, extra);
-	}
-	float3 col = palette(v, g) + glowCol(g) * extra;
+	float2 r;
+	if (st == 0) r = patNeon(p, t);
+	else if (st == 1) r = patMatrix(p, t);
+	else if (st == 2) r = patFrost(p, t);
+	else if (st == 3) r = patLava(p, t);
+	else if (st == 4) r = patCyber(uv, p, t);
+	else if (st == 5) r = patAurora(p, t);
+	else if (st == 6) r = patPlasma(p, t);
+	else if (st == 7) r = patGalaxy(p, t);
+	else if (st == 8) r = patPulse(p, t);
+	else if (st == 9) r = patRipple(p, t);
+	else if (st == 10) r = patStripes(p, t);
+	else if (st == 11) r = patGradient(p, t);
+	else if (st == 12) r = patWaves(p, t);
+	else r = patSolid(p, t);
+	float3 col = palette(r.x, g) + glowCol(g) * r.y;
 	return pow(max(col, 0.0), g.ct) * g.br;
 }
 
@@ -755,24 +851,24 @@ float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_TARGET {
 		}
 	}
 	float3 outc = src;
+	float2 texelBase = 1.0 / max(resolution, float2(1.0, 1.0));
 
 	for (int k = 0; k < 3; k++) {
 		Grp g = getGrp(k);
 		if (g.en > 0.5) {
 			float mk = keyAmount(src, k);
 			float bl = 0.0;
-			if (g.gi > 0.001 && g.gs > 0.01) {
-				float2 texel = g.gs / max(resolution, float2(1.0, 1.0));
-				for (int i = 0; i < 10; i++) {
-					float ang = (float(i) / 10.0) * 6.2831853;
+			if (mk < 0.98 && g.gi > 0.001 && g.gs > 0.01) {
+				float2 texel = g.gs * texelBase;
+				[unroll]
+				for (int i = 0; i < 8; i++) {
+					float ang = float(i) * 0.7853982;
 					float2 dir = float2(cos(ang), sin(ang));
 					bl += keyAmount(Scene.SampleLevel(Linear, uv + dir * texel, 0).rgb, k);
 				}
-				bl /= 10.0;
+				bl *= 0.125;
 			}
-			float fr = fringeAmount(src, k) * saturate(bl * 4.0);
-			float rem = saturate(max(mk, fr));
-			outc = cleanKey(outc, k, rem);
+			outc = cleanKey(outc, k, saturate(mk));
 			if (mk > 0.001) {
 				outc = lerp(outc, evalPattern(uv, g), mk);
 			}
@@ -791,25 +887,31 @@ local view = {
     r00 = 1, r01 = 0, r02 = 0, r10 = 0, r11 = 1, r12 = 0, r20 = 0, r21 = 0, r22 = 1,
 }
 
+local camX, camY, camZ = 0, 0, 0
+local c00, c01, c02, c10, c11, c12, c20, c21, c22 = 1, 0, 0, 0, 1, 0, 0, 0, 1
+local viewW, viewH, viewF = 0, 0, 0
+
 local function updateView(cam)
     local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cam.CFrame:GetComponents()
     local size = cam.ViewportSize
+    camX, camY, camZ = x, y, z
+    c00, c01, c02, c10, c11, c12, c20, c21, c22 = r00, r01, r02, r10, r11, r12, r20, r21, r22
+    viewW, viewH = size.X, size.Y
+    viewF = size.Y * 0.5 / math.tan(math.rad(cam.FieldOfView) * 0.5)
     view.x, view.y, view.z = x, y, z
     view.r00, view.r01, view.r02 = r00, r01, r02
     view.r10, view.r11, view.r12 = r10, r11, r12
     view.r20, view.r21, view.r22 = r20, r21, r22
-    view.w, view.h = size.X, size.Y
-    view.f = size.Y * 0.5 / math.tan(math.rad(cam.FieldOfView) * 0.5)
+    view.w, view.h, view.f = viewW, viewH, viewF
 end
 
 local function project(px, py, pz)
-    local dx, dy, dz = px - view.x, py - view.y, pz - view.z
-    local depth = -(dx * view.r02 + dy * view.r12 + dz * view.r22)
+    local dx, dy, dz = px - camX, py - camY, pz - camZ
+    local depth = -(dx * c02 + dy * c12 + dz * c22)
     if depth < 0.05 then return nil end
-    local scale = view.f / depth
-    return view.w * 0.5 + (dx * view.r00 + dy * view.r10 + dz * view.r20) * scale,
-        view.h * 0.5 - (dx * view.r01 + dy * view.r11 + dz * view.r21) * scale,
-        depth
+    local scale = viewF / depth
+    return viewW * 0.5 + (dx * c00 + dy * c10 + dz * c20) * scale,
+        viewH * 0.5 - (dx * c01 + dy * c11 + dz * c21) * scale, depth
 end
 
 local Renderer = {}
@@ -822,23 +924,18 @@ local textY = {
     [0] = Enum.TextYAlignment.Top, [0.5] = Enum.TextYAlignment.Center, [1] = Enum.TextYAlignment.Bottom,
 }
 
+local BLACK = Color3.new(0, 0, 0)
+local WHITE = Color3.new(1, 1, 1)
+local CORNER_SIGNS = { {0, 0}, {1, 0}, {0, 1}, {1, 1} }
+
 local function addStroke(parent, thickness)
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.new(0, 0, 0)
+    stroke.Color = BLACK
     stroke.Thickness = thickness or 1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.LineJoinMode = Enum.LineJoinMode.Miter
     stroke.Parent = parent
     return stroke
-end
-
-local function buildRect(root)
-    local frame = Instance.new("Frame")
-    frame.BorderSizePixel = 0
-    frame.ZIndex = 3
-    frame.Visible = false
-    frame.Parent = root
-    return { f = frame, s = addStroke(frame), shown = false }
 end
 
 local function buildLine(root)
@@ -859,13 +956,13 @@ local function buildText(root)
     label.BorderSizePixel = 0
     label.AutomaticSize = Enum.AutomaticSize.XY
     label.Size = UDim2.new()
-    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextColor3 = WHITE
     label.TextStrokeTransparency = 1
     label.ZIndex = 5
     label.Visible = false
     label.Parent = root
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.new(0, 0, 0)
+    stroke.Color = BLACK
     stroke.Thickness = 1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
     stroke.LineJoinMode = Enum.LineJoinMode.Round
@@ -884,7 +981,7 @@ local function buildBar(root)
     container.Parent = root
     local stroke = addStroke(container)
     local fill = Instance.new("Frame")
-    fill.BackgroundColor3 = Color3.new(1, 1, 1)
+    fill.BackgroundColor3 = WHITE
     fill.BorderSizePixel = 0
     fill.ZIndex = 4
     fill.Parent = container
@@ -895,7 +992,7 @@ end
 
 local function buildFill(root)
     local frame = Instance.new("Frame")
-    frame.BackgroundColor3 = Color3.new(1, 1, 1)
+    frame.BackgroundColor3 = WHITE
     frame.BorderSizePixel = 0
     frame.ZIndex = 1
     frame.Visible = false
@@ -929,11 +1026,71 @@ local function buildDot(root)
     corner.CornerRadius = UDim.new(1, 0)
     corner.Parent = frame
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.new(0, 0, 0)
+    stroke.Color = BLACK
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Enabled = false
     stroke.Parent = frame
     return { root = frame, stroke = stroke }
+end
+
+local function createBar(parent, color, anchor, pos, z)
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.fromOffset(1, 1)
+    bar.Position = pos
+    bar.AnchorPoint = anchor
+    bar.BackgroundColor3 = color
+    bar.BorderSizePixel = 0
+    bar.ZIndex = z
+    bar.Parent = parent
+    return bar
+end
+
+local function ensureCorner(self)
+    if self.cornerBox then return end
+    local box = Instance.new("Frame")
+    box.Name = "CornerBox"
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Visible = false
+    box.ZIndex = 2
+    box.Parent = self.root
+    local bars = {}
+    for i = 1, 4 do
+        local xs, ys = CORNER_SIGNS[i][1], CORNER_SIGNS[i][2]
+        local anchor = Vector2.new(xs, ys)
+        local pos = UDim2.fromScale(xs, ys)
+        bars[i] = {
+            outlineH = createBar(box, BLACK, anchor, pos, 1),
+            outlineV = createBar(box, BLACK, anchor, pos, 1),
+            colorH = createBar(box, WHITE, anchor, pos, 2),
+            colorV = createBar(box, WHITE, anchor, pos, 2),
+            xs = xs, ys = ys,
+        }
+    end
+    self.cornerBox, self.cornerBars = box, bars
+end
+
+local function ensureFull(self)
+    if self.fullBox then return end
+    local box = Instance.new("Frame")
+    box.Name = "FullBox"
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Visible = false
+    box.ZIndex = 2
+    box.Parent = self.root
+    local bars = {}
+    local zero = UDim2.fromScale(0, 0)
+    local anchor = Vector2.new(0, 0)
+    local layout = { {true, true}, {true, false}, {false, true}, {false, false} }
+    for i = 1, 4 do
+        bars[i] = {
+            outline = createBar(box, BLACK, anchor, zero, 1),
+            color = createBar(box, WHITE, anchor, zero, 2),
+            isHorizontal = layout[i][1], isStart = layout[i][2],
+        }
+    end
+    self.fullBox, self.fullBars = box, bars
 end
 
 function Renderer.new(parent)
@@ -943,94 +1100,20 @@ function Renderer.new(parent)
     root.BorderSizePixel = 0
     root.Size = UDim2.fromScale(1, 1)
     root.Parent = parent
-
-    local self = setmetatable({
-        root = root, rects = {}, lines = {}, keyed = {}, keyList = {},
-        nRect = 0, nLine = 0, hiRect = 0, hiLine = 0, frame = 0,
-        cornerBox = Instance.new("Frame"),
-        fullBox = Instance.new("Frame"),
-        cornerBars = {},
-        fullBars = {}
+    return setmetatable({
+        root = root, lines = {}, keyed = {}, keyList = {},
+        nLine = 0, hiLine = 0, frame = 0,
+        cornerShown = false, fullShown = false, cornerFrame = -1, fullFrame = -1,
     }, Renderer)
-
-    local BLACK = Color3.new(0,0,0)
-    local WHITE = Color3.new(1,1,1)
-
-    local function createBar(parent, size, pos, anchor, color, radius, zIndex)
-        local bar = Instance.new("Frame")
-        bar.Size = size
-        bar.Position = pos
-        bar.AnchorPoint = anchor
-        bar.BackgroundColor3 = color
-        bar.BorderSizePixel = 0
-        bar.ZIndex = zIndex
-        bar.Parent = parent
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = radius
-        corner.Parent = bar
-        return bar
-    end
-
-    self.cornerBox.Name = "CornerBox"
-    self.cornerBox.BackgroundTransparency = 1
-    self.cornerBox.Visible = false
-    self.cornerBox.ZIndex = 2
-    self.cornerBox.Parent = root
-
-    for _, signs in ipairs({ {0,0}, {1,0}, {0,1}, {1,1} }) do
-        local xSign, ySign = signs[1], signs[2]
-        local anchor = Vector2.new(xSign, ySign)
-        local pos = UDim2.fromScale(xSign, ySign)
-        local one = UDim2.fromOffset(1, 1)
-        table.insert(self.cornerBars, {
-            outlineH = createBar(self.cornerBox, one, pos, anchor, BLACK, UDim.new(0, 3), 1),
-            outlineV = createBar(self.cornerBox, one, pos, anchor, BLACK, UDim.new(0, 3), 1),
-            colorH = createBar(self.cornerBox, one, pos, anchor, WHITE, UDim.new(0, 3), 2),
-            colorV = createBar(self.cornerBox, one, pos, anchor, WHITE, UDim.new(0, 3), 2),
-            xSign = xSign, ySign = ySign,
-        })
-    end
-
-    self.fullBox.Name = "FullBox"
-    self.fullBox.BackgroundTransparency = 1
-    self.fullBox.Visible = false
-    self.fullBox.ZIndex = 2
-    self.fullBox.Parent = root
-
-    local function createFullSide(isHorizontal, isStart)
-        local one = UDim2.fromOffset(1, 1)
-        local zero = UDim2.fromScale(0, 0)
-        table.insert(self.fullBars, {
-            outline = createBar(self.fullBox, one, zero, Vector2.new(0, 0), BLACK, UDim.new(0, 3), 1),
-            color = createBar(self.fullBox, one, zero, Vector2.new(0, 0), WHITE, UDim.new(0, 3), 2),
-            isHorizontal = isHorizontal, isStart = isStart,
-        })
-    end
-    createFullSide(true, true)
-    createFullSide(true, false)
-    createFullSide(false, true)
-    createFullSide(false, false)
-
-    return self
 end
 
 function Renderer:Begin()
     self.frame += 1
-    self.nRect, self.nLine = 0, 0
-    self.cornerBox.Visible = false
-    self.fullBox.Visible = false
+    self.nLine = 0
 end
 
 function Renderer:End()
-    local rects, lines = self.rects, self.lines
-    for i = self.nRect + 1, self.hiRect do
-        local r = rects[i]
-        if r.shown then
-            r.f.Visible = false
-            r.shown = false
-        end
-    end
-    self.hiRect = self.nRect
+    local lines = self.lines
     for i = self.nLine + 1, self.hiLine do
         local l = lines[i]
         if l.shown then
@@ -1040,7 +1123,17 @@ function Renderer:End()
     end
     self.hiLine = self.nLine
 
-    local frame, list = self.frame, self.keyList
+    local frame = self.frame
+    if self.cornerShown and self.cornerFrame ~= frame then
+        self.cornerBox.Visible = false
+        self.cornerShown = false
+    end
+    if self.fullShown and self.fullFrame ~= frame then
+        self.fullBox.Visible = false
+        self.fullShown = false
+    end
+
+    local list = self.keyList
     for i = 1, #list do
         local k = list[i]
         if k.touched ~= frame and k.shown then
@@ -1090,35 +1183,85 @@ function Renderer:Keyed(key, build)
     return k
 end
 
-function Renderer:Rect(x, y, w, h, color, tr)
-    local n = self.nRect + 1
-    self.nRect = n
-    local r = self.rects[n]
-    if not r then
-        r = buildRect(self.root)
-        self.rects[n] = r
+function Renderer:Corner(x, y, w, h, thick, color, tr)
+    ensureCorner(self)
+    local box = self.cornerBox
+    self.cornerFrame = self.frame
+    if not self.cornerShown then
+        box.Visible = true
+        self.cornerShown = true
     end
-    local f = r.f
-    if r.x ~= x or r.y ~= y then
-        r.x, r.y = x, y
-        f.Position = UDim2.fromOffset(x, y)
+    if self.cx ~= x or self.cy ~= y then
+        self.cx, self.cy = x, y
+        box.Position = UDim2.fromOffset(x, y)
     end
-    if r.w ~= w or r.h ~= h then
-        r.w, r.h = w, h
-        f.Size = UDim2.fromOffset(w, h)
+    if self.cw ~= w or self.ch ~= h then
+        self.cw, self.ch = w, h
+        box.Size = UDim2.fromOffset(w, h)
     end
-    if r.color ~= color then
-        r.color = color
-        f.BackgroundColor3 = color
+    local maxAllowed = mmin(50, floor(mmin(w, h) * 0.42))
+    local len = clamp(floor(mmin(w, h) * 0.3), 4, mmax(4, maxAllowed))
+    if self.cLen == len and self.cThick == thick and self.cColor == color and self.cTr == tr then return end
+    self.cLen, self.cThick, self.cColor, self.cTr = len, thick, color, tr
+    for i = 1, 4 do
+        local c = self.cornerBars[i]
+        local sx, sy = c.xs, c.ys
+        local ox = sx == 0 and -1 or 1
+        local oy = sy == 0 and -1 or 1
+        local base = UDim2.fromScale(sx, sy)
+        local obase = base + UDim2.fromOffset(ox, oy)
+
+        c.colorH.Size = UDim2.fromOffset(len, thick)
+        c.colorH.Position = base
+        c.colorH.BackgroundColor3 = color
+        c.colorH.BackgroundTransparency = tr
+
+        c.outlineH.Size = UDim2.fromOffset(len + 2, thick + 2)
+        c.outlineH.Position = obase
+        c.outlineH.BackgroundTransparency = tr
+
+        c.colorV.Size = UDim2.fromOffset(thick, len)
+        c.colorV.Position = base
+        c.colorV.BackgroundColor3 = color
+        c.colorV.BackgroundTransparency = tr
+
+        c.outlineV.Size = UDim2.fromOffset(thick + 2, len + 2)
+        c.outlineV.Position = obase
+        c.outlineV.BackgroundTransparency = tr
     end
-    if r.tr ~= tr then
-        r.tr = tr
-        f.BackgroundTransparency = tr
-        r.s.Transparency = tr
+end
+
+function Renderer:Full(x, y, w, h, thick, color, tr)
+    ensureFull(self)
+    local box = self.fullBox
+    self.fullFrame = self.frame
+    if not self.fullShown then
+        box.Visible = true
+        self.fullShown = true
     end
-    if not r.shown then
-        r.shown = true
-        f.Visible = true
+    if self.fx ~= x or self.fy ~= y then
+        self.fx, self.fy = x, y
+        box.Position = UDim2.fromOffset(x, y)
+    end
+    if self.fw == w and self.fh == h and self.fThick == thick and self.fColor == color and self.fTr == tr then return end
+    self.fw, self.fh, self.fThick, self.fColor, self.fTr = w, h, thick, color, tr
+    box.Size = UDim2.fromOffset(w, h)
+    for i = 1, 4 do
+        local b = self.fullBars[i]
+        if b.isHorizontal then
+            b.color.Size = UDim2.fromOffset(w, thick)
+            b.color.Position = UDim2.fromOffset(0, b.isStart and 0 or (h - thick))
+            b.outline.Size = UDim2.fromOffset(w + 2, thick + 2)
+            b.outline.Position = UDim2.fromOffset(-1, b.isStart and -1 or (h - thick - 1))
+        else
+            b.color.Size = UDim2.fromOffset(thick, h)
+            b.color.Position = UDim2.fromOffset(b.isStart and 0 or (w - thick), 0)
+            b.outline.Size = UDim2.fromOffset(thick + 2, h + 2)
+            b.outline.Position = UDim2.fromOffset(b.isStart and -1 or (w - thick - 1), -1)
+        end
+        b.color.BackgroundColor3 = color
+        b.color.BackgroundTransparency = tr
+        b.outline.BackgroundTransparency = tr
     end
 end
 
@@ -1131,7 +1274,7 @@ function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr)
         self.lines[n] = l
     end
     local dx, dy = bx - ax, by - ay
-    local len = math.max(math.sqrt(dx * dx + dy * dy), 1)
+    local len = mmax(math.sqrt(dx * dx + dy * dy), 1)
     local cx, cy = (ax + bx) * 0.5, (ay + by) * 0.5
     local rot = math.deg(math.atan2(dy, dx))
     local f = l.f
@@ -1153,7 +1296,7 @@ function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr)
             f.BackgroundColor3 = c1
             l.g.Enabled = false
         else
-            f.BackgroundColor3 = Color3.new(1, 1, 1)
+            f.BackgroundColor3 = WHITE
             l.g.Color = ColorSequence.new(c1, c2)
             l.g.Enabled = true
         end
@@ -1194,15 +1337,17 @@ function Renderer:Text(key, text, x, y, ax, ay, font, size, c1, c2, tr, animated
             label.TextColor3 = c1
             t.grad.Enabled = false
         else
-            label.TextColor3 = Color3.new(1, 1, 1)
+            label.TextColor3 = WHITE
             t.grad.Color = ColorSequence.new(c1, c2)
             t.grad.Enabled = true
         end
     end
-    if animated and t.grad.Enabled then
-        t.grad.Rotation = view.angle
-    elseif t.grad.Enabled then
-        t.grad.Rotation = 0
+    if t.grad.Enabled then
+        local rot = animated and view.angle or 0
+        if t.rot ~= rot then
+            t.rot = rot
+            t.grad.Rotation = rot
+        end
     end
     if t.tr ~= tr then
         t.tr = tr
@@ -1222,23 +1367,32 @@ function Renderer:Bar(key, x, y, w, h, fillRatio, vertical, high, mid, low, tr)
         b.w, b.h = w, h
         root.Size = UDim2.fromOffset(w, h)
     end
-    fillRatio = math.clamp(fillRatio, 0, 1)
-    if vertical then
-        fill.AnchorPoint = Vector2.new(0, 1)
-        fill.Position = UDim2.fromScale(0, 1)
-        fill.Size = UDim2.fromScale(1, fillRatio)
-        b.grad.Rotation = 90
-    else
-        fill.AnchorPoint = Vector2.new(0, 0)
-        fill.Position = UDim2.new()
-        fill.Size = UDim2.fromScale(fillRatio, 1)
-        b.grad.Rotation = 0
+    fillRatio = clamp(fillRatio, 0, 1)
+    if b.vertical ~= vertical then
+        b.vertical = vertical
+        b.ratio = nil
+        if vertical then
+            fill.AnchorPoint = Vector2.new(0, 1)
+            fill.Position = UDim2.fromScale(0, 1)
+            b.grad.Rotation = 90
+        else
+            fill.AnchorPoint = Vector2.new(0, 0)
+            fill.Position = UDim2.new()
+            b.grad.Rotation = 0
+        end
     end
-    b.grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, high),
-        ColorSequenceKeypoint.new(0.5, mid),
-        ColorSequenceKeypoint.new(1, low),
-    })
+    if b.ratio ~= fillRatio then
+        b.ratio = fillRatio
+        fill.Size = vertical and UDim2.fromScale(1, fillRatio) or UDim2.fromScale(fillRatio, 1)
+    end
+    if b.high ~= high or b.mid ~= mid or b.low ~= low then
+        b.high, b.mid, b.low = high, mid, low
+        b.grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, high),
+            ColorSequenceKeypoint.new(0.5, mid),
+            ColorSequenceKeypoint.new(1, low),
+        })
+    end
     if b.tr ~= tr then
         b.tr = tr
         root.BackgroundTransparency = tr
@@ -1258,8 +1412,15 @@ function Renderer:Fill(key, x, y, w, h, c1, c2, rot, tr)
         f.w, f.h = w, h
         root.Size = UDim2.fromOffset(w, h)
     end
-    f.grad.Color = ColorSequence.new(c1, c2)
-    f.grad.Rotation = rot or 0
+    if f.c1 ~= c1 or f.c2 ~= c2 then
+        f.c1, f.c2 = c1, c2
+        f.grad.Color = ColorSequence.new(c1, c2)
+    end
+    rot = rot or 0
+    if f.rot ~= rot then
+        f.rot = rot
+        f.grad.Rotation = rot
+    end
     if f.tr ~= tr then
         f.tr = tr
         root.BackgroundTransparency = tr
@@ -1277,7 +1438,10 @@ function Renderer:Glow(key, x, y, w, h, color, tr)
         g.w, g.h = w, h
         root.Size = UDim2.fromOffset(w + 42, h + 41)
     end
-    root.ImageColor3 = color
+    if g.color ~= color then
+        g.color = color
+        root.ImageColor3 = color
+    end
     if g.tr ~= tr then
         g.tr = tr
         root.ImageTransparency = tr
@@ -1295,12 +1459,25 @@ function Renderer:Dot(key, x, y, size, color, outlineTh, tr)
         d.size = size
         root.Size = UDim2.fromOffset(size, size)
     end
-    root.BackgroundColor3 = color
+    if d.color ~= color then
+        d.color = color
+        root.BackgroundColor3 = color
+    end
     if outlineTh and outlineTh > 0 then
-        d.stroke.Enabled = true
-        d.stroke.Thickness = outlineTh
-        d.stroke.Transparency = tr
-    else
+        if not d.strokeOn then
+            d.strokeOn = true
+            d.stroke.Enabled = true
+        end
+        if d.outline ~= outlineTh then
+            d.outline = outlineTh
+            d.stroke.Thickness = outlineTh
+        end
+        if d.strokeTr ~= tr then
+            d.strokeTr = tr
+            d.stroke.Transparency = tr
+        end
+    elseif d.strokeOn then
+        d.strokeOn = false
         d.stroke.Enabled = false
     end
     if d.tr ~= tr then
@@ -1325,6 +1502,11 @@ local state = {
     dead = false,
     shader = nil,
     shaderParams = {},
+    shaderRetry = 0,
+    pushAt = 0,
+    useSig = -1,
+    teamVal = {},
+    teamAt = {},
     use = { [0] = false, [1] = false, [2] = false },
 }
 
@@ -1343,13 +1525,12 @@ local function put(name, v)
     if cache[name] ~= v then
         cache[name] = v
         local sh = state.shader
-        if sh then pcall(function() sh:Set(name, v) end) end
+        if sh then pcall(sh.Set, sh, name, v) end
     end
 end
 
 local function getMenuBounds()
-    local env = (typeof(getgenv) == "function" and getgenv()) or _G
-    local st = env.Stardust
+    local st = envTable.Stardust
     if type(st) == "table" and st.win and st.win.root then
         local root = st.win.root
         if root.Visible then
@@ -1361,7 +1542,7 @@ local function getMenuBounds()
     return nil
 end
 
-local function pushShader()
+local function pushSettings()
     if not state.shader then return end
     local s = espModule.Settings
     for k = 0, 2 do
@@ -1372,7 +1553,7 @@ local function pushShader()
         put(n.c1, c.Color1)
         put(n.c2, c.Color2)
         put(n.c3, c.Color3)
-        put(n.cc, math.clamp(math.floor((c.ColorCount or 3) + 0.5), 1, 3))
+        put(n.cc, clamp(floor((c.ColorCount or 3) + 0.5), 1, 3))
         put(n.br, c.Brightness)
         put(n.ct, c.Contrast)
         put(n.gi, c.Bloom)
@@ -1382,6 +1563,10 @@ local function pushShader()
         put(n.st, design.Style)
         put(n.en, state.use[k] and 1 or 0)
     end
+end
+
+local function pushBounds()
+    if not state.shader then return end
     local mx, my, mw, mh = getMenuBounds()
     if mx then
         put("ui_on", 1)
@@ -1396,11 +1581,18 @@ end
 
 local function ensureShader()
     if state.shader then return end
-    if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then return end
+    if os.clock() < state.shaderRetry then return end
+    if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then
+        state.shaderRetry = os.clock() + 3
+        return
+    end
     local ok, shader = pcall(function()
         return Drawing.new("Shader")
     end)
-    if not ok or not shader then return end
+    if not ok or not shader then
+        state.shaderRetry = os.clock() + 3
+        return
+    end
     local built = pcall(function()
         shader.Vertex = SHADER_VERTEX
         shader.Pixel = SHADER_PIXEL
@@ -1408,11 +1600,13 @@ local function ensureShader()
     end)
     if not built then
         pcall(function() shader:Remove() end)
+        state.shaderRetry = os.clock() + 3
         return
     end
     state.shader = shader
     state.shaderParams = {}
-    pushShader()
+    pushSettings()
+    pushBounds()
 end
 
 local function destroyShader()
@@ -1429,13 +1623,14 @@ local function restoreTransparency(rec)
             if obj and obj.Parent then
                 if obj:IsA("BasePart") then
                     obj.LocalTransparencyModifier = val
-                elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                else
                     obj.Transparency = val
                 end
             end
         end
         rec.origTrans = nil
     end
+    rec.trList = nil
 end
 
 local function clearAdornments(rec)
@@ -1452,16 +1647,26 @@ local function clearAdornments(rec)
     restoreTransparency(rec)
 end
 
+local function offHl(rec)
+    if rec.hl and rec.hlOn then
+        rec.hl.Enabled = false
+        rec.hlOn = false
+    end
+end
+
+local function offFill(rec)
+    if rec.fillHl and rec.fillOn then
+        rec.fillHl.Enabled = false
+        rec.fillOn = false
+    end
+end
+
 local function hideRecord(rec)
     if rec.hidden then return end
     rec.hidden = true
     if rec.renderer then rec.renderer:Clear() end
-    if rec.hl then
-        rec.hl.Enabled = false
-    end
-    if rec.fillHl then
-        rec.fillHl.Enabled = false
-    end
+    offHl(rec)
+    offFill(rec)
     if rec.adornments then
         for _, entry in pairs(rec.adornments) do
             if entry.fill then entry.fill.Visible = false end
@@ -1469,6 +1674,7 @@ local function hideRecord(rec)
                 for _, g in ipairs(entry.glow) do g.Visible = false end
             end
         end
+        rec.adDirty = true
     end
     restoreTransparency(rec)
 end
@@ -1484,14 +1690,16 @@ local function dropRecord(entity)
 end
 
 local function newRecord(entity)
-    local renderer = Renderer.new(state.gui)
     return {
         entity = entity,
-        renderer = renderer,
+        renderer = Renderer.new(state.gui),
         character = nil,
         humanoid = nil,
         root = nil,
         parts = nil,
+        adParts = nil,
+        bones = nil,
+        headPart = nil,
         isR15 = false,
         scanned = -1,
         owner = nil,
@@ -1507,6 +1715,15 @@ local function newRecord(entity)
         hidden = true,
         lastName = nil,
         deathTime = 0,
+        infoAt = -10,
+        raidAt = -10,
+        raidSkip = false,
+        humAt = -10,
+        trAt = -10,
+        trApply = -10,
+        adDirty = true,
+        mVal = -1,
+        mStr = "",
         d = {},
         box = { x = 0, y = 0, w = 0, h = 0 },
         hl = nil,
@@ -1517,6 +1734,15 @@ end
 local R15 = {"HumanoidRootPart","Head","UpperTorso","LowerTorso","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand"}
 local R6 = {"HumanoidRootPart","Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
 local VM_PARTS = {"head","torso","arm1","arm2","leg1","leg2","shoulder1","shoulder2","hip1","hip2"}
+
+local R15_BONES = {
+    {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"LowerTorso", "LeftUpperLeg"}, {"LowerTorso", "RightUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"UpperTorso", "LeftUpperArm"}, {"UpperTorso", "RightUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"}, {"RightUpperArm", "RightLowerArm"},
+}
+local R6_BONES = {
+    {"Head", "Torso"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
+}
 
 local function collectParts(character, names, out)
     for i = 1, #names do
@@ -1548,6 +1774,7 @@ local function bindCharacter(rec, character, humanoid, isVM)
     rec.character = character
     rec.humanoid = humanoid
     rec.parts = {}
+    rec.bones = {}
     rec.isR15 = false
     if isVM then
         collectParts(character, VM_PARTS, rec.parts)
@@ -1576,6 +1803,27 @@ local function bindCharacter(rec, character, humanoid, isVM)
             or character:FindFirstChild("UpperTorso")
             or character.PrimaryPart
             or character:FindFirstChildWhichIsA("BasePart", true)
+        local list = rec.isR15 and R15_BONES or R6_BONES
+        for i = 1, #list do
+            local a = character:FindFirstChild(list[i][1])
+            local b = character:FindFirstChild(list[i][2])
+            if a and b and a:IsA("BasePart") and b:IsA("BasePart") then
+                rec.bones[#rec.bones + 1] = { a, b }
+            end
+        end
+    end
+
+    rec.adParts = {}
+    for i = 1, #rec.parts do
+        local p = rec.parts[i]
+        if p.Name ~= "HumanoidRootPart" then rec.adParts[#rec.adParts + 1] = p end
+    end
+
+    local head = character:FindFirstChild("Head") or character:FindFirstChild("head")
+    if head then
+        rec.headPart = head:IsA("BasePart") and head or head:FindFirstChildWhichIsA("BasePart", true)
+    else
+        rec.headPart = nil
     end
     rec.scanned = view.time
 end
@@ -1618,7 +1866,7 @@ local function updateFlags(rec, entity, character, humanoid, cfg)
         if table.find(cfg.SelectedFlags, "Walking") and humanoid.MoveDirection.Magnitude > 0 then
             d.flags[#d.flags + 1] = "Walking"
         end
-        local ok, hs = pcall(function() return humanoid:GetState() end)
+        local ok, hs = pcall(humanoid.GetState, humanoid)
         if ok then
             if table.find(cfg.SelectedFlags, "Jumping") and (hs == Enum.HumanoidStateType.Freefall or hs == Enum.HumanoidStateType.Jumping) then
                 d.flags[#d.flags + 1] = "Jumping"
@@ -1636,44 +1884,65 @@ local function updateFlags(rec, entity, character, humanoid, cfg)
     end
 end
 
-local SIGNS = {
-    {-1, -1, -1}, {1, -1, -1}, {-1, 1, -1}, {1, 1, -1},
-    {-1, -1, 1}, {1, -1, 1}, {-1, 1, 1}, {1, 1, 1},
-}
+local SX = {-1, 1, -1, 1, -1, 1, -1, 1}
+local SY = {-1, -1, 1, 1, -1, -1, 1, 1}
+local SZ = {-1, -1, -1, -1, 1, 1, 1, 1}
+local EDGES = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
+local BX, BY, BOK = {}, {}, {}
+local FLAGK = {}
 
 local function dynamicBounds(parts)
-    local sx1, sy1, sx2, sy2 = math.huge, math.huge, -math.huge, -math.huge
+    local x1, y1, x2, y2 = huge, huge, -huge, -huge
     local any = false
+    local hw, hh, f = viewW * 0.5, viewH * 0.5, viewF
     for i = 1, #parts do
         local p = parts[i]
-        if p and p.Parent then
-            local cf, size = p.CFrame, p.Size
+        if p.Parent then
+            local px, py, pz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
+            local size = p.Size
             local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
+            local ox, oy, oz = px - camX, py - camY, pz - camZ
+            local cx = ox * c00 + oy * c10 + oz * c20
+            local cy = ox * c01 + oy * c11 + oz * c21
+            local cd = -(ox * c02 + oy * c12 + oz * c22)
+
+            local ax1 = (r00 * c00 + r10 * c10 + r20 * c20) * hx
+            local ay1 = (r00 * c01 + r10 * c11 + r20 * c21) * hx
+            local ad1 = -(r00 * c02 + r10 * c12 + r20 * c22) * hx
+            local ax2 = (r01 * c00 + r11 * c10 + r21 * c20) * hy
+            local ay2 = (r01 * c01 + r11 * c11 + r21 * c21) * hy
+            local ad2 = -(r01 * c02 + r11 * c12 + r21 * c22) * hy
+            local ax3 = (r02 * c00 + r12 * c10 + r22 * c20) * hz
+            local ay3 = (r02 * c01 + r12 * c11 + r22 * c21) * hz
+            local ad3 = -(r02 * c02 + r12 * c12 + r22 * c22) * hz
+
             for s = 1, 8 do
-                local sg = SIGNS[s]
-                local w = cf * Vector3.new(hx * sg[1], hy * sg[2], hz * sg[3])
-                local sx, sy = project(w.X, w.Y, w.Z)
-                if sx then
+                local s1, s2, s3 = SX[s], SY[s], SZ[s]
+                local depth = cd + s1 * ad1 + s2 * ad2 + s3 * ad3
+                if depth >= 0.05 then
+                    local scale = f / depth
+                    local sx = hw + (cx + s1 * ax1 + s2 * ax2 + s3 * ax3) * scale
+                    local sy = hh - (cy + s1 * ay1 + s2 * ay2 + s3 * ay3) * scale
                     any = true
-                    if sx < sx1 then sx1 = sx end
-                    if sy < sy1 then sy1 = sy end
-                    if sx > sx2 then sx2 = sx end
-                    if sy > sy2 then sy2 = sy end
+                    if sx < x1 then x1 = sx end
+                    if sy < y1 then y1 = sy end
+                    if sx > x2 then x2 = sx end
+                    if sy > y2 then y2 = sy end
                 end
             end
         end
     end
     if not any then return nil end
-    return sx1, sy1, sx2, sy2
+    return x1, y1, x2, y2
 end
 
 local function staticBounds(rec, parts)
     local root = rec.root
     if not root or not root.Parent then return nil end
-    local minY, maxY = math.huge, -math.huge
+    local minY, maxY = huge, -huge
     for i = 1, #parts do
         local p = parts[i]
-        if p and p.Parent then
+        if p.Parent then
             local cf, size = p.CFrame, p.Size
             local ext = math.abs(cf.RightVector.Y) * size.X * 0.5
                 + math.abs(cf.UpVector.Y) * size.Y * 0.5
@@ -1683,7 +1952,7 @@ local function staticBounds(rec, parts)
             if py + ext > maxY then maxY = py + ext end
         end
     end
-    if minY == math.huge then return nil end
+    if minY == huge then return nil end
     local rp = root.Position
     local tx, ty = project(rp.X, maxY, rp.Z)
     local bx, by = project(rp.X, minY, rp.Z)
@@ -1695,27 +1964,259 @@ local function staticBounds(rec, parts)
     return cx - w * 0.5, ty, cx + w * 0.5, by
 end
 
-local function box3D(rec)
-    local character = rec.character
-    if not character then return nil end
-    local ok, cf, size = pcall(function() return character:GetBoundingBox() end)
-    if not ok or not cf then return nil end
+local function box3D(rec, now)
+    local character, root = rec.character, rec.root
+    if not character or not root or not root.Parent then return false end
+    if not rec.bbOff or rec.bbChar ~= character or now - rec.bbAt > 1 then
+        local ok, cf, size = pcall(function() return character:GetBoundingBox() end)
+        if not ok or not cf then return false end
+        rec.bbSize = size
+        rec.bbOff = root.CFrame:ToObjectSpace(cf)
+        rec.bbAt = now
+        rec.bbChar = character
+    end
+    local cf = root.CFrame * rec.bbOff
+    local size = rec.bbSize
     local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
-    local pts = {}
     for s = 1, 8 do
-        local sg = SIGNS[s]
-        local w = cf * Vector3.new(hx * sg[1], hy * sg[2], hz * sg[3])
+        local w = cf * Vector3.new(hx * SX[s], hy * SY[s], hz * SZ[s])
         local sx, sy = project(w.X, w.Y, w.Z)
         if sx then
-            pts[s] = {sx, sy, true}
+            BX[s], BY[s], BOK[s] = sx, sy, true
         else
-            pts[s] = {0, 0, false}
+            BOK[s] = false
         end
     end
-    return pts
+    return true
 end
 
-local function render(rec, cfg, rx, ry, rz, dist)
+local GLOW_LAYERS = 3
+
+local function makeAdornEntry(part)
+    local lname = part.Name:lower()
+    local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
+    local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
+
+    local glow = {}
+    for i = 1, GLOW_LAYERS do
+        local g = Instance.new(className)
+        g.Adornee = part
+        g.AlwaysOnTop = true
+        g.ZIndex = GLOW_LAYERS - i + 1
+        if isHead then g.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
+        g.Parent = state.gui
+        glow[i] = g
+    end
+
+    local fill = Instance.new(className)
+    fill.Adornee = part
+    fill.AlwaysOnTop = true
+    fill.ZIndex = GLOW_LAYERS + 1
+    if isHead then fill.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
+    fill.Parent = state.gui
+
+    return { fill = fill, glow = glow, isHead = isHead, sz = nil, seen = 0 }
+end
+
+local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
+    local fill = entry.fill
+    local sz = part.Size
+    entry.sz = sz
+    if entry.isHead then
+        local rad = mmax(sz.X, sz.Z) * 0.52
+        local h = sz.Y * 1.05
+        fill.Radius = rad
+        fill.InnerRadius = 0
+        fill.Height = h
+        for i = 1, GLOW_LAYERS do
+            local g = entry.glow[i]
+            local pad = i * 0.147
+            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
+            g.Radius = rad + pad
+            g.InnerRadius = 0
+            g.Height = h + pad * 2
+            g.Color3 = c2
+            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
+            g.Visible = true
+        end
+    else
+        fill.Size = sz
+        for i = 1, GLOW_LAYERS do
+            local g = entry.glow[i]
+            local pad = i * 0.147
+            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
+            g.Size = sz + Vector3.new(pad, pad, pad)
+            g.Color3 = c2
+            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
+            g.Visible = true
+        end
+    end
+    fill.Color3 = c1
+    fill.Transparency = adTr
+    fill.Visible = true
+end
+
+local function refreshTrList(rec)
+    local parts, decals = {}, {}
+    local char = rec.character
+    if char then
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                parts[#parts + 1] = obj
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                decals[#decals + 1] = obj
+            end
+        end
+    end
+    rec.trList = { parts = parts, decals = decals }
+    rec.trAt = view.time
+    rec.trApply = -10
+end
+
+local function applyTransparency(rec)
+    rec.trApply = view.time
+    local list = rec.trList
+    if not list then return end
+    local orig = rec.origTrans
+    if not orig then
+        orig = {}
+        rec.origTrans = orig
+    end
+    local parts, decals = list.parts, list.decals
+    for i = 1, #parts do
+        local obj = parts[i]
+        local cur = obj.LocalTransparencyModifier
+        if cur ~= 1 then
+            if orig[obj] == nil then orig[obj] = cur end
+            obj.LocalTransparencyModifier = 1
+        end
+    end
+    for i = 1, #decals do
+        local obj = decals[i]
+        local cur = obj.Transparency
+        if cur ~= 1 then
+            if orig[obj] == nil then orig[obj] = cur end
+            obj.Transparency = 1
+        end
+    end
+end
+
+local function drawAdornments(rec, cfg, tr)
+    local now = view.time
+    local cs = cfg.ChamsSettings
+    local c1, c2 = cs.Color1, cs.Color2
+    local fillOpacity = 1 - (cfg.AdornmentTransparency or 0.55)
+    local glowOpacity = 1 - (cfg.AdornmentGlowTransparency or 0.78)
+    local adTr = 1 - (fillOpacity * (1 - tr))
+
+    if rec.adornChar ~= rec.character or not rec.adornments then
+        clearAdornments(rec)
+        rec.adornChar = rec.character
+        rec.adornments = {}
+        rec.adDirty = true
+        rec.adScan = nil
+    end
+
+    if not rec.trList or now - rec.trAt > 1 then refreshTrList(rec) end
+    if now - rec.trApply > 0.25 then applyTransparency(rec) end
+
+    local dirty = rec.adDirty or rec.adC1 ~= c1 or rec.adC2 ~= c2 or rec.adFill ~= adTr or rec.adGlow ~= glowOpacity or rec.adFade ~= tr
+    local scanChanged = rec.adScan ~= rec.scanned
+    local stamp = rec.adStamp or 0
+    if scanChanged then
+        stamp += 1
+        rec.adStamp = stamp
+        rec.adScan = rec.scanned
+    end
+
+    local adorn = rec.adornments
+    local parts = rec.adParts
+    if parts then
+        for i = 1, #parts do
+            local part = parts[i]
+            if part.Parent then
+                local entry = adorn[part]
+                if not entry then
+                    entry = makeAdornEntry(part)
+                    adorn[part] = entry
+                end
+                entry.seen = stamp
+                if dirty or entry.sz ~= part.Size then
+                    updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
+                end
+            end
+        end
+    end
+
+    if scanChanged then
+        for part, entry in pairs(adorn) do
+            if entry.seen ~= stamp then
+                entry.fill:Destroy()
+                for _, g in ipairs(entry.glow) do g:Destroy() end
+                adorn[part] = nil
+            end
+        end
+    end
+
+    rec.adDirty = false
+    rec.adC1, rec.adC2, rec.adFill, rec.adGlow, rec.adFade = c1, c2, adTr, glowOpacity, tr
+end
+
+local function drawShaderHl(rec, cfg)
+    local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
+    local hl = rec.hl
+    if not hl then
+        hl = Instance.new("Highlight")
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.FillTransparency = 0
+        hl.OutlineTransparency = 1
+        hl.Parent = state.gui
+        rec.hl = hl
+        rec.hlKey = nil
+    end
+    if rec.hlKey ~= keyCol then
+        rec.hlKey = keyCol
+        hl.FillColor = keyCol
+        hl.OutlineColor = keyCol
+    end
+    if hl.Adornee ~= rec.character then hl.Adornee = rec.character end
+    if not rec.hlOn then
+        hl.Enabled = true
+        rec.hlOn = true
+    end
+end
+
+local function drawFillHl(rec, cfg, tr)
+    local hl = rec.fillHl
+    if not hl then
+        hl = Instance.new("Highlight")
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.OutlineTransparency = 1
+        hl.Parent = state.gui
+        rec.fillHl = hl
+        rec.fhFill, rec.fhLine, rec.fhTr = nil, nil, nil
+    end
+    if hl.Adornee ~= rec.character then hl.Adornee = rec.character end
+    if rec.fhFill ~= cfg.BoxFillColor1 then
+        rec.fhFill = cfg.BoxFillColor1
+        hl.FillColor = rec.fhFill
+    end
+    if rec.fhLine ~= cfg.LineColor then
+        rec.fhLine = cfg.LineColor
+        hl.OutlineColor = rec.fhLine
+    end
+    local ft = 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr))
+    if rec.fhTr ~= ft then
+        rec.fhTr = ft
+        hl.FillTransparency = ft
+    end
+    if not rec.fillOn then
+        hl.Enabled = true
+        rec.fillOn = true
+    end
+end
+
+local function render(rec, cfg, dist)
     local parts = rec.parts
     if not parts or #parts == 0 then
         hideRecord(rec)
@@ -1736,23 +2237,23 @@ local function render(rec, cfg, rx, ry, rz, dist)
     end
 
     local pad = 2
-    local x = math.floor(sx1 - pad + 0.5)
-    local y = math.floor(sy1 - pad + 0.5)
-    local w = math.max(math.floor(sx2 - sx1 + pad * 2 + 0.5), 8)
-    local h = math.max(math.floor(sy2 - sy1 + pad * 2 + 0.5), 8)
+    local x = floor(sx1 - pad + 0.5)
+    local y = floor(sy1 - pad + 0.5)
+    local w = mmax(floor(sx2 - sx1 + pad * 2 + 0.5), 8)
+    local h = mmax(floor(sy2 - sy1 + pad * 2 + 0.5), 8)
 
     local box = rec.box
     local smooth = settings.BoxSmoothing or 0
     if box.w == 0 or smooth <= 0 or rec.hidden then
         box.x, box.y, box.w, box.h = x, y, w, h
     else
-        local k = 1 - math.clamp(smooth, 0, 0.95)
+        local k = 1 - clamp(smooth, 0, 0.95)
         box.x = box.x + (x - box.x) * k
         box.y = box.y + (y - box.y) * k
         box.w = box.w + (w - box.w) * k
         box.h = box.h + (h - box.h) * k
     end
-    x, y, w, h = math.floor(box.x + 0.5), math.floor(box.y + 0.5), math.floor(box.w + 0.5), math.floor(box.h + 0.5)
+    x, y, w, h = floor(box.x + 0.5), floor(box.y + 0.5), floor(box.w + 0.5), floor(box.h + 0.5)
 
     rec.hidden = false
     rec.seen = view.time
@@ -1763,15 +2264,20 @@ local function render(rec, cfg, rx, ry, rz, dist)
             hideRecord(rec)
             return
         end
-        tr = math.min(tr, age / 1.2)
+        tr = mmin(tr, age / 1.2)
     end
+
     local renderer = rec.renderer
     renderer:Begin()
 
     local textFont = getFont(settings.TextFont)
     local flagsFont = getFont(settings.FlagsFont)
     local healthFont = getFont(settings.HealthFont)
-    local meters = math.floor(dist + 0.5)
+    local meters = floor(dist + 0.5)
+    if rec.mVal ~= meters then
+        rec.mVal = meters
+        rec.mStr = meters .. "s"
+    end
     local d = rec.d
     local chamsOn = cfg.Chams and state.shader ~= nil
     local chamsType = cfg.ChamsType or "Shader"
@@ -1779,23 +2285,12 @@ local function render(rec, cfg, rx, ry, rz, dist)
     if cfg.BoxFill and cfg.BoxEnabled then
         if cfg.BoxType == "3D" then
             if chamsOn and chamsType == "Shader" then
-                if rec.fillHl then rec.fillHl.Enabled = false end
+                offFill(rec)
             else
-                if not rec.fillHl then
-                    local hl = Instance.new("Highlight")
-                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    hl.Parent = state.gui
-                    rec.fillHl = hl
-                end
-                rec.fillHl.Adornee = rec.character
-                rec.fillHl.FillColor = cfg.BoxFillColor1
-                rec.fillHl.OutlineColor = cfg.LineColor
-                rec.fillHl.FillTransparency = 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr))
-                rec.fillHl.OutlineTransparency = 1
-                rec.fillHl.Enabled = true
+                drawFillHl(rec, cfg, tr)
             end
         else
-            if rec.fillHl then rec.fillHl.Enabled = false end
+            offFill(rec)
             local ang = cfg.BoxFillRotation or 0
             if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
                 ang = (view.angle * (cfg.BoxFillSpeed / 100) + ang) % 360
@@ -1803,144 +2298,23 @@ local function render(rec, cfg, rx, ry, rz, dist)
             renderer:Fill("boxfill", x, y, w, h, cfg.BoxFillColor1, cfg.BoxFillColor2, ang, 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr)))
         end
     else
-        if rec.fillHl then rec.fillHl.Enabled = false end
+        offFill(rec)
     end
 
-	if cfg.Chams then
+    if cfg.Chams then
         if chamsType == "Adornment" then
-            if rec.hl then rec.hl.Enabled = false end
-            local c1 = cfg.ChamsSettings.Color1
-            local c2 = cfg.ChamsSettings.Color2
-            local fillOpacity = 1 - (cfg.AdornmentTransparency or 0.55)
-            local glowOpacity = 1 - (cfg.AdornmentGlowTransparency or 0.78)
-            local adTr = 1 - (fillOpacity * (1 - tr))
-
-            if rec.adornChar ~= rec.character or not rec.adornments then
-                clearAdornments(rec)
-                rec.adornChar = rec.character
-                rec.adornments = {}
-            end
-
-            rec.origTrans = rec.origTrans or {}
-            if rec.character then
-                for _, obj in ipairs(rec.character:GetDescendants()) do
-                    if obj:IsA("BasePart") then
-                        if rec.origTrans[obj] == nil then
-                            rec.origTrans[obj] = obj.LocalTransparencyModifier
-                        end
-                        obj.LocalTransparencyModifier = 1
-                    elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                        if rec.origTrans[obj] == nil then
-                            rec.origTrans[obj] = obj.Transparency
-                        end
-                        obj.Transparency = 1
-                    end
-                end
-            end
-
-            local GLOW_LAYERS = 4
-            local activeParts = {}
-            for _, part in ipairs(rec.parts) do
-                if part and part.Parent and part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    activeParts[part] = true
-                    local entry = rec.adornments[part]
-                    if not entry then
-                        local lname = part.Name:lower()
-                        local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
-                        local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
-
-                        local glow = {}
-                        for i = 1, GLOW_LAYERS do
-                            local g = Instance.new(className)
-                            g.Adornee = part
-                            g.AlwaysOnTop = true
-                            g.ZIndex = GLOW_LAYERS - i + 1
-                            if isHead then
-                                g.CFrame = CFrame.Angles(math.rad(90), 0, 0)
-                            end
-                            g.Parent = state.gui
-                            glow[i] = g
-                        end
-
-                        local fill = Instance.new(className)
-                        fill.Adornee = part
-                        fill.AlwaysOnTop = true
-                        fill.ZIndex = GLOW_LAYERS + 1
-                        if isHead then
-                            fill.CFrame = CFrame.Angles(math.rad(90), 0, 0)
-                        end
-                        fill.Parent = state.gui
-
-                        entry = { fill = fill, glow = glow, isHead = isHead }
-                        rec.adornments[part] = entry
-                    end
-
-                    local fill = entry.fill
-                    if entry.isHead then
-                        local rad = math.max(part.Size.X, part.Size.Z) * 0.52
-                        local h = part.Size.Y * 1.05
-                        fill.Radius = rad
-                        fill.InnerRadius = 0
-                        fill.Height = h
-                        for i, g in ipairs(entry.glow) do
-                            local pad = i * 0.055
-                            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-                            g.Radius = rad + pad
-                            g.InnerRadius = 0
-                            g.Height = h + pad * 2
-                            g.Color3 = c2
-                            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
-                            g.Visible = true
-                        end
-                    else
-                        fill.Size = part.Size
-                        for i, g in ipairs(entry.glow) do
-                            local pad = i * 0.11
-                            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-                            g.Size = part.Size + Vector3.new(pad, pad, pad)
-                            g.Color3 = c2
-                            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
-                            g.Visible = true
-                        end
-                    end
-
-                    fill.Color3 = c1
-                    fill.Transparency = adTr
-                    fill.Visible = true
-                end
-            end
-
-            for part, entry in pairs(rec.adornments) do
-                if not activeParts[part] then
-                    if entry.fill then entry.fill:Destroy() end
-                    if entry.glow then
-                        for _, g in ipairs(entry.glow) do g:Destroy() end
-                    end
-                    rec.adornments[part] = nil
-                end
-            end
+            offHl(rec)
+            drawAdornments(rec, cfg, tr)
         elseif chamsType == "Shader" and state.shader then
             clearAdornments(rec)
-            local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
-            if not rec.hl then
-                local hl = Instance.new("Highlight")
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                hl.Parent = state.gui
-                rec.hl = hl
-            end
-            rec.hl.FillColor = keyCol
-            rec.hl.OutlineColor = keyCol
-            rec.hl.FillTransparency = 0
-            rec.hl.OutlineTransparency = 1
-            rec.hl.Adornee = rec.character
-            rec.hl.Enabled = true
+            drawShaderHl(rec, cfg)
         else
             clearAdornments(rec)
-            if rec.hl then rec.hl.Enabled = false end
+            offHl(rec)
         end
     else
         clearAdornments(rec)
-        if rec.hl then rec.hl.Enabled = false end
+        offHl(rec)
     end
 
     if cfg.BoxEnabled then
@@ -1948,81 +2322,31 @@ local function render(rec, cfg, rx, ry, rz, dist)
             renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * (1 - tr)))
         end
 
-        local thick = math.max(1, cfg.Thickness or 1)
+        local thick = mmax(1, cfg.Thickness or 1)
         if cfg.BoxType == "Full" then
-            renderer.fullBox.Visible = true
-            renderer.fullBox.Position = UDim2.fromOffset(x, y)
-            renderer.fullBox.Size = UDim2.fromOffset(w, h)
-            for _, b in ipairs(renderer.fullBars) do
-                if b.isHorizontal then
-                    b.color.Size = UDim2.fromOffset(w, thick)
-                    b.color.Position = UDim2.fromOffset(0, b.isStart and 0 or (h - thick))
-                    b.outline.Size = UDim2.fromOffset(w + 2, thick + 2)
-                    b.outline.Position = UDim2.fromOffset(-1, b.isStart and -1 or (h - thick - 1))
-                else
-                    b.color.Size = UDim2.fromOffset(thick, h)
-                    b.color.Position = UDim2.fromOffset(b.isStart and 0 or (w - thick), 0)
-                    b.outline.Size = UDim2.fromOffset(thick + 2, h + 2)
-                    b.outline.Position = UDim2.fromOffset(b.isStart and -1 or (w - thick - 1), -1)
-                end
-                b.color.BackgroundColor3 = cfg.LineColor
-                b.color.BackgroundTransparency = tr
-                b.outline.BackgroundTransparency = tr
-            end
+            renderer:Full(x, y, w, h, thick, cfg.LineColor, tr)
         elseif cfg.BoxType == "3D" then
-            local pts = box3D(rec)
-            if pts then
-                local edges = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
+            if box3D(rec, view.time) then
                 for i = 1, 12 do
-                    local e = edges[i]
-                    local a, b2 = pts[e[1]], pts[e[2]]
-                    if a and b2 and a[3] and b2[3] then
-                        renderer:Line(a[1], a[2], b2[1], b2[2], thick, cfg.LineColor, cfg.LineColor, tr)
+                    local e = EDGES[i]
+                    local a, b = e[1], e[2]
+                    if BOK[a] and BOK[b] then
+                        renderer:Line(BX[a], BY[a], BX[b], BY[b], thick, cfg.LineColor, cfg.LineColor, tr)
                     end
                 end
             end
         else
-            renderer.cornerBox.Visible = true
-            renderer.cornerBox.Position = UDim2.fromOffset(x, y)
-            renderer.cornerBox.Size = UDim2.fromOffset(w, h)
-            local maxAllowed = math.min(50, math.floor(math.min(w, h) * 0.42))
-            local lineLen = math.clamp(math.floor(math.min(w, h) * 0.3), 4, math.max(4, maxAllowed))
-
-            for _, c in ipairs(renderer.cornerBars) do
-                local sx, sy = c.xSign, c.ySign
-                local ox = sx == 0 and -1 or 1
-                local oy = sy == 0 and -1 or 1
-
-                c.colorH.Size = UDim2.fromOffset(lineLen, thick)
-                c.colorH.Position = UDim2.fromScale(sx, sy)
-                c.colorH.BackgroundColor3 = cfg.LineColor
-                c.colorH.BackgroundTransparency = tr
-
-                c.outlineH.Size = UDim2.fromOffset(lineLen + 2, thick + 2)
-                c.outlineH.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
-                c.outlineH.BackgroundTransparency = tr
-
-                c.colorV.Size = UDim2.fromOffset(thick, lineLen)
-                c.colorV.Position = UDim2.fromScale(sx, sy)
-                c.colorV.BackgroundColor3 = cfg.LineColor
-                c.colorV.BackgroundTransparency = tr
-
-                c.outlineV.Size = UDim2.fromOffset(thick + 2, lineLen + 2)
-                c.outlineV.Position = UDim2.fromScale(sx, sy) + UDim2.fromOffset(ox, oy)
-                c.outlineV.BackgroundTransparency = tr
-            end
+            renderer:Corner(x, y, w, h, thick, cfg.LineColor, tr)
         end
     end
 
     if cfg.HeadDot then
-        local head = rec.character and (rec.character:FindFirstChild("Head") or rec.character:FindFirstChild("head"))
-        if head then
-            local hp = head:IsA("BasePart") and head.Position or (head:FindFirstChildWhichIsA("BasePart", true) and head:FindFirstChildWhichIsA("BasePart", true).Position)
-            if hp then
-                local hx, hy = project(hp.X, hp.Y, hp.Z)
-                if hx then
-                    renderer:Dot("headdot", hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
-                end
+        local hp = rec.headPart
+        if hp and hp.Parent then
+            local pos = hp.Position
+            local hx, hy = project(pos.X, pos.Y, pos.Z)
+            if hx then
+                renderer:Dot("headdot", hx, hy, cfg.HeadDotSize, cfg.HeadDotColor, cfg.HeadDotOutlineThickness, tr)
             end
         end
     end
@@ -2047,7 +2371,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if lay.armor then
         local r = lay.armor
-        local armRatio = math.clamp(d.armor / 100, 0, 1)
+        local armRatio = clamp(d.armor / 100, 0, 1)
         renderer:Bar("armor", r.x, r.y, r.w, r.h, armRatio, r.vertical, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
     end
 
@@ -2058,7 +2382,7 @@ local function render(rec, cfg, rx, ry, rz, dist)
 
     if lay.distance then
         local p = lay.distance
-        renderer:Text("dist", tostring(meters) .. "s", p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
+        renderer:Text("dist", rec.mStr, p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
     end
 
     if lay.tool and d.tool then
@@ -2066,54 +2390,49 @@ local function render(rec, cfg, rx, ry, rz, dist)
         renderer:Text("tool", d.tool, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.ToolColor, cfg.ToolColor2, tr, settings.TextGradientAnimated)
     end
 
-    for i = 1, #lay.flagLines do
-        local p = lay.flagLines[i]
-        renderer:Text("flag" .. i, d.flags[i], p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.FlagColor1, cfg.FlagColor2, tr, settings.TextGradientAnimated)
+    local flagLines = lay.flagLines
+    for i = 1, #flagLines do
+        local p = flagLines[i]
+        local fk = FLAGK[i]
+        if not fk then
+            fk = "flag" .. i
+            FLAGK[i] = fk
+        end
+        renderer:Text(fk, d.flags[i], p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.FlagColor1, cfg.FlagColor2, tr, settings.TextGradientAnimated)
     end
 
     if cfg.Tracers then
         local fromX, fromY
-        if cfg.TracerOrigin == "Bottom" then
-            fromX, fromY = view.w * 0.5, view.h
-        elseif cfg.TracerOrigin == "Top" then
-            fromX, fromY = view.w * 0.5, 0
-        elseif cfg.TracerOrigin == "Mouse" then
+        local origin = cfg.TracerOrigin
+        if origin == "Bottom" then
+            fromX, fromY = viewW * 0.5, viewH
+        elseif origin == "Top" then
+            fromX, fromY = viewW * 0.5, 0
+        elseif origin == "Mouse" then
             local m = UserInputService:GetMouseLocation()
             fromX, fromY = m.X, m.Y
         else
-            fromX, fromY = view.w * 0.5, view.h * 0.5
+            fromX, fromY = viewW * 0.5, viewH * 0.5
         end
         renderer:Line(fromX, fromY, x + w * 0.5, y + h, cfg.TracerThickness or 1, cfg.TracerColor, cfg.TracerColor, tr)
     end
 
-    if cfg.Skeleton and rec.character then
-        local function bone(a, b)
-            local p1 = rec.character:FindFirstChild(a)
-            local p2 = rec.character:FindFirstChild(b)
-            if not (p1 and p2) then return end
-            local ax, ay = project(p1.Position.X, p1.Position.Y, p1.Position.Z)
-            local bx, by = project(p2.Position.X, p2.Position.Y, p2.Position.Z)
-            if ax and bx then
-                renderer:Line(ax, ay, bx, by, cfg.SkeletonThickness or 1, cfg.SkeletonColor, cfg.SkeletonColor2, tr)
+    if cfg.Skeleton then
+        local bones = rec.bones
+        if bones then
+            local th = cfg.SkeletonThickness or 1
+            for i = 1, #bones do
+                local pair = bones[i]
+                local p1, p2 = pair[1], pair[2]
+                if p1.Parent and p2.Parent then
+                    local a, b = p1.Position, p2.Position
+                    local ax, ay = project(a.X, a.Y, a.Z)
+                    local bx, by = project(b.X, b.Y, b.Z)
+                    if ax and bx then
+                        renderer:Line(ax, ay, bx, by, th, cfg.SkeletonColor, cfg.SkeletonColor2, tr)
+                    end
+                end
             end
-        end
-        if rec.isR15 then
-            bone("Head", "UpperTorso")
-            bone("UpperTorso", "LowerTorso")
-            bone("LowerTorso", "LeftUpperLeg")
-            bone("LowerTorso", "RightUpperLeg")
-            bone("LeftUpperLeg", "LeftLowerLeg")
-            bone("RightUpperLeg", "RightLowerLeg")
-            bone("UpperTorso", "LeftUpperArm")
-            bone("UpperTorso", "RightUpperArm")
-            bone("LeftUpperArm", "LeftLowerArm")
-            bone("RightUpperArm", "RightLowerArm")
-        else
-            bone("Head", "Torso")
-            bone("Torso", "Left Leg")
-            bone("Torso", "Right Leg")
-            bone("Torso", "Left Arm")
-            bone("Torso", "Right Arm")
         end
     end
 
@@ -2122,6 +2441,9 @@ end
 
 local function processEntity(entity, isPlayer, options, ownerKey)
     local settings = espModule.Settings
+    local now = view.time
+    local rec = state.records[entity]
+
     local character
     if isPlayer then
         character = entity.Character
@@ -2129,58 +2451,71 @@ local function processEntity(entity, isPlayer, options, ownerKey)
         character = entity
     end
     if not character or not character:IsA("Model") then
-        local rec = state.records[entity]
         if rec then hideRecord(rec) end
         return
     end
 
-    if isPlayer then
-        local inRaid = entity:FindFirstChild("InRaid")
-        if inRaid and inRaid:IsA("BoolValue") and not inRaid.Value then
-            local rec = state.records[entity]
-            if rec then hideRecord(rec) end
-            return
-        end
-    end
-
     local cfg
     if isPlayer then
-        cfg = espModule.IsTeam(entity) and settings.Teammate or settings.Enemy
+        local isTeam = state.teamVal[entity]
+        local at = state.teamAt[entity]
+        if at == nil or now - at > 0.5 then
+            isTeam = espModule.IsTeam(entity) and true or false
+            state.teamVal[entity] = isTeam
+            state.teamAt[entity] = now
+        end
+        cfg = isTeam and settings.Teammate or settings.Enemy
     else
         cfg = settings.AI
     end
     if options and options.UseEnemy == true then cfg = settings.Enemy end
     if options and options.UseTeammate == true then cfg = settings.Teammate end
     if not cfg.Enabled then
-        local rec = state.records[entity]
         if rec then hideRecord(rec) end
         return
     end
 
-    local rec = state.records[entity]
     if not rec then
         rec = newRecord(entity)
-        rec.touched = view.frame
         if ownerKey then rec.owner = ownerKey end
         state.records[entity] = rec
-    else
-        rec.touched = view.frame
+    end
+    rec.touched = view.frame
+
+    if isPlayer then
+        if now - rec.raidAt > 1 then
+            rec.raidAt = now
+            local inRaid = entity:FindFirstChild("InRaid")
+            rec.raidSkip = inRaid ~= nil and inRaid:IsA("BoolValue") and not inRaid.Value
+        end
+        if rec.raidSkip then
+            hideRecord(rec)
+            return
+        end
     end
 
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local humanoid = rec.humanoid
     if rec.character ~= character then
+        humanoid = character:FindFirstChildOfClass("Humanoid")
+        rec.humAt = now
         bindCharacter(rec, character, humanoid, false)
-    elseif view.time - rec.scanned > 1.5 then
-        rescan(rec, humanoid, false)
     else
-        rec.humanoid = humanoid
+        if now - rec.scanned > 1.5 then
+            humanoid = character:FindFirstChildOfClass("Humanoid")
+            rec.humAt = now
+            rescan(rec, humanoid, false)
+        elseif (not humanoid or humanoid.Parent ~= character) and now - rec.humAt > 0.5 then
+            humanoid = character:FindFirstChildOfClass("Humanoid")
+            rec.humAt = now
+            rec.humanoid = humanoid
+        end
     end
 
     if humanoid and humanoid.Health <= 0 then
         if rec.deathTime == 0 then
-            rec.deathTime = view.time
+            rec.deathTime = now
         end
-        if view.time - rec.deathTime > 1.2 then
+        if now - rec.deathTime > 1.2 then
             hideRecord(rec)
             return
         end
@@ -2203,23 +2538,22 @@ local function processEntity(entity, isPlayer, options, ownerKey)
     end
 
     local rp = root.Position
-    local rx, ry, rz = rp.X, rp.Y, rp.Z
-    local dx, dy, dz = rx - view.x, ry - view.y, rz - view.z
+    local dx, dy, dz = rp.X - camX, rp.Y - camY, rp.Z - camZ
     local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-    if dist > settings.MaxDistance or -(dx * view.r02 + dy * view.r12 + dz * view.r22) < 0.05 then
+    if dist > settings.MaxDistance or -(dx * c02 + dy * c12 + dz * c22) < 0.05 then
         hideRecord(rec)
         return
     end
 
     local d = rec.d
     if humanoid then
-        d.health = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-        d.healthValue = math.floor(humanoid.Health + 0.5)
+        d.health = clamp(humanoid.Health / mmax(humanoid.MaxHealth, 1), 0, 1)
+        d.healthValue = floor(humanoid.Health + 0.5)
     elseif options and type(options.Health) == "function" then
         local ok, hp, maxHp = pcall(options.Health, character)
         if ok and type(hp) == "number" then
-            d.health = math.clamp(hp / math.max(maxHp or 100, 1), 0, 1)
-            d.healthValue = math.floor(hp + 0.5)
+            d.health = clamp(hp / mmax(maxHp or 100, 1), 0, 1)
+            d.healthValue = floor(hp + 0.5)
         else
             d.health = nil
         end
@@ -2227,27 +2561,29 @@ local function processEntity(entity, isPlayer, options, ownerKey)
         d.health = nil
     end
 
-    d.armor = cfg.ArmorBar and currentArmor(rec, character, options) or nil
-    d.tool = cfg.Tool and currentTool(rec, character, options) or nil
-
-    d.name = nil
-    if cfg.Names then
-        if options and options.Name ~= nil then
-            local value = options.Name
-            if type(value) == "function" then
-                local ok, res = pcall(value, character)
-                value = ok and res or character.Name
+    if now - rec.infoAt > 0.2 then
+        rec.infoAt = now
+        d.armor = cfg.ArmorBar and currentArmor(rec, character, options) or nil
+        d.tool = cfg.Tool and currentTool(rec, character, options) or nil
+        d.name = nil
+        if cfg.Names then
+            if options and options.Name ~= nil then
+                local value = options.Name
+                if type(value) == "function" then
+                    local ok, res = pcall(value, character)
+                    value = ok and res or character.Name
+                end
+                d.name = tostring(value)
+            elseif isPlayer then
+                d.name = playerName(rec, entity, cfg.NameType)
+            else
+                d.name = character.Name
             end
-            d.name = tostring(value)
-        elseif isPlayer then
-            d.name = playerName(rec, entity, cfg.NameType)
-        else
-            d.name = character.Name
         end
+        updateFlags(rec, entity, character, humanoid, cfg)
     end
 
-    updateFlags(rec, entity, character, humanoid, cfg)
-    render(rec, cfg, rx, ry, rz, dist)
+    render(rec, cfg, dist)
 end
 
 local function teamOf(plr)
@@ -2275,9 +2611,9 @@ local function resolveOwner(rec, pos)
         local char = plr.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
-            local d = (hrp.Position - pos).Magnitude
-            if d < bestDist then
-                bestDist, best = d, plr
+            local dd = (hrp.Position - pos).Magnitude
+            if dd < bestDist then
+                bestDist, best = dd, plr
             end
         end
     end
@@ -2357,9 +2693,9 @@ local function processViewmodel(vm)
         return
     end
 
-    local dx, dy, dz = tp.X - view.x, tp.Y - view.y, tp.Z - view.z
+    local dx, dy, dz = tp.X - camX, tp.Y - camY, tp.Z - camZ
     local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-    if dist <= 1 or dist > settings.MaxDistance or -(dx * view.r02 + dy * view.r12 + dz * view.r22) < 0.05 then
+    if dist <= 1 or dist > settings.MaxDistance or -(dx * c02 + dy * c12 + dz * c22) < 0.05 then
         hideRecord(rec)
         return
     end
@@ -2373,30 +2709,32 @@ local function processViewmodel(vm)
 
     local d = rec.d
     if ownerHum and ownerHum.Health > 0 then
-        d.health = math.clamp(ownerHum.Health / math.max(ownerHum.MaxHealth, 1), 0, 1)
-        d.healthValue = math.floor(ownerHum.Health + 0.5)
+        d.health = clamp(ownerHum.Health / mmax(ownerHum.MaxHealth, 1), 0, 1)
+        d.healthValue = floor(ownerHum.Health + 0.5)
     else
         d.health = nil
         d.healthValue = nil
     end
 
-    d.armor = (cfg.ArmorBar and ownerChar) and currentArmor(rec, ownerChar) or nil
-    d.tool = (cfg.Tool and ownerChar) and currentTool(rec, ownerChar) or nil
-
-    d.name = nil
-    if cfg.Names then
-        if owner then
-            d.name = playerName(rec, owner, cfg.NameType)
-            rec.lastName = d.name
-        elseif rec.lastName then
-            d.name = rec.lastName
-        else
-            d.name = "Player"
+    if now - rec.infoAt > 0.2 then
+        rec.infoAt = now
+        d.armor = (cfg.ArmorBar and ownerChar) and currentArmor(rec, ownerChar) or nil
+        d.tool = (cfg.Tool and ownerChar) and currentTool(rec, ownerChar) or nil
+        d.name = nil
+        if cfg.Names then
+            if owner then
+                d.name = playerName(rec, owner, cfg.NameType)
+                rec.lastName = d.name
+            elseif rec.lastName then
+                d.name = rec.lastName
+            else
+                d.name = "Player"
+            end
         end
+        updateFlags(rec, owner or vm, ownerChar or vm, ownerHum, cfg)
     end
 
-    updateFlags(rec, owner or vm, ownerChar or vm, ownerHum, cfg)
-    render(rec, cfg, tp.X, tp.Y, tp.Z, dist)
+    render(rec, cfg, dist)
 end
 
 local function resolveList(entry)
@@ -2468,12 +2806,12 @@ local function setChamHighlight(meta, key, adornee)
     if hl.Adornee ~= adornee then
         hl.Adornee = adornee
     end
-    hl.Enabled = true
+    if not hl.Enabled then hl.Enabled = true end
 end
 
 local function clearHighlight(meta, key)
     local hl = meta[key]
-    if hl then hl.Enabled = false end
+    if hl and hl.Enabled then hl.Enabled = false end
 end
 
 local function drawItem(item, name, entry, itemCfg, cfg, limit)
@@ -2504,7 +2842,7 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
         return
     end
 
-    local dx, dy, dz = pos.X - view.x, pos.Y - view.y, pos.Z - view.z
+    local dx, dy, dz = pos.X - camX, pos.Y - camY, pos.Z - camZ
     local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
     local sx, sy
     if dist <= limit then sx, sy = project(pos.X, pos.Y, pos.Z) end
@@ -2518,7 +2856,7 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
     local color = itemCfg.Color
     local tr = 1 - view.fade
     local size = cfg.TextSize
-    local meters = math.floor(dist + 0.5)
+    local meters = floor(dist + 0.5)
 
     if cfg.ShowNames or cfg.ShowDistance then
         if cfg.ShowNames and now - meta.labelAt > 1 then
@@ -2601,7 +2939,7 @@ local function step()
     local settings = espModule.Settings
     local now = os.clock()
 
-    view.fade = state.dead and math.max(0, view.fade - 0.05) or math.min(1, view.fade + 0.05)
+    view.fade = state.dead and mmax(0, view.fade - 0.05) or mmin(1, view.fade + 0.05)
 
     local anyEntity = settings.Enemy.Enabled or settings.Teammate.Enabled or settings.AI.Enabled
     local anyItem = settings.Items.Enabled
@@ -2619,17 +2957,26 @@ local function step()
     use[0] = settings.Enemy.Enabled and settings.Enemy.Chams and settings.Enemy.ChamsType == "Shader"
     use[1] = settings.Teammate.Enabled and settings.Teammate.Chams and settings.Teammate.ChamsType == "Shader"
     use[2] = (settings.AI.Enabled and settings.AI.Chams and settings.AI.ChamsType == "Shader") or (settings.Items.Enabled and settings.Items.Chams)
-    if use[0] or use[1] or use[2] then
+    local sig = (use[0] and 1 or 0) + (use[1] and 2 or 0) + (use[2] and 4 or 0)
+    if sig ~= 0 then
         ensureShader()
-        pushShader()
+        if state.shader then
+            if sig ~= state.useSig or now - state.pushAt > 0.1 then
+                state.useSig = sig
+                state.pushAt = now
+                pushSettings()
+            end
+            pushBounds()
+        end
     elseif state.shader then
         destroyShader()
+        state.useSig = -1
     end
 
     if not anyEntity and not anyItem then return end
 
-    if now - state.last < 1 / math.clamp(settings.RefreshRate, 30, 360) then return end
-    view.dt = math.min(now - state.last, 0.1)
+    if now - state.last < 0.9 / clamp(settings.RefreshRate, 30, 360) then return end
+    view.dt = mmin(now - state.last, 0.1)
     state.last = now
 
     local cam = workspace.CurrentCamera
@@ -2638,7 +2985,7 @@ local function step()
     updateView(cam)
     view.time = now
     view.frame += 1
-    view.angle = (now * 100) % 360
+    view.angle = (floor(now * 50) * 2) % 360
 
     if anyEntity then
         state.hadEntities = true
@@ -2659,12 +3006,14 @@ local function step()
             for i = 1, #list do processEntity(list[i], true) end
         end
 
-        for name, entry in pairs(espModule.CustomAIs) do
-            local list = resolveList(entry)
-            for i = 1, #list do
-                local ent = list[i]
-                if typeof(ent) == "Instance" and ent.Parent and ent:IsA("Model") then
-                    processEntity(ent, false, entry.Options, name)
+        if settings.AI.Enabled then
+            for name, entry in pairs(espModule.CustomAIs) do
+                local list = resolveList(entry)
+                for i = 1, #list do
+                    local ent = list[i]
+                    if typeof(ent) == "Instance" and ent.Parent and ent:IsA("Model") then
+                        processEntity(ent, false, entry.Options, name)
+                    end
                 end
             end
         end
@@ -2724,6 +3073,8 @@ function espModule:Start()
     state.connections[#state.connections + 1] = Players.PlayerRemoving:Connect(function(plr)
         local idx = table.find(state.players, plr)
         if idx then table.remove(state.players, idx) end
+        state.teamVal[plr] = nil
+        state.teamAt[plr] = nil
         dropRecord(plr)
     end)
 
@@ -2739,8 +3090,11 @@ function espModule:Stop()
     table.clear(state.players)
     table.clear(state.records)
     table.clear(state.itemMeta)
+    table.clear(state.teamVal)
+    table.clear(state.teamAt)
     state.vms, state.vmAt = {}, -1
     state.hadEntities, state.hadItems, state.dead = false, false, false
+    state.useSig = -1
     view.fade = 1
     destroyShader()
     if state.gui then

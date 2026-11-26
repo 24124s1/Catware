@@ -4512,3 +4512,5 @@ function Stardust.unload()
 end
 
 if env then env.Stardust = Stardust end
+
+return Stardust

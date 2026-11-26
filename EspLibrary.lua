@@ -1,5 +1,3 @@
-print('1')
-
 local cloneref = cloneref or function(o) return o end
 
 local Players = cloneref(game:GetService("Players"))
@@ -64,7 +62,7 @@ local function entitySettings(p)
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
         Chams = false, ChamsKey = p.key, ChamsType = "Shader",
-        AdornmentTransparency = 0.55, AdornmentGlowTransparency = 0.4, AdornmentOutlineColor = rgb(255, 255, 255),
+        AdornmentTransparency = 0.55, AdornmentGlowTransparency = 0.78,
         ChamsSettings = chamsFromDesign(p.design, {
             Color1 = p.c1 or rgb(12, 120, 110),
             Color2 = p.c2 or rgb(48, 220, 245),
@@ -2082,33 +2080,70 @@ local function box3D(rec, now)
 end
 
 local HIDE_TR = 1
+local GLOW_LAYERS = 4
 
 local function makeAdornEntry(part)
-    local core = Instance.new("SelectionBox")
-    core.Adornee = part
-    core.SurfaceTransparency = 1
-    core.LineThickness = 0.03
-    core.Parent = state.gui
+    local lname = part.Name:lower()
+    local isHead = lname == "head" or (part.Parent and part.Parent.Name:lower() == "head")
+    local className = isHead and "CylinderHandleAdornment" or "BoxHandleAdornment"
 
-    local wide = Instance.new("SelectionBox")
-    wide.Adornee = part
-    wide.SurfaceTransparency = 1
-    wide.LineThickness = 0.14
-    wide.Parent = state.gui
+    local glow = {}
+    for i = 1, GLOW_LAYERS do
+        local g = Instance.new(className)
+        g.Adornee = part
+        g.AlwaysOnTop = true
+        g.ZIndex = GLOW_LAYERS - i + 1
+        if isHead then g.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
+        g.Parent = state.gui
+        glow[i] = g
+    end
 
-    return { glow = { wide, core }, sz = nil, seen = 0 }
+    local fill = Instance.new(className)
+    fill.Adornee = part
+    fill.AlwaysOnTop = true
+    fill.ZIndex = GLOW_LAYERS + 1
+    if isHead then fill.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
+    fill.Parent = state.gui
+
+    return { fill = fill, glow = glow, isHead = isHead, sz = nil, seen = 0 }
 end
 
-local function updateAdornEntry(entry, part, color, glowOpacity, tr)
-    entry.sz = part.Size
-    local wide, core = entry.glow[1], entry.glow[2]
-    local fade = 1 - tr
-    wide.Color3 = color
-    wide.Transparency = 1 - (glowOpacity * 0.35 * fade)
-    wide.Visible = true
-    core.Color3 = color
-    core.Transparency = 1 - (clamp(glowOpacity * 1.6, 0, 1) * fade)
-    core.Visible = true
+local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
+    local fill = entry.fill
+    local sz = part.Size
+    entry.sz = sz
+    if entry.isHead then
+        local rad = mmax(sz.X, sz.Z) * 0.52
+        local h = sz.Y * 1.05
+        fill.Radius = rad
+        fill.InnerRadius = 0
+        fill.Height = h
+        for i = 1, GLOW_LAYERS do
+            local g = entry.glow[i]
+            local pad = i * 0.055
+            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
+            g.Radius = rad + pad
+            g.InnerRadius = 0
+            g.Height = h + pad * 2
+            g.Color3 = c2
+            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
+            g.Visible = true
+        end
+    else
+        fill.Size = sz
+        for i = 1, GLOW_LAYERS do
+            local g = entry.glow[i]
+            local pad = i * 0.11
+            local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
+            g.Size = sz + Vector3.new(pad, pad, pad)
+            g.Color3 = c2
+            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
+            g.Visible = true
+        end
+    end
+    fill.Color3 = c1
+    fill.Transparency = adTr
+    fill.Visible = true
 end
 
 local function refreshTrList(rec)
@@ -2159,8 +2194,10 @@ end
 local function drawAdornments(rec, cfg, tr)
     local now = view.time
     local cs = cfg.ChamsSettings
-    local glowCol = cfg.AdornmentOutlineColor or cs.Color2
-    local glowOpacity = clamp(1 - (cfg.AdornmentGlowTransparency or 0.4), 0, 1)
+    local c1, c2 = cs.Color1, cs.Color2
+    local fillOpacity = 1 - (cfg.AdornmentTransparency or 0.55)
+    local glowOpacity = 1 - (cfg.AdornmentGlowTransparency or 0.78)
+    local adTr = 1 - (fillOpacity * (1 - tr))
 
     if rec.adornChar ~= rec.character or not rec.adornments then
         clearAdornments(rec)
@@ -2173,7 +2210,7 @@ local function drawAdornments(rec, cfg, tr)
     if not rec.trList or now - rec.trAt > 1 then refreshTrList(rec) end
     if now - rec.trApply > 0.25 then applyTransparency(rec) end
 
-    local dirty = rec.adDirty or rec.adColor ~= glowCol or rec.adGlow ~= glowOpacity or rec.adFade ~= tr
+    local dirty = rec.adDirty or rec.adC1 ~= c1 or rec.adC2 ~= c2 or rec.adFill ~= adTr or rec.adGlow ~= glowOpacity or rec.adFade ~= tr
     local scanChanged = rec.adScan ~= rec.scanned
     local stamp = rec.adStamp or 0
     if scanChanged then
@@ -2195,7 +2232,7 @@ local function drawAdornments(rec, cfg, tr)
                 end
                 entry.seen = stamp
                 if dirty or entry.sz ~= part.Size then
-                    updateAdornEntry(entry, part, glowCol, glowOpacity, tr)
+                    updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
                 end
             end
         end
@@ -2204,6 +2241,7 @@ local function drawAdornments(rec, cfg, tr)
     if scanChanged then
         for part, entry in pairs(adorn) do
             if entry.seen ~= stamp then
+                entry.fill:Destroy()
                 for _, g in ipairs(entry.glow) do g:Destroy() end
                 adorn[part] = nil
             end
@@ -2211,7 +2249,7 @@ local function drawAdornments(rec, cfg, tr)
     end
 
     rec.adDirty = false
-    rec.adColor, rec.adGlow, rec.adFade = glowCol, glowOpacity, tr
+    rec.adC1, rec.adC2, rec.adFill, rec.adGlow, rec.adFade = c1, c2, adTr, glowOpacity, tr
 end
 
 local function drawShaderHl(rec, cfg)
@@ -3231,3 +3269,5 @@ function espModule:GetSettings()
 end
 
 return espModule
+
+print('-1')

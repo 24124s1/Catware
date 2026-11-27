@@ -1,4 +1,4 @@
-print('1')
+print('-9e9')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -77,7 +77,7 @@ end
 local function entitySettings(p)
     return {
         Enabled = false,
-        BoxEnabled = false, BoxType = "Corner", Thickness = 0.1, LineColor = p.main,
+        BoxEnabled = false, BoxType = "Corner", Thickness = 1, LineColor = p.main,
         BoxGlow = false,
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
@@ -464,7 +464,7 @@ local function poolGet(key)
 end
 
 local function layBar(key, side, x, y, w, h)
-    local gap = key == "health" and 4 or 4
+    local gap = key == "health" and 2 or 4
     local r = poolGet(key)
     if side == "Left" then
         r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
@@ -997,7 +997,7 @@ local cskp = ColorSequenceKeypoint.new
 local function addStroke(parent, thickness)
     local stroke = newInstance("UIStroke")
     stroke.Color = BLACK
-    stroke.Thickness = thickness or 0.1
+    stroke.Thickness = thickness or 1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.LineJoinMode = Enum.LineJoinMode.Miter
     stroke.Parent = parent
@@ -2468,7 +2468,7 @@ local function render(rec, cfg, dist)
             renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * (1 - tr)))
         end
 
-        local thick = mmax(1, (cfg.Thickness or 1) - 1)
+        local thick = mmax(1, cfg.Thickness or 1)
         if cfg.BoxType == "Full" then
             renderer:Full(x, y, w, h, thick, cfg.LineColor, tr)
         elseif cfg.BoxType == "3D" then

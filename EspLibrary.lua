@@ -1,3 +1,5 @@
+print('1')
+
 local cloneref = cloneref or function(o) return o end
 
 local Players = cloneref(game:GetService("Players"))
@@ -12,6 +14,24 @@ local clamp = math.clamp
 local mmin = math.min
 local mmax = math.max
 local huge = math.huge
+local sqrt = math.sqrt
+local abs = math.abs
+local deg = math.deg
+local atan2 = math.atan2
+local newInstance = Instance.new
+local fromOffset = UDim2.fromOffset
+local fromScale = UDim2.fromScale
+local v2 = Vector2.new
+local v3 = Vector3.new
+local tfind = table.find
+local tclear = table.clear
+local clock = os.clock
+local pcall = pcall
+local pairs = pairs
+local ipairs = ipairs
+local type = type
+local typeof = typeof
+local tostring = tostring
 local envTable = (typeof(getgenv) == "function" and getgenv()) or _G
 
 local espModule = {}
@@ -293,23 +313,24 @@ local function loadOneFont(name)
         espModule.Fonts[name] = font
         return true
     end
-    fontFailAt[name] = os.clock()
+    fontFailAt[name] = clock()
     return false
 end
 
 local function requestFont(name)
     if espModule.Fonts[name] or fontPending[name] or not fontFileMap[name] then return end
     local failed = fontFailAt[name]
-    if failed and os.clock() - failed < 20 then return end
+    if failed and clock() - failed < 20 then return end
     if not fsReady() then return end
     task.spawn(loadOneFont, name)
 end
 
 local function getFont(name)
-    local f = espModule.Fonts[name]
+    local fonts = espModule.Fonts
+    local f = fonts[name]
     if f then return f end
     requestFont(name)
-    return espModule.Fonts["Tahoma"] or espModule.Fonts["Tahoma Modern"] or espModule.Fonts["Tahoma 8px"] or fallbackFont
+    return fonts["Tahoma"] or fonts["Tahoma Modern"] or fonts["Tahoma 8px"] or fallbackFont
 end
 
 local function finishFonts()
@@ -321,7 +342,7 @@ local function finishFonts()
     end
     espModule.FontsReady = true
     for _, fn in ipairs(fontListeners) do task.spawn(fn) end
-    table.clear(fontListeners)
+    tclear(fontListeners)
 end
 
 local function loadFonts()
@@ -373,9 +394,11 @@ local function getTeamValue(plr)
     return nil
 end
 
+local SPECIAL_PLACE = 72920620366355
+
 espModule.IsTeam = function(plr)
     if not plr or plr == LocalPlayer then return false end
-    if game.PlaceId == 72920620366355 then
+    if game.PlaceId == SPECIAL_PLACE then
         local myTeam = getTeamValue(LocalPlayer)
         local theirTeam = getTeamValue(plr)
         if myTeam == nil or theirTeam == nil then return false end
@@ -398,7 +421,7 @@ task.spawn(function()
         local original = fn
         espModule.IsTeam = function(plr)
             if not plr or plr == LocalPlayer then return false end
-            if game.PlaceId == 72920620366355 then
+            if game.PlaceId == SPECIAL_PLACE then
                 local myTeam = getTeamValue(LocalPlayer)
                 local theirTeam = getTeamValue(plr)
                 if myTeam == nil or theirTeam == nil then return false end
@@ -441,7 +464,7 @@ local function poolGet(key)
 end
 
 local function layBar(key, side, x, y, w, h)
-    local gap = key == "health" and 1 or 2
+    local gap = key == "health" and 2 or 4
     local r = poolGet(key)
     if side == "Left" then
         r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
@@ -920,6 +943,7 @@ local view = {
 local camX, camY, camZ = 0, 0, 0
 local c00, c01, c02, c10, c11, c12, c20, c21, c22 = 1, 0, 0, 0, 1, 0, 0, 0, 1
 local viewW, viewH, viewF = 0, 0, 0
+local tan, rad = math.tan, math.rad
 
 local function updateView(cam)
     local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cam.CFrame:GetComponents()
@@ -927,7 +951,7 @@ local function updateView(cam)
     camX, camY, camZ = x, y, z
     c00, c01, c02, c10, c11, c12, c20, c21, c22 = r00, r01, r02, r10, r11, r12, r20, r21, r22
     viewW, viewH = size.X, size.Y
-    viewF = size.Y * 0.5 / math.tan(math.rad(cam.FieldOfView) * 0.5)
+    viewF = size.Y * 0.5 / tan(rad(cam.FieldOfView) * 0.5)
     view.x, view.y, view.z = x, y, z
     view.r00, view.r01, view.r02 = r00, r01, r02
     view.r10, view.r11, view.r12 = r10, r11, r12
@@ -957,9 +981,18 @@ local textY = {
 local BLACK = Color3.new(0, 0, 0)
 local WHITE = Color3.new(1, 1, 1)
 local CORNER_SIGNS = { {0, 0}, {1, 0}, {0, 1}, {1, 1} }
+local ANCHOR_CENTER = v2(0.5, 0.5)
+local ANCHOR_ORIGIN = v2(0, 0)
+local ANCHOR_BL = v2(0, 1)
+local UD_ZERO = UDim2.new()
+local UD_BL = fromScale(0, 1)
+local UD_FULL = fromScale(1, 1)
+local ROUND = UDim.new(1, 0)
+local cseq = ColorSequence.new
+local cskp = ColorSequenceKeypoint.new
 
 local function addStroke(parent, thickness)
-    local stroke = Instance.new("UIStroke")
+    local stroke = newInstance("UIStroke")
     stroke.Color = BLACK
     stroke.Thickness = thickness or 1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -969,74 +1002,78 @@ local function addStroke(parent, thickness)
 end
 
 local function buildLine(root)
-    local frame = Instance.new("Frame")
-    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    local frame = newInstance("Frame")
+    frame.AnchorPoint = ANCHOR_CENTER
     frame.BorderSizePixel = 0
     frame.ZIndex = 3
     frame.Visible = false
     frame.Parent = root
-    local gradient = Instance.new("UIGradient")
+    local gradient = newInstance("UIGradient")
     gradient.Parent = frame
     return { f = frame, s = addStroke(frame), g = gradient, shown = false }
 end
 
 local function buildText(root)
-    local label = Instance.new("TextLabel")
+    local label = newInstance("TextLabel")
     label.BackgroundTransparency = 1
     label.BorderSizePixel = 0
     label.AutomaticSize = Enum.AutomaticSize.XY
-    label.Size = UDim2.new()
+    label.Size = UD_ZERO
     label.TextColor3 = WHITE
     label.TextStrokeTransparency = 1
     label.ZIndex = 5
     label.Visible = false
     label.Parent = root
-    local stroke = Instance.new("UIStroke")
+    local stroke = newInstance("UIStroke")
     stroke.Color = BLACK
     stroke.Thickness = 1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
     stroke.LineJoinMode = Enum.LineJoinMode.Round
     stroke.Parent = label
-    local gradient = Instance.new("UIGradient")
+    local gradient = newInstance("UIGradient")
     gradient.Parent = label
     return { root = label, grad = gradient, stroke = stroke }
 end
 
+local BAR_BG = rgb(15, 15, 15)
+
 local function buildBar(root)
-    local container = Instance.new("Frame")
-    container.BackgroundColor3 = rgb(15, 15, 15)
+    local container = newInstance("Frame")
+    container.BackgroundColor3 = BAR_BG
     container.BorderSizePixel = 0
     container.ZIndex = 3
     container.Visible = false
     container.Parent = root
     local stroke = addStroke(container)
-    local fill = Instance.new("Frame")
+    local fill = newInstance("Frame")
     fill.BackgroundColor3 = WHITE
     fill.BorderSizePixel = 0
     fill.ZIndex = 4
     fill.Parent = container
-    local gradient = Instance.new("UIGradient")
+    local gradient = newInstance("UIGradient")
     gradient.Parent = fill
     return { root = container, stroke = stroke, fill = fill, grad = gradient }
 end
 
 local function buildFill(root)
-    local frame = Instance.new("Frame")
+    local frame = newInstance("Frame")
     frame.BackgroundColor3 = WHITE
     frame.BorderSizePixel = 0
     frame.ZIndex = 1
     frame.Visible = false
     frame.Parent = root
-    local gradient = Instance.new("UIGradient")
+    local gradient = newInstance("UIGradient")
     gradient.Parent = frame
     return { root = frame, grad = gradient }
 end
 
+local GLOW_SLICE = Rect.new(21, 21, 79, 79)
+
 local function buildGlow(root)
-    local image = Instance.new("ImageLabel")
+    local image = newInstance("ImageLabel")
     image.Image = "rbxassetid://110204605000367"
     image.ScaleType = Enum.ScaleType.Slice
-    image.SliceCenter = Rect.new(21, 21, 79, 79)
+    image.SliceCenter = GLOW_SLICE
     image.BackgroundTransparency = 1
     image.BorderSizePixel = 0
     image.ZIndex = 0
@@ -1046,16 +1083,16 @@ local function buildGlow(root)
 end
 
 local function buildDot(root)
-    local frame = Instance.new("Frame")
-    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    local frame = newInstance("Frame")
+    frame.AnchorPoint = ANCHOR_CENTER
     frame.BorderSizePixel = 0
     frame.ZIndex = 6
     frame.Visible = false
     frame.Parent = root
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
+    local corner = newInstance("UICorner")
+    corner.CornerRadius = ROUND
     corner.Parent = frame
-    local stroke = Instance.new("UIStroke")
+    local stroke = newInstance("UIStroke")
     stroke.Color = BLACK
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Enabled = false
@@ -1063,9 +1100,11 @@ local function buildDot(root)
     return { root = frame, stroke = stroke }
 end
 
+local ONE_PX = fromOffset(1, 1)
+
 local function createBar(parent, color, anchor, pos, z)
-    local bar = Instance.new("Frame")
-    bar.Size = UDim2.fromOffset(1, 1)
+    local bar = newInstance("Frame")
+    bar.Size = ONE_PX
     bar.Position = pos
     bar.AnchorPoint = anchor
     bar.BackgroundColor3 = color
@@ -1077,7 +1116,7 @@ end
 
 local function ensureCorner(self)
     if self.cornerBox then return end
-    local box = Instance.new("Frame")
+    local box = newInstance("Frame")
     box.Name = "CornerBox"
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
@@ -1087,8 +1126,8 @@ local function ensureCorner(self)
     local bars = {}
     for i = 1, 4 do
         local xs, ys = CORNER_SIGNS[i][1], CORNER_SIGNS[i][2]
-        local anchor = Vector2.new(xs, ys)
-        local pos = UDim2.fromScale(xs, ys)
+        local anchor = v2(xs, ys)
+        local pos = fromScale(xs, ys)
         bars[i] = {
             outlineH = createBar(box, BLACK, anchor, pos, 1),
             outlineV = createBar(box, BLACK, anchor, pos, 1),
@@ -1102,7 +1141,7 @@ end
 
 local function ensureFull(self)
     if self.fullBox then return end
-    local box = Instance.new("Frame")
+    local box = newInstance("Frame")
     box.Name = "FullBox"
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
@@ -1110,13 +1149,11 @@ local function ensureFull(self)
     box.ZIndex = 2
     box.Parent = self.root
     local bars = {}
-    local zero = UDim2.fromScale(0, 0)
-    local anchor = Vector2.new(0, 0)
     local layout = { {true, true}, {true, false}, {false, true}, {false, false} }
     for i = 1, 4 do
         bars[i] = {
-            outline = createBar(box, BLACK, anchor, zero, 1),
-            color = createBar(box, WHITE, anchor, zero, 2),
+            outline = createBar(box, BLACK, ANCHOR_ORIGIN, UD_ZERO, 1),
+            color = createBar(box, WHITE, ANCHOR_ORIGIN, UD_ZERO, 2),
             isHorizontal = layout[i][1], isStart = layout[i][2],
         }
     end
@@ -1124,11 +1161,11 @@ local function ensureFull(self)
 end
 
 function Renderer.new(parent)
-    local root = Instance.new("Frame")
+    local root = newInstance("Frame")
     root.Name = "R"
     root.BackgroundTransparency = 1
     root.BorderSizePixel = 0
-    root.Size = UDim2.fromScale(1, 1)
+    root.Size = UD_FULL
     root.Parent = parent
     return setmetatable({
         root = root, lines = {}, keyed = {}, keyList = {},
@@ -1229,11 +1266,11 @@ function Renderer:Corner(x, y, w, h, thick, color, tr)
     end
     if self.cx ~= x or self.cy ~= y then
         self.cx, self.cy = x, y
-        box.Position = UDim2.fromOffset(x, y)
+        box.Position = fromOffset(x, y)
     end
     if self.cw ~= w or self.ch ~= h then
         self.cw, self.ch = w, h
-        box.Size = UDim2.fromOffset(w, h)
+        box.Size = fromOffset(w, h)
     end
     local maxAllowed = mmin(50, floor(mmin(w, h) * 0.42))
     local len = clamp(floor(mmin(w, h) * 0.3), 4, mmax(4, maxAllowed))
@@ -1244,24 +1281,24 @@ function Renderer:Corner(x, y, w, h, thick, color, tr)
         local sx, sy = c.xs, c.ys
         local ox = sx == 0 and -1 or 1
         local oy = sy == 0 and -1 or 1
-        local base = UDim2.fromScale(sx, sy)
-        local obase = base + UDim2.fromOffset(ox, oy)
+        local base = fromScale(sx, sy)
+        local obase = base + fromOffset(ox, oy)
 
-        c.colorH.Size = UDim2.fromOffset(len, thick)
+        c.colorH.Size = fromOffset(len, thick)
         c.colorH.Position = base
         c.colorH.BackgroundColor3 = color
         c.colorH.BackgroundTransparency = tr
 
-        c.outlineH.Size = UDim2.fromOffset(len + 2, thick + 2)
+        c.outlineH.Size = fromOffset(len + 2, thick + 2)
         c.outlineH.Position = obase
         c.outlineH.BackgroundTransparency = tr
 
-        c.colorV.Size = UDim2.fromOffset(thick, len)
+        c.colorV.Size = fromOffset(thick, len)
         c.colorV.Position = base
         c.colorV.BackgroundColor3 = color
         c.colorV.BackgroundTransparency = tr
 
-        c.outlineV.Size = UDim2.fromOffset(thick + 2, len + 2)
+        c.outlineV.Size = fromOffset(thick + 2, len + 2)
         c.outlineV.Position = obase
         c.outlineV.BackgroundTransparency = tr
     end
@@ -1277,23 +1314,23 @@ function Renderer:Full(x, y, w, h, thick, color, tr)
     end
     if self.fx ~= x or self.fy ~= y then
         self.fx, self.fy = x, y
-        box.Position = UDim2.fromOffset(x, y)
+        box.Position = fromOffset(x, y)
     end
     if self.fw == w and self.fh == h and self.fThick == thick and self.fColor == color and self.fTr == tr then return end
     self.fw, self.fh, self.fThick, self.fColor, self.fTr = w, h, thick, color, tr
-    box.Size = UDim2.fromOffset(w, h)
+    box.Size = fromOffset(w, h)
     for i = 1, 4 do
         local b = self.fullBars[i]
         if b.isHorizontal then
-            b.color.Size = UDim2.fromOffset(w, thick)
-            b.color.Position = UDim2.fromOffset(0, b.isStart and 0 or (h - thick))
-            b.outline.Size = UDim2.fromOffset(w + 2, thick + 2)
-            b.outline.Position = UDim2.fromOffset(-1, b.isStart and -1 or (h - thick - 1))
+            b.color.Size = fromOffset(w, thick)
+            b.color.Position = fromOffset(0, b.isStart and 0 or (h - thick))
+            b.outline.Size = fromOffset(w + 2, thick + 2)
+            b.outline.Position = fromOffset(-1, b.isStart and -1 or (h - thick - 1))
         else
-            b.color.Size = UDim2.fromOffset(thick, h)
-            b.color.Position = UDim2.fromOffset(b.isStart and 0 or (w - thick), 0)
-            b.outline.Size = UDim2.fromOffset(thick + 2, h + 2)
-            b.outline.Position = UDim2.fromOffset(b.isStart and -1 or (w - thick - 1), -1)
+            b.color.Size = fromOffset(thick, h)
+            b.color.Position = fromOffset(b.isStart and 0 or (w - thick), 0)
+            b.outline.Size = fromOffset(thick + 2, h + 2)
+            b.outline.Position = fromOffset(b.isStart and -1 or (w - thick - 1), -1)
         end
         b.color.BackgroundColor3 = color
         b.color.BackgroundTransparency = tr
@@ -1310,17 +1347,17 @@ function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr, outline)
         self.lines[n] = l
     end
     local dx, dy = bx - ax, by - ay
-    local len = mmax(math.sqrt(dx * dx + dy * dy), 1)
+    local len = mmax(sqrt(dx * dx + dy * dy), 1)
     local cx, cy = (ax + bx) * 0.5, (ay + by) * 0.5
-    local rot = math.deg(math.atan2(dy, dx))
+    local rot = deg(atan2(dy, dx))
     local f = l.f
     if l.cx ~= cx or l.cy ~= cy then
         l.cx, l.cy = cx, cy
-        f.Position = UDim2.fromOffset(cx, cy)
+        f.Position = fromOffset(cx, cy)
     end
     if l.len ~= len or l.th ~= thickness then
         l.len, l.th = len, thickness
-        f.Size = UDim2.fromOffset(len, thickness)
+        f.Size = fromOffset(len, thickness)
     end
     if l.rot ~= rot then
         l.rot = rot
@@ -1333,7 +1370,7 @@ function Renderer:Line(ax, ay, bx, by, thickness, c1, c2, tr, outline)
             l.g.Enabled = false
         else
             f.BackgroundColor3 = WHITE
-            l.g.Color = ColorSequence.new(c1, c2)
+            l.g.Color = cseq(c1, c2)
             l.g.Enabled = true
         end
     end
@@ -1361,11 +1398,13 @@ function Renderer:Text(key, text, x, y, ax, ay, font, size, c1, c2, tr, animated
         label.Text = text
     end
     if t.x ~= x or t.y ~= y or t.ax ~= ax or t.ay ~= ay then
+        if t.ax ~= ax or t.ay ~= ay then
+            label.AnchorPoint = v2(ax, ay)
+            label.TextXAlignment = textX[ax] or Enum.TextXAlignment.Center
+            label.TextYAlignment = textY[ay] or Enum.TextYAlignment.Center
+        end
         t.x, t.y, t.ax, t.ay = x, y, ax, ay
-        label.AnchorPoint = Vector2.new(ax, ay)
-        label.Position = UDim2.fromOffset(x, y)
-        label.TextXAlignment = textX[ax] or Enum.TextXAlignment.Center
-        label.TextYAlignment = textY[ay] or Enum.TextYAlignment.Center
+        label.Position = fromOffset(x, y)
     end
     if t.font ~= font or t.size ~= size then
         t.font, t.size = font, size
@@ -1379,7 +1418,7 @@ function Renderer:Text(key, text, x, y, ax, ay, font, size, c1, c2, tr, animated
             t.grad.Enabled = false
         else
             label.TextColor3 = WHITE
-            t.grad.Color = ColorSequence.new(c1, c2)
+            t.grad.Color = cseq(c1, c2)
             t.grad.Enabled = true
         end
     end
@@ -1400,38 +1439,38 @@ end
 function Renderer:Bar(key, x, y, w, h, fillRatio, vertical, high, mid, low, tr)
     local b = self:Keyed(key, buildBar)
     local root, fill = b.root, b.fill
-    if b.noStroke == nil then
-        b.noStroke = (key == "health")
-        b.stroke.Enabled = not b.noStroke
+    if b.x ~= x or b.y ~= y then
+        b.x, b.y = x, y
+        root.Position = fromOffset(x, y)
     end
     if b.w ~= w or b.h ~= h then
         b.w, b.h = w, h
-        root.Size = UDim2.fromOffset(w, h)
+        root.Size = fromOffset(w, h)
     end
     fillRatio = clamp(fillRatio, 0, 1)
     if b.vertical ~= vertical then
         b.vertical = vertical
         b.ratio = nil
         if vertical then
-            fill.AnchorPoint = Vector2.new(0, 1)
-            fill.Position = UDim2.fromScale(0, 1)
+            fill.AnchorPoint = ANCHOR_BL
+            fill.Position = UD_BL
             b.grad.Rotation = 90
         else
-            fill.AnchorPoint = Vector2.new(0, 0)
-            fill.Position = UDim2.new()
+            fill.AnchorPoint = ANCHOR_ORIGIN
+            fill.Position = UD_ZERO
             b.grad.Rotation = 0
         end
     end
     if b.ratio ~= fillRatio then
         b.ratio = fillRatio
-        fill.Size = vertical and UDim2.fromScale(1, fillRatio) or UDim2.fromScale(fillRatio, 1)
+        fill.Size = vertical and fromScale(1, fillRatio) or fromScale(fillRatio, 1)
     end
     if b.high ~= high or b.mid ~= mid or b.low ~= low then
         b.high, b.mid, b.low = high, mid, low
-        b.grad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, high),
-            ColorSequenceKeypoint.new(0.5, mid),
-            ColorSequenceKeypoint.new(1, low),
+        b.grad.Color = cseq({
+            cskp(0, high),
+            cskp(0.5, mid),
+            cskp(1, low),
         })
     end
     if b.tr ~= tr then
@@ -1447,15 +1486,15 @@ function Renderer:Fill(key, x, y, w, h, c1, c2, rot, tr)
     local root = f.root
     if f.x ~= x or f.y ~= y then
         f.x, f.y = x, y
-        root.Position = UDim2.fromOffset(x, y)
+        root.Position = fromOffset(x, y)
     end
     if f.w ~= w or f.h ~= h then
         f.w, f.h = w, h
-        root.Size = UDim2.fromOffset(w, h)
+        root.Size = fromOffset(w, h)
     end
     if f.c1 ~= c1 or f.c2 ~= c2 then
         f.c1, f.c2 = c1, c2
-        f.grad.Color = ColorSequence.new(c1, c2)
+        f.grad.Color = cseq(c1, c2)
     end
     rot = rot or 0
     if f.rot ~= rot then
@@ -1473,11 +1512,11 @@ function Renderer:Glow(key, x, y, w, h, color, tr)
     local root = g.root
     if g.x ~= x or g.y ~= y then
         g.x, g.y = x, y
-        root.Position = UDim2.fromOffset(x - 21, y - 21)
+        root.Position = fromOffset(x - 21, y - 21)
     end
     if g.w ~= w or g.h ~= h then
         g.w, g.h = w, h
-        root.Size = UDim2.fromOffset(w + 42, h + 41)
+        root.Size = fromOffset(w + 42, h + 41)
     end
     if g.color ~= color then
         g.color = color
@@ -1494,11 +1533,11 @@ function Renderer:Dot(key, x, y, size, color, outlineTh, tr)
     local root = d.root
     if d.x ~= x or d.y ~= y then
         d.x, d.y = x, y
-        root.Position = UDim2.fromOffset(x, y)
+        root.Position = fromOffset(x, y)
     end
     if d.size ~= size then
         d.size = size
-        root.Size = UDim2.fromOffset(size, size)
+        root.Size = fromOffset(size, size)
     end
     if d.color ~= color then
         d.color = color
@@ -1622,16 +1661,16 @@ end
 
 local function ensureShader()
     if state.shader then return end
-    if os.clock() < state.shaderRetry then return end
+    if clock() < state.shaderRetry then return end
     if typeof(Drawing) ~= "table" and typeof(Drawing) ~= "userdata" then
-        state.shaderRetry = os.clock() + 3
+        state.shaderRetry = clock() + 3
         return
     end
     local ok, shader = pcall(function()
         return Drawing.new("Shader")
     end)
     if not ok or not shader then
-        state.shaderRetry = os.clock() + 3
+        state.shaderRetry = clock() + 3
         return
     end
     local built = pcall(function()
@@ -1641,7 +1680,7 @@ local function ensureShader()
     end)
     if not built then
         pcall(function() shader:Remove() end)
-        state.shaderRetry = os.clock() + 3
+        state.shaderRetry = clock() + 3
         return
     end
     state.shader = shader
@@ -1868,11 +1907,11 @@ local function bindCharacter(rec, character, humanoid, isVM)
             if p:IsA("BasePart") then return p end
             return p:FindFirstChildWhichIsA("BasePart", true)
         end
-        local head, torso = vmPart("head"), vmPart("torso")
-        if torso then
+        local head, torsoPart = vmPart("head"), vmPart("torso")
+        if torsoPart then
             local others = { head, vmPart("arm1"), vmPart("arm2"), vmPart("leg1"), vmPart("leg2") }
             for i = 1, 5 do
-                if others[i] then pl[#pl + 1] = { torso, others[i] } end
+                if others[i] then pl[#pl + 1] = { torsoPart, others[i] } end
             end
         end
     else
@@ -1947,27 +1986,33 @@ end
 
 local function updateFlags(rec, entity, character, humanoid, cfg)
     local d = rec.d
-    d.flags = d.flags or {}
-    table.clear(d.flags)
+    local flags = d.flags
+    if not flags then
+        flags = {}
+        d.flags = flags
+    else
+        tclear(flags)
+    end
     if not cfg.Flags then return end
+    local selected = cfg.SelectedFlags
     if humanoid then
-        if table.find(cfg.SelectedFlags, "Walking") and humanoid.MoveDirection.Magnitude > 0 then
-            d.flags[#d.flags + 1] = "Walking"
+        if tfind(selected, "Walking") and humanoid.MoveDirection.Magnitude > 0 then
+            flags[#flags + 1] = "Walking"
         end
         local ok, hs = pcall(humanoid.GetState, humanoid)
         if ok then
-            if table.find(cfg.SelectedFlags, "Jumping") and (hs == Enum.HumanoidStateType.Freefall or hs == Enum.HumanoidStateType.Jumping) then
-                d.flags[#d.flags + 1] = "Jumping"
+            if tfind(selected, "Jumping") and (hs == Enum.HumanoidStateType.Freefall or hs == Enum.HumanoidStateType.Jumping) then
+                flags[#flags + 1] = "Jumping"
             end
-            if table.find(cfg.SelectedFlags, "Swimming") and hs == Enum.HumanoidStateType.Swimming then
-                d.flags[#d.flags + 1] = "Swimming"
+            if tfind(selected, "Swimming") and hs == Enum.HumanoidStateType.Swimming then
+                flags[#flags + 1] = "Swimming"
             end
         end
     end
     for name, custom in pairs(espModule.CustomFlags) do
-        if table.find(cfg.SelectedFlags, name) then
+        if tfind(selected, name) then
             local ok, res = pcall(custom.Func, entity, character, humanoid)
-            if ok and res then d.flags[#d.flags + 1] = name end
+            if ok and res then flags[#flags + 1] = name end
         end
     end
 end
@@ -1984,26 +2029,28 @@ local function dynamicBounds(parts)
     local x1, y1, x2, y2 = huge, huge, -huge, -huge
     local any = false
     local hw, hh, f = viewW * 0.5, viewH * 0.5, viewF
+    local cc00, cc01, cc02, cc10, cc11, cc12, cc20, cc21, cc22 = c00, c01, c02, c10, c11, c12, c20, c21, c22
+    local cx0, cy0, cz0 = camX, camY, camZ
     for i = 1, #parts do
         local p = parts[i]
         if p.Parent then
             local px, py, pz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
             local size = p.Size
             local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
-            local ox, oy, oz = px - camX, py - camY, pz - camZ
-            local cx = ox * c00 + oy * c10 + oz * c20
-            local cy = ox * c01 + oy * c11 + oz * c21
-            local cd = -(ox * c02 + oy * c12 + oz * c22)
+            local ox, oy, oz = px - cx0, py - cy0, pz - cz0
+            local cx = ox * cc00 + oy * cc10 + oz * cc20
+            local cy = ox * cc01 + oy * cc11 + oz * cc21
+            local cd = -(ox * cc02 + oy * cc12 + oz * cc22)
 
-            local ax1 = (r00 * c00 + r10 * c10 + r20 * c20) * hx
-            local ay1 = (r00 * c01 + r10 * c11 + r20 * c21) * hx
-            local ad1 = -(r00 * c02 + r10 * c12 + r20 * c22) * hx
-            local ax2 = (r01 * c00 + r11 * c10 + r21 * c20) * hy
-            local ay2 = (r01 * c01 + r11 * c11 + r21 * c21) * hy
-            local ad2 = -(r01 * c02 + r11 * c12 + r21 * c22) * hy
-            local ax3 = (r02 * c00 + r12 * c10 + r22 * c20) * hz
-            local ay3 = (r02 * c01 + r12 * c11 + r22 * c21) * hz
-            local ad3 = -(r02 * c02 + r12 * c12 + r22 * c22) * hz
+            local ax1 = (r00 * cc00 + r10 * cc10 + r20 * cc20) * hx
+            local ay1 = (r00 * cc01 + r10 * cc11 + r20 * cc21) * hx
+            local ad1 = -(r00 * cc02 + r10 * cc12 + r20 * cc22) * hx
+            local ax2 = (r01 * cc00 + r11 * cc10 + r21 * cc20) * hy
+            local ay2 = (r01 * cc01 + r11 * cc11 + r21 * cc21) * hy
+            local ad2 = -(r01 * cc02 + r11 * cc12 + r21 * cc22) * hy
+            local ax3 = (r02 * cc00 + r12 * cc10 + r22 * cc20) * hz
+            local ay3 = (r02 * cc01 + r12 * cc11 + r22 * cc21) * hz
+            local ad3 = -(r02 * cc02 + r12 * cc12 + r22 * cc22) * hz
 
             for s = 1, 8 do
                 local s1, s2, s3 = SX[s], SY[s], SZ[s]
@@ -2033,9 +2080,9 @@ local function staticBounds(rec, parts)
         local p = parts[i]
         if p.Parent then
             local cf, size = p.CFrame, p.Size
-            local ext = math.abs(cf.RightVector.Y) * size.X * 0.5
-                + math.abs(cf.UpVector.Y) * size.Y * 0.5
-                + math.abs(cf.LookVector.Y) * size.Z * 0.5
+            local ext = abs(cf.RightVector.Y) * size.X * 0.5
+                + abs(cf.UpVector.Y) * size.Y * 0.5
+                + abs(cf.LookVector.Y) * size.Z * 0.5
             local py = cf.Position.Y
             if py - ext < minY then minY = py - ext end
             if py + ext > maxY then maxY = py + ext end
@@ -2068,7 +2115,7 @@ local function box3D(rec, now)
     local size = rec.bbSize
     local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
     for s = 1, 8 do
-        local w = cf * Vector3.new(hx * SX[s], hy * SY[s], hz * SZ[s])
+        local w = cf * v3(hx * SX[s], hy * SY[s], hz * SZ[s])
         local sx, sy = project(w.X, w.Y, w.Z)
         if sx then
             BX[s], BY[s], BOK[s] = sx, sy, true
@@ -2081,6 +2128,7 @@ end
 
 local HIDE_TR = 1
 local GLOW_LAYERS = 4
+local ROT_X = CFrame.Angles(math.rad(90), 0, 0)
 
 local function makeAdornEntry(part)
     local lname = part.Name:lower()
@@ -2089,20 +2137,20 @@ local function makeAdornEntry(part)
 
     local glow = {}
     for i = 1, GLOW_LAYERS do
-        local g = Instance.new(className)
+        local g = newInstance(className)
         g.Adornee = part
         g.AlwaysOnTop = true
         g.ZIndex = GLOW_LAYERS - i + 1
-        if isHead then g.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
+        if isHead then g.CFrame = ROT_X end
         g.Parent = state.gui
         glow[i] = g
     end
 
-    local fill = Instance.new(className)
+    local fill = newInstance(className)
     fill.Adornee = part
     fill.AlwaysOnTop = true
     fill.ZIndex = GLOW_LAYERS + 1
-    if isHead then fill.CFrame = CFrame.Angles(math.rad(90), 0, 0) end
+    if isHead then fill.CFrame = ROT_X end
     fill.Parent = state.gui
 
     return { fill = fill, glow = glow, isHead = isHead, sz = nil, seen = 0 }
@@ -2112,6 +2160,7 @@ local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
     local fill = entry.fill
     local sz = part.Size
     entry.sz = sz
+    local vis = 1 - tr
     if entry.isHead then
         local rad = mmax(sz.X, sz.Z) * 0.52
         local h = sz.Y * 1.05
@@ -2126,7 +2175,7 @@ local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
             g.InnerRadius = 0
             g.Height = h + pad * 2
             g.Color3 = c2
-            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
+            g.Transparency = 1 - (glowOpacity * layerScale * vis)
             g.Visible = true
         end
     else
@@ -2135,9 +2184,9 @@ local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
             local g = entry.glow[i]
             local pad = i * 0.11
             local layerScale = (GLOW_LAYERS - i + 1) / GLOW_LAYERS
-            g.Size = sz + Vector3.new(pad, pad, pad)
+            g.Size = sz + v3(pad, pad, pad)
             g.Color3 = c2
-            g.Transparency = 1 - (glowOpacity * layerScale * (1 - tr))
+            g.Transparency = 1 - (glowOpacity * layerScale * vis)
             g.Visible = true
         end
     end
@@ -2256,7 +2305,7 @@ local function drawShaderHl(rec, cfg)
     local keyCol = KEY_COLORS[cfg.ChamsKey or 0]
     local hl = rec.hl
     if not hl then
-        hl = Instance.new("Highlight")
+        hl = newInstance("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         hl.FillTransparency = 0
         hl.OutlineTransparency = 1
@@ -2279,7 +2328,7 @@ end
 local function drawFillHl(rec, cfg, tr)
     local hl = rec.fillHl
     if not hl then
-        hl = Instance.new("Highlight")
+        hl = newInstance("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         hl.OutlineTransparency = 1
         hl.Parent = state.gui
@@ -2305,6 +2354,8 @@ local function drawFillHl(rec, cfg, tr)
         rec.fillOn = true
     end
 end
+
+local LAYOUT_OPTS = { size = 12, flagCount = 0, health = false, armor = false, ratio = 1 }
 
 local function render(rec, cfg, dist)
     local parts = rec.parts
@@ -2371,6 +2422,8 @@ local function render(rec, cfg, dist)
     local d = rec.d
     local chamsOn = cfg.Chams and state.shader ~= nil
     local chamsType = cfg.ChamsType or "Shader"
+    local gradAnimated = settings.TextGradientAnimated
+    local textSize = cfg.TextSize
 
     if cfg.BoxFill and cfg.BoxEnabled then
         if cfg.BoxType == "3D" then
@@ -2417,11 +2470,12 @@ local function render(rec, cfg, dist)
             renderer:Full(x, y, w, h, thick, cfg.LineColor, tr)
         elseif cfg.BoxType == "3D" then
             if box3D(rec, view.time) then
+                local lineColor = cfg.LineColor
                 for i = 1, 12 do
                     local e = EDGES[i]
                     local a, b = e[1], e[2]
                     if BOK[a] and BOK[b] then
-                        renderer:Line(BX[a], BY[a], BX[b], BY[b], thick, cfg.LineColor, cfg.LineColor, tr)
+                        renderer:Line(BX[a], BY[a], BX[b], BY[b], thick, lineColor, lineColor, tr)
                     end
                 end
             end
@@ -2441,13 +2495,13 @@ local function render(rec, cfg, dist)
         end
     end
 
-    local lay = espModule.Layout(cfg, x, y, w, h, {
-        size = cfg.TextSize,
-        flagCount = (cfg.Flags and d.flags) and #d.flags or 0,
-        health = cfg.HealthBar and d.health ~= nil,
-        armor = cfg.ArmorBar and d.armor ~= nil,
-        ratio = d.health or 1,
-    })
+    local lo = LAYOUT_OPTS
+    lo.size = textSize
+    lo.flagCount = (cfg.Flags and d.flags) and #d.flags or 0
+    lo.health = cfg.HealthBar and d.health ~= nil
+    lo.armor = cfg.ArmorBar and d.armor ~= nil
+    lo.ratio = d.health or 1
+    local lay = espModule.Layout(cfg, x, y, w, h, lo)
 
     if lay.health then
         local r = lay.health
@@ -2455,7 +2509,7 @@ local function render(rec, cfg, dist)
         if lay.healthText then
             local p = lay.healthText
             local hCol = espModule.HealthColor(d.health, cfg.HealthHigh, cfg.HealthMid, cfg.HealthLow)
-            renderer:Text("hp", tostring(d.healthValue or 0), p.x, p.y, p.ax, p.ay, healthFont, cfg.TextSize, hCol, hCol, tr, false)
+            renderer:Text("hp", tostring(d.healthValue or 0), p.x, p.y, p.ax, p.ay, healthFont, textSize, hCol, hCol, tr, false)
         end
     end
 
@@ -2485,21 +2539,21 @@ local function render(rec, cfg, dist)
                 dxp = p.x
                 nax, dax = 1, 1
             end
-            renderer:Text("name", d.name, nx, p.y, nax, p.ay, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
-            renderer:Text("dist", rec.mStr, dxp, p.y, dax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
+            renderer:Text("name", d.name, nx, p.y, nax, p.ay, textFont, textSize, cfg.NameColor, cfg.NameColor2, tr, gradAnimated)
+            renderer:Text("dist", rec.mStr, dxp, p.y, dax, p.ay, flagsFont, textSize, cfg.DistanceColor, cfg.DistanceColor2, tr, gradAnimated)
         else
-            renderer:Text("name", d.name, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.NameColor, cfg.NameColor2, tr, settings.TextGradientAnimated)
+            renderer:Text("name", d.name, p.x, p.y, p.ax, p.ay, textFont, textSize, cfg.NameColor, cfg.NameColor2, tr, gradAnimated)
         end
     end
 
     if lay.distance then
         local p = lay.distance
-        renderer:Text("dist", rec.mStr, p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.DistanceColor, cfg.DistanceColor2, tr, settings.TextGradientAnimated)
+        renderer:Text("dist", rec.mStr, p.x, p.y, p.ax, p.ay, flagsFont, textSize, cfg.DistanceColor, cfg.DistanceColor2, tr, gradAnimated)
     end
 
     if lay.tool and d.tool then
         local p = lay.tool
-        renderer:Text("tool", d.tool, p.x, p.y, p.ax, p.ay, textFont, cfg.TextSize, cfg.ToolColor, cfg.ToolColor2, tr, settings.TextGradientAnimated)
+        renderer:Text("tool", d.tool, p.x, p.y, p.ax, p.ay, textFont, textSize, cfg.ToolColor, cfg.ToolColor2, tr, gradAnimated)
     end
 
     local flagLines = lay.flagLines
@@ -2510,7 +2564,7 @@ local function render(rec, cfg, dist)
             fk = "flag" .. i
             FLAGK[i] = fk
         end
-        renderer:Text(fk, d.flags[i], p.x, p.y, p.ax, p.ay, flagsFont, cfg.TextSize, cfg.FlagColor1, cfg.FlagColor2, tr, settings.TextGradientAnimated)
+        renderer:Text(fk, d.flags[i], p.x, p.y, p.ax, p.ay, flagsFont, textSize, cfg.FlagColor1, cfg.FlagColor2, tr, gradAnimated)
     end
 
     if cfg.Tracers then
@@ -2547,10 +2601,11 @@ local function render(rec, cfg, dist)
         end
         local th = cfg.SkeletonThickness or 1
         local ol = h >= 70
+        local sc1, sc2 = cfg.SkeletonColor, cfg.SkeletonColor2
         for i = 1, #bi, 2 do
             local a, b = bi[i], bi[i + 1]
             if BPOK[a] and BPOK[b] then
-                renderer:Line(BPX[a], BPY[a], BPX[b], BPY[b], th, cfg.SkeletonColor, cfg.SkeletonColor2, tr, ol)
+                renderer:Line(BPX[a], BPY[a], BPX[b], BPY[b], th, sc1, sc2, tr, ol)
             end
         end
     end
@@ -2658,7 +2713,7 @@ local function processEntity(entity, isPlayer, options, ownerKey)
 
     local rp = root.Position
     local dx, dy, dz = rp.X - camX, rp.Y - camY, rp.Z - camZ
-    local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+    local dist = sqrt(dx * dx + dy * dy + dz * dz)
     if dist > settings.MaxDistance or -(dx * c02 + dy * c12 + dz * c22) < 0.05 then
         hideRecord(rec)
         return
@@ -2705,10 +2760,6 @@ local function processEntity(entity, isPlayer, options, ownerKey)
     render(rec, cfg, dist)
 end
 
-local function teamOf(plr)
-    return getTeamValue(plr)
-end
-
 local function resolveOwner(rec, pos)
     local now = view.time
     if rec.lastPos and (pos - rec.lastPos).Magnitude > 15 then
@@ -2743,7 +2794,7 @@ end
 local function viewmodelIsTeam(rec, owner)
     local now = view.time
     if owner then
-        local mine, theirs = teamOf(LocalPlayer), teamOf(owner)
+        local mine, theirs = getTeamValue(LocalPlayer), getTeamValue(owner)
         if mine ~= nil and theirs ~= nil then
             rec.verdict = theirs == mine and "team" or "enemy"
             rec.verdictAt = now
@@ -2824,7 +2875,7 @@ local function processViewmodel(vm)
     end
 
     local dx, dy, dz = tp.X - camX, tp.Y - camY, tp.Z - camZ
-    local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+    local dist = sqrt(dx * dx + dy * dy + dz * dz)
     if dist <= 1 or dist > settings.MaxDistance or -(dx * c02 + dy * c12 + dz * c22) < 0.05 then
         hideRecord(rec)
         return
@@ -2867,6 +2918,8 @@ local function processViewmodel(vm)
     render(rec, cfg, dist)
 end
 
+local EMPTY = {}
+
 local function resolveList(entry)
     local source = entry.Source
     local kind = typeof(source)
@@ -2879,16 +2932,16 @@ local function resolveList(entry)
     end
     if kind == "function" then
         local ok, res = pcall(source)
-        if not ok then return {} end
+        if not ok then return EMPTY end
         if typeof(res) == "Instance" then return children(res) end
         if type(res) == "table" then return res end
-        return {}
+        return EMPTY
     elseif kind == "Instance" then
         return children(source)
     elseif kind == "table" then
         return source
     end
-    return {}
+    return EMPTY
 end
 
 function espModule:RemoveAI(name)
@@ -2924,7 +2977,7 @@ end
 local function setChamHighlight(meta, key, adornee)
     local hl = meta[key]
     if not hl then
-        hl = Instance.new("Highlight")
+        hl = newInstance("Highlight")
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         hl.FillColor = KEY_COLORS[2]
         hl.FillTransparency = 0
@@ -2973,7 +3026,7 @@ local function drawItem(item, name, entry, itemCfg, cfg, limit)
     end
 
     local dx, dy, dz = pos.X - camX, pos.Y - camY, pos.Z - camZ
-    local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+    local dist = sqrt(dx * dx + dy * dy + dz * dz)
     local sx, sy
     if dist <= limit then sx, sy = project(pos.X, pos.Y, pos.Z) end
     if not sx then
@@ -3067,7 +3120,7 @@ end
 
 local function step()
     local settings = espModule.Settings
-    local now = os.clock()
+    local now = clock()
 
     view.fade = state.dead and mmax(0, view.fade - 0.05) or mmin(1, view.fade + 0.05)
 
@@ -3120,7 +3173,7 @@ local function step()
     if anyEntity then
         state.hadEntities = true
 
-        if game.PlaceId == 72920620366355 then
+        if game.PlaceId == SPECIAL_PLACE then
             if now - state.vmAt > 0.25 then
                 state.vmAt = now
                 local folder = workspace:FindFirstChild("Viewmodels")
@@ -3165,7 +3218,7 @@ function espModule:Start()
     if state.running then return end
     state.running = true
 
-    local gui = Instance.new("ScreenGui")
+    local gui = newInstance("ScreenGui")
     gui.Name = HttpService:GenerateGUID(false)
     gui.IgnoreGuiInset = true
     gui.ResetOnSpawn = false
@@ -3201,7 +3254,7 @@ function espModule:Start()
         if plr ~= LocalPlayer then state.players[#state.players + 1] = plr end
     end)
     state.connections[#state.connections + 1] = Players.PlayerRemoving:Connect(function(plr)
-        local idx = table.find(state.players, plr)
+        local idx = tfind(state.players, plr)
         if idx then table.remove(state.players, idx) end
         state.teamVal[plr] = nil
         state.teamAt[plr] = nil
@@ -3216,12 +3269,12 @@ function espModule:Stop()
     state.running = false
     pcall(function() RunService:UnbindFromRenderStep("CatwareESP") end)
     for _, conn in ipairs(state.connections) do conn:Disconnect() end
-    table.clear(state.connections)
-    table.clear(state.players)
-    table.clear(state.records)
-    table.clear(state.itemMeta)
-    table.clear(state.teamVal)
-    table.clear(state.teamAt)
+    tclear(state.connections)
+    tclear(state.players)
+    tclear(state.records)
+    tclear(state.itemMeta)
+    tclear(state.teamVal)
+    tclear(state.teamAt)
     state.vms, state.vmAt = {}, -1
     state.hadEntities, state.hadItems, state.dead = false, false, false
     state.useSig = -1

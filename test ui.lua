@@ -4521,10 +4521,10 @@ local function ensureFont(name)
         return false
     end
     local fileName, url = entry[2], entry[3]
-    if isfolder and makefolder and not isfolder("StardustFonts") then
-        makefolder("StardustFonts")
+    if isfolder and makefolder and not isfolder("catware_fonts") then
+        makefolder("catware_fonts")
     end
-    local path = "StardustFonts/" .. fileName
+    local path = "catware_fonts/" .. fileName
     if isfile and writefile and not isfile(path) then
         local ok, data = pcall(game.HttpGet, game, url)
         if ok and data and #data > 0 then

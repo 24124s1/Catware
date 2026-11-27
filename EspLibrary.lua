@@ -960,12 +960,15 @@ local function updateView(cam)
 end
 
 local function project(px, py, pz)
-    local dx, dy, dz = px - camX, py - camY, pz - camZ
-    local depth = -(dx * c02 + dy * c12 + dz * c22)
-    if depth < 0.05 then return nil end
-    local scale = viewF / depth
-    return viewW * 0.5 + (dx * c00 + dy * c10 + dz * c20) * scale,
-        viewH * 0.5 - (dx * c01 + dy * c11 + dz * c21) * scale, depth
+    local cam = workspace.CurrentCamera
+    if not cam then return nil end
+
+    local pos, onScreen = cam:WorldToViewportPoint(Vector3.new(px, py, pz))
+    if not onScreen or pos.Z < 0.05 then
+        return nil
+    end
+
+    return pos.X, pos.Y, pos.Z
 end
 
 local Renderer = {}

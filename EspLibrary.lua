@@ -468,16 +468,16 @@ local function layBar(key, side, x, y, w, h)
     local r = poolGet(key)
     if side == "Left" then
         r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
-        LOFF.Left += gap + 1
+        LOFF.Left += gap
     elseif side == "Right" then
         r.x, r.y, r.w, r.h, r.vertical = x + w + gap + LOFF.Right, y, 1, h, true
-        LOFF.Right += gap + 1
+        LOFF.Right += gap
     elseif side == "Top" then
         r.x, r.y, r.w, r.h, r.vertical = x, y - gap - 1 - LOFF.Top, w, 1, false
-        LOFF.Top += gap + 1
+        LOFF.Top += gap
     else
         r.x, r.y, r.w, r.h, r.vertical = x, y + h + gap + LOFF.Bottom, w, 1, false
-        LOFF.Bottom += gap + 1
+        LOFF.Bottom += gap
     end
     r.side = side
     LAY[key] = r

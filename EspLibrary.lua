@@ -110,9 +110,9 @@ espModule.Settings = {
     MaxDistance = 1200,
     BoxMode = "Dynamic",
     BoxSmoothing = 0,
-    TextFont = "Gojiberry Quibble",
-    FlagsFont = "Gojiberry Quibble",
-    HealthFont = "Gojiberry Quibble",
+    TextFont = "Tahoma Modern Bold",
+    FlagsFont = "Tahoma Modern Bold",
+    HealthFont = "Tahoma Modern Bold",
     TextGradientAnimated = true,
     Enemy = entitySettings({
         key = 0, design = "Neon",

@@ -4351,7 +4351,7 @@ local function addESPSection(sec, tbl, prefix)
     box:colorpicker({flag = prefix.."_box_color", color = tbl.LineColor, callback = function(c) tbl.LineColor = c end})
     local boxPop = box:gear({title = "Box Options"})
     boxPop:dropdown({name = "Box Type", items = {"Corner", "Full", "3D"}, default = tbl.BoxType, flag = prefix.."_box_type", callback = function(v) tbl.BoxType = v end})
-    boxPop:slider({name = "Box Thickness", min = 1, max = 5, default = tbl.Thickness, interval = 1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
+    boxPop:slider({name = "Box Thickness", min = 0, max = 5, default = tbl.Thickness, interval = 0.1, flag = prefix.."_box_thickness", callback = function(v) tbl.Thickness = v end})
     boxPop:toggle({name = "Box Glow", default = tbl.BoxGlow, flag = prefix.."_box_glow", callback = function(v) tbl.BoxGlow = v end})
 
     local fill = sec:toggle({name = "Box Fill", default = tbl.BoxFill, flag = prefix.."_boxfill", callback = function(v) tbl.BoxFill = v end})

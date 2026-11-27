@@ -1,5 +1,3 @@
-print('1')
-
 local cloneref = cloneref or function(o) return o end
 
 local Players = cloneref(game:GetService("Players"))
@@ -77,7 +75,7 @@ end
 local function entitySettings(p)
     return {
         Enabled = false,
-        BoxEnabled = false, BoxType = "Corner", Thickness = 0.1, LineColor = p.main,
+        BoxEnabled = false, BoxType = "Corner", Thickness = 1, LineColor = p.main,
         BoxGlow = false,
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
@@ -89,14 +87,14 @@ local function entitySettings(p)
             Color3 = p.c3 or rgb(195, 85, 235),
             ColorCount = 3
         }),
-        Names = false, NameType = "Display", NameColor = p.text1, NameColor2 = p.text2, NamePos = "Top",
-        Distance = false, DistanceColor = p.text1, DistanceColor2 = p.text2, DistancePos = "Right",
-        Tool = false, ToolColor = p.text1, ToolColor2 = p.text2, ToolPos = "Bottom",
-        Flags = false, SelectedFlags = {"Walking", "Jumping", "Swimming", "Dih"},
-        FlagColor1 = rgb(255, 255, 255), FlagColor2 = rgb(200, 200, 200), FlagsPos = "Right",
-        HealthBar = false, HealthText = false, HealthBarPos = "Left",
+        Names = false, NameType = "Display", NameColor = p.text1, NameColor2 = p.text2, NamePos = "Top", NameSlot = 3,
+        Distance = false, DistanceColor = p.text1, DistanceColor2 = p.text2, DistancePos = "Right", DistanceSlot = 4,
+        Tool = false, ToolColor = p.text1, ToolColor2 = p.text2, ToolPos = "Bottom", ToolSlot = 5,
+        Flags = false, SelectedFlags = {"Walking", "Jumping", "Swimming"},
+        FlagColor1 = rgb(255, 255, 255), FlagColor2 = rgb(200, 200, 200), FlagsPos = "Right", FlagsSlot = 6,
+        HealthBar = false, HealthText = false, HealthBarPos = "Left", HealthBarSlot = 1,
         HealthHigh = p.health[1], HealthMid = p.health[2], HealthLow = p.health[3],
-        ArmorBar = false, ArmorBarPos = "Bottom",
+        ArmorBar = false, ArmorText = false, ArmorBarPos = "Bottom", ArmorBarSlot = 2,
         ArmorHigh = rgb(0, 255, 0), ArmorMid = rgb(255, 255, 0), ArmorLow = rgb(255, 0, 0),
         HeadDot = false, HeadDotColor = rgb(255, 255, 255), HeadDotSize = 20, HeadDotOutlineThickness = 1,
         Skeleton = false, SkeletonThickness = 1, SkeletonMaxDistance = 400, SkeletonColor = p.main, SkeletonColor2 = p.skel2,
@@ -438,16 +436,25 @@ function espModule.HealthColor(t, high, mid, low)
     return low:Lerp(mid, t * 2)
 end
 
+local BAR_T = 3
+local EDGE = 3
+local GAP = 2
+local STROKE = 1
+local BAR_STEP = BAR_T + STROKE * 2 + GAP
+
+espModule.BarThickness = BAR_T
+espModule.LayoutEdge = EDGE
+espModule.LayoutGap = GAP
+
 local LAY = { flagLines = {} }
 local LPOOL = {}
 local FPOOL = {}
 local LOFF = { Top = 0, Bottom = 0, Left = 0, Right = 0 }
 local LROWS = { Left = 0, Right = 0 }
 local LITEMS = {}
-for i = 1, 5 do LITEMS[i] = { key = "", kind = "", side = "", slot = 0, n = 0 } end
+for i = 1, 6 do LITEMS[i] = { key = "", kind = "", side = "", slot = 0, n = 0 } end
 local SIDE_OK = { Top = true, Bottom = true, Left = true, Right = true }
-local LPAD = 2
-local lstep = 12
+local lstep = 13
 
 local function pickSide(v, d)
     if SIDE_OK[v] then return v end
@@ -464,64 +471,66 @@ local function poolGet(key)
 end
 
 local function layBar(key, side, x, y, w, h)
-    local gap = key == "health" and 4 or 4
     local r = poolGet(key)
     if side == "Left" then
-        r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
-        LOFF.Left += gap
+        r.x, r.y, r.w, r.h, r.vertical = x - EDGE - LOFF.Left - STROKE - BAR_T, y, BAR_T, h, true
+        LOFF.Left += BAR_STEP
     elseif side == "Right" then
-        r.x, r.y, r.w, r.h, r.vertical = x + w + gap + LOFF.Right, y, 1, h, true
-        LOFF.Right += gap
+        r.x, r.y, r.w, r.h, r.vertical = x + w + EDGE + LOFF.Right + STROKE, y, BAR_T, h, true
+        LOFF.Right += BAR_STEP
     elseif side == "Top" then
-        r.x, r.y, r.w, r.h, r.vertical = x, y - gap - 1 - LOFF.Top, w, 1, false
-        LOFF.Top += gap
+        r.x, r.y, r.w, r.h, r.vertical = x, y - EDGE - LOFF.Top - STROKE - BAR_T, w, BAR_T, false
+        LOFF.Top += BAR_STEP
     else
-        r.x, r.y, r.w, r.h, r.vertical = x, y + h + gap + LOFF.Bottom, w, 1, false
-        LOFF.Bottom += gap
+        r.x, r.y, r.w, r.h, r.vertical = x, y + h + EDGE + LOFF.Bottom + STROKE, w, BAR_T, false
+        LOFF.Bottom += BAR_STEP
     end
     r.side = side
     LAY[key] = r
-    return r.x, r.y
+    return r
 end
 
 local function layText(r, side, x, y, w, h)
     if side == "Top" then
-        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - LPAD - LOFF.Top, 0.5, 1
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - EDGE - LOFF.Top, 0.5, 1
         LOFF.Top += lstep
     elseif side == "Bottom" then
-        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + LPAD + LOFF.Bottom, 0.5, 0
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + EDGE + LOFF.Bottom, 0.5, 0
         LOFF.Bottom += lstep
     elseif side == "Left" then
-        r.x, r.y, r.ax, r.ay = x - LPAD - LOFF.Left, y - 1 + LROWS.Left * lstep, 1, 0
+        r.x, r.y, r.ax, r.ay = x - EDGE - LOFF.Left, y + LROWS.Left * lstep, 1, 0
         LROWS.Left += 1
     else
-        r.x, r.y, r.ax, r.ay = x + w + LPAD + LOFF.Right, y - 1 + LROWS.Right * lstep, 0, 0
+        r.x, r.y, r.ax, r.ay = x + w + EDGE + LOFF.Right, y + LROWS.Right * lstep, 0, 0
         LROWS.Right += 1
     end
     return r
 end
 
-local function layHealth(side, cfg, x, y, w, h, size, ratio)
-    local rx, ry = layBar("health", side, x, y, w, h)
-    if cfg.HealthText then
-        local r = poolGet("healthText")
-        local ty = clamp(y + h - h * ratio - 5, y - 2, y + h - 10)
-        local tx = clamp(x + w * ratio, x, x + w)
-        if side == "Left" then
-            r.x, r.y, r.ax, r.ay = rx - LPAD, ty, 1, 0
-            LOFF.Left += 16
-        elseif side == "Right" then
-            r.x, r.y, r.ax, r.ay = rx + LPAD, ty, 0, 0
-            LOFF.Right += 16
-        elseif side == "Top" then
-            r.x, r.y, r.ax, r.ay = tx, ry - LPAD, 0.5, 1
-            LOFF.Top += size + 2
+local function layBarText(key, bar, ratio, size, textW, follow)
+    local r = poolGet(key)
+    ratio = clamp(ratio, 0, 1)
+    if bar.vertical then
+        local lo, hi = bar.y + size * 0.5, bar.y + bar.h - size * 0.5
+        local ty
+        if follow and lo <= hi then
+            ty = clamp(bar.y + bar.h - bar.h * ratio, lo, hi)
         else
-            r.x, r.y, r.ax, r.ay = tx, ry + LPAD, 0.5, 0
-            LOFF.Bottom += size + 2
+            ty = bar.y + bar.h * 0.5
         end
-        LAY.healthText = r
+        r.x, r.y, r.ax, r.ay = bar.x + bar.w * 0.5, ty, 0.5, 0.5
+    else
+        local half = textW * 0.5
+        local lo, hi = bar.x + half, bar.x + bar.w - half
+        local tx
+        if follow and lo <= hi then
+            tx = clamp(bar.x + bar.w * ratio, lo, hi)
+        else
+            tx = bar.x + bar.w * 0.5
+        end
+        r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h * 0.5, 0.5, 0.5
     end
+    return r
 end
 
 local function setItem(i, key, kind, side, slot, n)
@@ -529,19 +538,41 @@ local function setItem(i, key, kind, side, slot, n)
     it.key, it.kind, it.side, it.slot, it.n = key, kind, side, slot, n
 end
 
+local function placeFlags(side, count, x, y, w, h)
+    local lines = LAY.flagLines
+    for j = 1, count do
+        local i = side == "Top" and (count - j + 1) or j
+        local r = FPOOL[i]
+        if not r then
+            r = {}
+            FPOOL[i] = r
+        end
+        lines[i] = layText(r, side, x, y, w, h)
+    end
+end
+
 function espModule.Layout(cfg, x, y, w, h, o)
     local size = o.size or 12
-    local ratio = o.ratio or 1
-    lstep = size
+    local healthRatio = o.ratio or 1
+    local armorRatio = o.armorRatio or 1
+    local hpW = o.healthTextW or size * 1.7
+    local arW = o.armorTextW or size * 1.7
+    lstep = size + 1
 
-    LAY.health, LAY.armor, LAY.name, LAY.distance, LAY.tool, LAY.healthText = nil, nil, nil, nil, nil, nil
+    LAY.health, LAY.armor, LAY.name, LAY.distance, LAY.tool = nil, nil, nil, nil, nil
+    LAY.healthText, LAY.armorText = nil, nil
     LOFF.Top, LOFF.Bottom, LOFF.Left, LOFF.Right = 0, 0, 0, 0
     LROWS.Left, LROWS.Right = 0, 0
+
+    local lines = LAY.flagLines
+    local fc = o.flagCount or 0
+    local count = (cfg.Flags and fc > 0) and fc or 0
+    for i = #lines, count + 1, -1 do lines[i] = nil end
 
     local n = 0
     if o.health then
         n += 1
-        setItem(n, "health", "healthbar", pickSide(cfg.HealthBarPos, "Left"), cfg.HealthBarSlot or 1, 1)
+        setItem(n, "health", "bar", pickSide(cfg.HealthBarPos, "Left"), cfg.HealthBarSlot or 1, 1)
     end
     if o.armor then
         n += 1
@@ -559,6 +590,10 @@ function espModule.Layout(cfg, x, y, w, h, o)
         n += 1
         setItem(n, "tool", "text", pickSide(cfg.ToolPos, "Bottom"), cfg.ToolSlot or 5, 5)
     end
+    if count > 0 then
+        n += 1
+        setItem(n, "flags", "text", pickSide(cfg.FlagsPos, "Right"), cfg.FlagsSlot or 6, 6)
+    end
 
     for i = 2, n do
         local it = LITEMS[i]
@@ -572,35 +607,32 @@ function espModule.Layout(cfg, x, y, w, h, o)
 
     for i = 1, n do
         local it = LITEMS[i]
-        if it.kind == "healthbar" then
-            layHealth(it.side, cfg, x, y, w, h, size, ratio)
-        elseif it.kind == "bar" then
+        if it.kind == "bar" then
             layBar(it.key, it.side, x, y, w, h)
-        elseif it.side ~= "Left" and it.side ~= "Right" then
-            LAY[it.key] = layText(poolGet(it.key), it.side, x, y, w, h)
+        elseif it.side == "Top" or it.side == "Bottom" then
+            if it.key == "flags" then
+                placeFlags(it.side, count, x, y, w, h)
+            else
+                LAY[it.key] = layText(poolGet(it.key), it.side, x, y, w, h)
+            end
         end
     end
     for i = 1, n do
         local it = LITEMS[i]
         if it.kind == "text" and (it.side == "Left" or it.side == "Right") then
-            LAY[it.key] = layText(poolGet(it.key), it.side, x, y, w, h)
+            if it.key == "flags" then
+                placeFlags(it.side, count, x, y, w, h)
+            else
+                LAY[it.key] = layText(poolGet(it.key), it.side, x, y, w, h)
+            end
         end
     end
 
-    local fc = o.flagCount or 0
-    local count = (cfg.Flags and fc > 0) and fc or 0
-    local lines = LAY.flagLines
-    for i = #lines, count + 1, -1 do lines[i] = nil end
-    if count > 0 then
-        local side = pickSide(cfg.FlagsPos, "Right")
-        for i = 1, count do
-            local r = FPOOL[i]
-            if not r then
-                r = {}
-                FPOOL[i] = r
-            end
-            lines[i] = layText(r, side, x, y, w, h)
-        end
+    if LAY.health and cfg.HealthText then
+        LAY.healthText = layBarText("healthText", LAY.health, healthRatio, size, hpW, true)
+    end
+    if LAY.armor and cfg.ArmorText then
+        LAY.armorText = layBarText("armorText", LAY.armor, armorRatio, size, arW, LAY.armor.vertical)
     end
 
     return LAY
@@ -1047,7 +1079,7 @@ local function buildBar(root)
     container.ZIndex = 3
     container.Visible = false
     container.Parent = root
-    local stroke = addStroke(container)
+    local stroke = addStroke(container, STROKE)
     local fill = newInstance("Frame")
     fill.BackgroundColor3 = WHITE
     fill.BorderSizePixel = 0
@@ -2358,7 +2390,15 @@ local function drawFillHl(rec, cfg, tr)
     end
 end
 
-local LAYOUT_OPTS = { size = 12, flagCount = 0, health = false, armor = false, ratio = 1 }
+local LAYOUT_OPTS = { size = 12, flagCount = 0, health = false, armor = false, ratio = 1, armorRatio = 1, healthTextW = 20, armorTextW = 20 }
+
+local function boxThickness(value, tr)
+    local t = clamp(value or 1, 0.5, 10)
+    if t < 1 then
+        return 1, 1 - ((1 - tr) * t)
+    end
+    return floor(t + 0.5), tr
+end
 
 local function render(rec, cfg, dist)
     local parts = rec.parts
@@ -2437,10 +2477,8 @@ local function render(rec, cfg, dist)
             end
         else
             offFill(rec)
-            local ang = cfg.BoxFillRotation or 0
-            if cfg.BoxFillSpeed and cfg.BoxFillSpeed ~= 0 then
-                ang = (view.angle * (cfg.BoxFillSpeed / 100) + ang) % 360
-            end
+            local ang = (cfg.BoxFillRotation or 0) + view.time * (cfg.BoxFillSpeed or 0)
+            ang = ang % 360
             renderer:Fill("boxfill", x, y, w, h, cfg.BoxFillColor1, cfg.BoxFillColor2, ang, 1 - ((1 - cfg.BoxFillTransparency) * (1 - tr)))
         end
     else
@@ -2468,9 +2506,9 @@ local function render(rec, cfg, dist)
             renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * (1 - tr)))
         end
 
-        local thick = mmax(1, (cfg.Thickness or 1) - 1)
+        local thick, btr = boxThickness(cfg.Thickness, tr)
         if cfg.BoxType == "Full" then
-            renderer:Full(x, y, w, h, thick, cfg.LineColor, tr)
+            renderer:Full(x, y, w, h, thick, cfg.LineColor, btr)
         elseif cfg.BoxType == "3D" then
             if box3D(rec, view.time) then
                 local lineColor = cfg.LineColor
@@ -2478,12 +2516,12 @@ local function render(rec, cfg, dist)
                     local e = EDGES[i]
                     local a, b = e[1], e[2]
                     if BOK[a] and BOK[b] then
-                        renderer:Line(BX[a], BY[a], BX[b], BY[b], thick, lineColor, lineColor, tr)
+                        renderer:Line(BX[a], BY[a], BX[b], BY[b], thick, lineColor, lineColor, btr)
                     end
                 end
             end
         else
-            renderer:Corner(x, y, w, h, thick, cfg.LineColor, tr)
+            renderer:Corner(x, y, w, h, thick, cfg.LineColor, btr)
         end
     end
 
@@ -2498,12 +2536,18 @@ local function render(rec, cfg, dist)
         end
     end
 
+    local armRatio = d.armor and clamp(d.armor / 100, 0, 1) or 1
     local lo = LAYOUT_OPTS
     lo.size = textSize
     lo.flagCount = (cfg.Flags and d.flags) and #d.flags or 0
     lo.health = cfg.HealthBar and d.health ~= nil
     lo.armor = cfg.ArmorBar and d.armor ~= nil
     lo.ratio = d.health or 1
+    lo.armorRatio = armRatio
+    local hpW = renderer:Width("hp")
+    local arW = renderer:Width("armortext")
+    lo.healthTextW = hpW > 0 and hpW or textSize * 1.7
+    lo.armorTextW = arW > 0 and arW or textSize * 1.7
     local lay = espModule.Layout(cfg, x, y, w, h, lo)
 
     if lay.health then
@@ -2518,8 +2562,12 @@ local function render(rec, cfg, dist)
 
     if lay.armor then
         local r = lay.armor
-        local armRatio = clamp(d.armor / 100, 0, 1)
         renderer:Bar("armor", r.x, r.y, r.w, r.h, armRatio, r.vertical, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
+        if lay.armorText then
+            local p = lay.armorText
+            local aCol = espModule.HealthColor(armRatio, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow)
+            renderer:Text("armortext", tostring(floor(d.armor + 0.5)), p.x, p.y, p.ax, p.ay, healthFont, textSize, aCol, aCol, tr, false)
+        end
     end
 
     if lay.name and d.name then

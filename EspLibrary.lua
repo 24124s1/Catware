@@ -77,7 +77,7 @@ end
 local function entitySettings(p)
     return {
         Enabled = false,
-        BoxEnabled = false, BoxType = "Corner", Thickness = 1, LineColor = p.main,
+        BoxEnabled = false, BoxType = "Corner", Thickness = 0.1, LineColor = p.main,
         BoxGlow = false,
         BoxFill = false, BoxFillColor1 = p.fill1, BoxFillColor2 = p.fill2, BoxFillTransparency = 0.7,
         BoxFillRotation = 0, BoxFillSpeed = 2,
@@ -997,7 +997,7 @@ local cskp = ColorSequenceKeypoint.new
 local function addStroke(parent, thickness)
     local stroke = newInstance("UIStroke")
     stroke.Color = BLACK
-    stroke.Thickness = thickness or 1
+    stroke.Thickness = thickness or 0.1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.LineJoinMode = Enum.LineJoinMode.Miter
     stroke.Parent = parent

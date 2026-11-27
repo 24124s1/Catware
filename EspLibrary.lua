@@ -464,7 +464,7 @@ local function poolGet(key)
 end
 
 local function layBar(key, side, x, y, w, h)
-    local gap = key == "health" and 2 or 4
+    local gap = key == "health" and 3 or 4
     local r = poolGet(key)
     if side == "Left" then
         r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
@@ -2468,7 +2468,7 @@ local function render(rec, cfg, dist)
             renderer:Glow("boxglow", x, y, w, h, cfg.LineColor, 1 - (0.65 * (1 - tr)))
         end
 
-        local thick = mmax(1, cfg.Thickness or 1)
+        local thick = mmax(1, (cfg.Thickness or 1) - 1)
         if cfg.BoxType == "Full" then
             renderer:Full(x, y, w, h, thick, cfg.LineColor, tr)
         elseif cfg.BoxType == "3D" then

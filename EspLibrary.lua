@@ -1,4 +1,4 @@
-print('-2')
+print('-3')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -494,16 +494,16 @@ end
 
 local function layText(r, side, x, y, w, h)
     if side == "Top" then
-        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - 3 - LOFF.Top, 0.5, 1
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - EDGE - LOFF.Top, 0.5, 1
         LOFF.Top += lstep
     elseif side == "Bottom" then
-        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + 3 + LOFF.Bottom, 0.5, 0
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + EDGE + LOFF.Bottom, 0.5, 0
         LOFF.Bottom += lstep
     elseif side == "Left" then
-        r.x, r.y, r.ax, r.ay = x - 3 - LOFF.Left, y + LROWS.Left * lstep, 1, 0
+        r.x, r.y, r.ax, r.ay = x - EDGE - LOFF.Left, y + LROWS.Left * lstep, 1, 0
         LROWS.Left += 1
     else
-        r.x, r.y, r.ax, r.ay = x + w + 3 + LOFF.Right, y + LROWS.Right * lstep, 0, 0
+        r.x, r.y, r.ax, r.ay = x + w + EDGE + LOFF.Right, y + LROWS.Right * lstep, 0, 0
         LROWS.Right += 1
     end
     return r
@@ -512,7 +512,6 @@ end
 local function layBarText(key, bar, ratio, size, textW, follow)
     local r = poolGet(key)
     ratio = clamp(ratio, 0, 1)
-    local side = bar.side
     if bar.vertical then
         local lo, hi = bar.y + size * 0.5, bar.y + bar.h - size * 0.5
         local ty
@@ -521,13 +520,7 @@ local function layBarText(key, bar, ratio, size, textW, follow)
         else
             ty = bar.y + bar.h * 0.5
         end
-        if side == "Left" then
-            r.x, r.y, r.ax, r.ay = bar.x - 3, ty, 1, 0.5
-        elseif side == "Right" then
-            r.x, r.y, r.ax, r.ay = bar.x + bar.w + 3, ty, 0, 0.5
-        else
-            r.x, r.y, r.ax, r.ay = bar.x + bar.w * 0.5, ty, 0.5, 0.5
-        end
+        r.x, r.y, r.ax, r.ay = bar.x + bar.w * 0.5, ty, 0.5, 0.5
     else
         local half = textW * 0.5
         local lo, hi = bar.x + half, bar.x + bar.w - half
@@ -537,13 +530,7 @@ local function layBarText(key, bar, ratio, size, textW, follow)
         else
             tx = bar.x + bar.w * 0.5
         end
-        if side == "Top" then
-            r.x, r.y, r.ax, r.ay = tx, bar.y - 2, 0.5, 1
-        elseif side == "Bottom" then
-            r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h + 2, 0.5, 0
-        else
-            r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h * 0.5, 0.5, 0.5
-        end
+        r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h * 0.5, 0.5, 0.5
     end
     return r
 end
@@ -646,9 +633,7 @@ function espModule.Layout(cfg, x, y, w, h, o)
     if LAY.health and cfg.HealthText then
         LAY.healthText = layBarText("healthText", LAY.health, healthRatio, size, hpW, true)
     end
-    if LAY.armor and cfg.ArmorText then
-        LAY.armorText = layBarText("armorText", LAY.armor, armorRatio, size, arW, LAY.armor.vertical)
-    end
+    -- armor text removed
 
     return LAY
 end
@@ -2578,11 +2563,6 @@ local function render(rec, cfg, dist)
     if lay.armor then
         local r = lay.armor
         renderer:Bar("armor", r.x, r.y, r.w, r.h, armRatio, r.vertical, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow, tr)
-        if lay.armorText then
-            local p = lay.armorText
-            local aCol = espModule.HealthColor(armRatio, cfg.ArmorHigh, cfg.ArmorMid, cfg.ArmorLow)
-            renderer:Text("armortext", tostring(floor(d.armor + 0.5)), p.x, p.y, p.ax, p.ay, healthFont, textSize, aCol, aCol, tr, false)
-        end
     end
 
     if lay.name and d.name then

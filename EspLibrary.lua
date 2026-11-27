@@ -1,4 +1,4 @@
-print('-1')
+print('-2')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -494,16 +494,16 @@ end
 
 local function layText(r, side, x, y, w, h)
     if side == "Top" then
-        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - EDGE - LOFF.Top, 0.5, 1
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y - 3 - LOFF.Top, 0.5, 1
         LOFF.Top += lstep
     elseif side == "Bottom" then
-        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + EDGE + LOFF.Bottom, 0.5, 0
+        r.x, r.y, r.ax, r.ay = x + w * 0.5, y + h + 3 + LOFF.Bottom, 0.5, 0
         LOFF.Bottom += lstep
     elseif side == "Left" then
-        r.x, r.y, r.ax, r.ay = x - EDGE - LOFF.Left, y + LROWS.Left * lstep, 1, 0
+        r.x, r.y, r.ax, r.ay = x - 3 - LOFF.Left, y + LROWS.Left * lstep, 1, 0
         LROWS.Left += 1
     else
-        r.x, r.y, r.ax, r.ay = x + w + EDGE + LOFF.Right, y + LROWS.Right * lstep, 0, 0
+        r.x, r.y, r.ax, r.ay = x + w + 3 + LOFF.Right, y + LROWS.Right * lstep, 0, 0
         LROWS.Right += 1
     end
     return r
@@ -512,6 +512,7 @@ end
 local function layBarText(key, bar, ratio, size, textW, follow)
     local r = poolGet(key)
     ratio = clamp(ratio, 0, 1)
+    local side = bar.side
     if bar.vertical then
         local lo, hi = bar.y + size * 0.5, bar.y + bar.h - size * 0.5
         local ty
@@ -520,7 +521,13 @@ local function layBarText(key, bar, ratio, size, textW, follow)
         else
             ty = bar.y + bar.h * 0.5
         end
-        r.x, r.y, r.ax, r.ay = bar.x + bar.w * 0.5, ty, 0.5, 0.5
+        if side == "Left" then
+            r.x, r.y, r.ax, r.ay = bar.x - 3, ty, 1, 0.5
+        elseif side == "Right" then
+            r.x, r.y, r.ax, r.ay = bar.x + bar.w + 3, ty, 0, 0.5
+        else
+            r.x, r.y, r.ax, r.ay = bar.x + bar.w * 0.5, ty, 0.5, 0.5
+        end
     else
         local half = textW * 0.5
         local lo, hi = bar.x + half, bar.x + bar.w - half
@@ -530,7 +537,13 @@ local function layBarText(key, bar, ratio, size, textW, follow)
         else
             tx = bar.x + bar.w * 0.5
         end
-        r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h * 0.5, 0.5, 0.5
+        if side == "Top" then
+            r.x, r.y, r.ax, r.ay = tx, bar.y - 2, 0.5, 1
+        elseif side == "Bottom" then
+            r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h + 2, 0.5, 0
+        else
+            r.x, r.y, r.ax, r.ay = tx, bar.y + bar.h * 0.5, 0.5, 0.5
+        end
     end
     return r
 end
@@ -1081,7 +1094,7 @@ local function buildBar(root)
     container.ZIndex = 3
     container.Visible = false
     container.Parent = root
-    local stroke = addStroke(container, 0.5)
+    local stroke = addStroke(container, STROKE)
     local fill = newInstance("Frame")
     fill.BackgroundColor3 = WHITE
     fill.BorderSizePixel = 0
@@ -1326,7 +1339,7 @@ function Renderer:Corner(x, y, w, h, thick, color, tr)
         c.colorH.BackgroundColor3 = color
         c.colorH.BackgroundTransparency = tr
 
-        c.outlineH.Size = fromOffset(len + 2, thick + 2)
+        c.outlineH.Size = fromOffset(len + 1, thick + 1)
         c.outlineH.Position = obase
         c.outlineH.BackgroundTransparency = tr
 
@@ -1335,7 +1348,7 @@ function Renderer:Corner(x, y, w, h, thick, color, tr)
         c.colorV.BackgroundColor3 = color
         c.colorV.BackgroundTransparency = tr
 
-        c.outlineV.Size = fromOffset(thick + 2, len + 2)
+        c.outlineV.Size = fromOffset(thick + 1, len + 1)
         c.outlineV.Position = obase
         c.outlineV.BackgroundTransparency = tr
     end
@@ -1361,12 +1374,12 @@ function Renderer:Full(x, y, w, h, thick, color, tr)
         if b.isHorizontal then
             b.color.Size = fromOffset(w, thick)
             b.color.Position = fromOffset(0, b.isStart and 0 or (h - thick))
-            b.outline.Size = fromOffset(w + 2, thick + 2)
+            b.outline.Size = fromOffset(w + 1, thick + 1)
             b.outline.Position = fromOffset(-1, b.isStart and -1 or (h - thick - 1))
         else
             b.color.Size = fromOffset(thick, h)
             b.color.Position = fromOffset(b.isStart and 0 or (w - thick), 0)
-            b.outline.Size = fromOffset(thick + 2, h + 2)
+            b.outline.Size = fromOffset(thick + 1, h + 1)
             b.outline.Position = fromOffset(b.isStart and -1 or (w - thick - 1), -1)
         end
         b.color.BackgroundColor3 = color

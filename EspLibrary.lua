@@ -1,4 +1,4 @@
-print('1')
+print('-1')
 
 local cloneref = cloneref or function(o) return o end
 
@@ -438,11 +438,11 @@ function espModule.HealthColor(t, high, mid, low)
     return low:Lerp(mid, t * 2)
 end
 
-local BAR_T = 3
+local BAR_T = 1
 local EDGE = 3
-local GAP = 2
+local GAP = 1
 local STROKE = 1
-local BAR_STEP = BAR_T + STROKE * 2 + GAP
+local BAR_STEP = 4
 
 espModule.BarThickness = BAR_T
 espModule.LayoutEdge = EDGE
@@ -475,16 +475,16 @@ end
 local function layBar(key, side, x, y, w, h)
     local r = poolGet(key)
     if side == "Left" then
-        r.x, r.y, r.w, r.h, r.vertical = x - EDGE - LOFF.Left - STROKE - BAR_T, y, BAR_T, h, true
+        r.x, r.y, r.w, r.h, r.vertical = x - 4 - LOFF.Left, y, BAR_T, h, true
         LOFF.Left += BAR_STEP
     elseif side == "Right" then
-        r.x, r.y, r.w, r.h, r.vertical = x + w + EDGE + LOFF.Right + STROKE, y, BAR_T, h, true
+        r.x, r.y, r.w, r.h, r.vertical = x + w + 3 + LOFF.Right, y, BAR_T, h, true
         LOFF.Right += BAR_STEP
     elseif side == "Top" then
-        r.x, r.y, r.w, r.h, r.vertical = x, y - EDGE - LOFF.Top - STROKE - BAR_T, w, BAR_T, false
+        r.x, r.y, r.w, r.h, r.vertical = x, y - 4 - LOFF.Top, w, BAR_T, false
         LOFF.Top += BAR_STEP
     else
-        r.x, r.y, r.w, r.h, r.vertical = x, y + h + EDGE + LOFF.Bottom + STROKE, w, BAR_T, false
+        r.x, r.y, r.w, r.h, r.vertical = x, y + h + 3 + LOFF.Bottom, w, BAR_T, false
         LOFF.Bottom += BAR_STEP
     end
     r.side = side
@@ -1081,7 +1081,7 @@ local function buildBar(root)
     container.ZIndex = 3
     container.Visible = false
     container.Parent = root
-    local stroke = addStroke(container, STROKE)
+    local stroke = addStroke(container, 0.5)
     local fill = newInstance("Frame")
     fill.BackgroundColor3 = WHITE
     fill.BorderSizePixel = 0

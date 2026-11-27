@@ -441,7 +441,7 @@ local function poolGet(key)
 end
 
 local function layBar(key, side, x, y, w, h)
-    local gap = key == "health" and 3 or 4
+    local gap = key == "health" and 1 or 2
     local r = poolGet(key)
     if side == "Left" then
         r.x, r.y, r.w, r.h, r.vertical = x - gap - 1 - LOFF.Left, y, 1, h, true
@@ -1400,9 +1400,9 @@ end
 function Renderer:Bar(key, x, y, w, h, fillRatio, vertical, high, mid, low, tr)
     local b = self:Keyed(key, buildBar)
     local root, fill = b.root, b.fill
-    if b.x ~= x or b.y ~= y then
-        b.x, b.y = x, y
-        root.Position = UDim2.fromOffset(x, y)
+    if b.noStroke == nil then
+        b.noStroke = (key == "health")
+        b.stroke.Enabled = not b.noStroke
     end
     if b.w ~= w or b.h ~= h then
         b.w, b.h = w, h

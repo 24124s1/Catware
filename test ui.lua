@@ -856,6 +856,7 @@ function Library.new(opts)
     self.folder = opts.folder or "catware"
     self.toggleKey = opts.toggleKey or Enum.KeyCode.Insert
     self.espFonts = opts.fonts or {}
+    self.esp = opts.esp
     self.flags = {}
     self.pending = {}
     self.setters = setmetatable({}, {
@@ -2993,7 +2994,7 @@ function Column:preview(o)
     local failMsg = {}
     local current, currentName = nil, nil
     local loading = false
-    local tintedRec, tintedColor, tintedTr = nil, nil, nil
+    local tintedRec, tintedOn = nil, false
     local rot = math.pi
     local dragging, lastX, lastDrag = false, 0, 0
     local hpKey, arKey = nil, nil
@@ -3261,25 +3262,170 @@ function Column:preview(o)
         return out
     end
 
-    local function applyTint(want, fillTr)
-        if not current then return end
-        if tintedRec == current and tintedColor == want and tintedTr == fillTr then return end
-        tintedRec, tintedColor, tintedTr = current, want, fillTr
-        for part, orig in pairs(current.tint) do
-            if part and part.Parent then
-                if want then
-                    part.Color = orig.c:Lerp(want, clamp(1 - (fillTr or 0.3), 0, 1))
-                    part.Material = Enum.Material.Neon
-                    if part:IsA("MeshPart") then part.TextureID = "" end
-                    if orig.sm and orig.sm.Parent then orig.sm.TextureId = "" end
+    local shellFolder = Instance.new("Folder")
+    shellFolder.Name = "Shells"
+    shellFolder.Parent = worldModel
+    local SHELL_LAYERS = 4
+    local HEAD_ROT = CFrame.Angles(0, 0, math.rad(90))
+
+    local function clearShells(rec)
+        if rec and rec.shells then
+            for _, e in ipairs(rec.shells) do
+                e.fill:Destroy()
+                for _, g in ipairs(e.glow) do g:Destroy() end
+            end
+            rec.shells = nil
+            rec.shellMode = nil
+        end
+    end
+
+    local function newShellPart(isHead)
+        local p = Instance.new("Part")
+        p.Anchored = true
+        p.CanCollide = false
+        p.CanTouch = false
+        p.CanQuery = false
+        p.CastShadow = false
+        p.Material = Enum.Material.Neon
+        if isHead then p.Shape = Enum.PartType.Cylinder end
+        p.Parent = shellFolder
+        return p
+    end
+
+    local function buildShells(rec)
+        local list = {}
+        for _, d in ipairs(rec.model:GetDescendants()) do
+            if #list >= 40 then break end
+            if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" and d.Name ~= "Base" and d.Transparency < 0.95 then
+                local isHead = d.Name:lower() == "head"
+                local sz = d.Size
+                local e = { part = d, isHead = isHead, glow = {} }
+                e.fill = newShellPart(isHead)
+                if isHead then
+                    local hh = sz.Y * 1.05
+                    local dia = math.max(sz.X, sz.Z) * 1.04
+                    e.fill.Size = Vector3.new(hh, dia, dia)
+                    for i = 1, SHELL_LAYERS do
+                        local g = newShellPart(true)
+                        local pad = i * 0.055
+                        g.Size = Vector3.new(hh + pad * 2, dia + pad * 2, dia + pad * 2)
+                        e.glow[i] = g
+                    end
                 else
+                    e.fill.Size = sz + Vector3.new(0.04, 0.04, 0.04)
+                    for i = 1, SHELL_LAYERS do
+                        local g = newShellPart(false)
+                        local pad = i * 0.11
+                        g.Size = sz + Vector3.new(pad, pad, pad)
+                        e.glow[i] = g
+                    end
+                end
+                list[#list + 1] = e
+            end
+        end
+        return list
+    end
+
+    local function updateShells(mode, fillColor, glowColor, fillOpacity, glowOpacity)
+        local rec = current
+        if not rec then return end
+        if not mode then
+            clearShells(rec)
+            return
+        end
+        if not rec.shells or rec.shellMode ~= mode then
+            clearShells(rec)
+            rec.shells = buildShells(rec)
+            rec.shellMode = mode
+            rec.shellKey = nil
+        end
+        local key = tostring(fillColor) .. tostring(glowColor) .. tostring(fillOpacity) .. tostring(glowOpacity)
+        local dirty = rec.shellKey ~= key
+        rec.shellKey = key
+        for _, e in ipairs(rec.shells) do
+            local cf = e.part.CFrame
+            if e.isHead then cf = cf * HEAD_ROT end
+            e.fill.CFrame = cf
+            for i = 1, SHELL_LAYERS do e.glow[i].CFrame = cf end
+            if dirty then
+                if mode == "adorn" then
+                    e.fill.Color = fillColor or glowColor
+                    e.fill.Transparency = 1 - fillOpacity
+                else
+                    e.fill.Transparency = 1
+                end
+                for i = 1, SHELL_LAYERS do
+                    local layerScale = (SHELL_LAYERS - i + 1) / SHELL_LAYERS
+                    e.glow[i].Color = glowColor
+                    e.glow[i].Transparency = 1 - (glowOpacity * layerScale)
+                end
+            end
+        end
+    end
+
+    local function shaderPattern(style, x, y, t)
+        local s = math.sin
+        if style == 1 then
+            local f = (y * 0.35 - t * 0.3) % 1
+            return f ^ 2.2 * 0.9 + 0.08
+        elseif style == 8 then
+            return 0.2 + 0.8 * (0.5 + 0.5 * s(t * 2 + y * 0.8))
+        elseif style == 9 then
+            return 0.5 + 0.5 * s(math.sqrt(x * x + y * y) * 3 - t * 2.5)
+        elseif style == 10 then
+            local f = ((x + y) * 0.9 - t * 0.35) % 1
+            return 1 - math.abs(f * 2 - 1)
+        elseif style == 11 then
+            return 0.5 + 0.5 * s(y * 0.9 + x * 0.25 - t * 0.6)
+        elseif style == 13 then
+            return 0.7 + 0.2 * s(y * 1.5 - t)
+        end
+        local w = s(x * 1.3 + y * 0.9 + t) * 0.5 + s(y * 2.1 - x * 0.7 - t * 1.3) * 0.5
+        return 0.5 + 0.5 * s((x * 0.8 + y * 1.2) * 2 + w * 1.6 - t * 0.8)
+    end
+
+    local function shaderColor(v, c1, c2, c3, cc, br, ct)
+        v = clamp(v, 0, 1)
+        local c
+        if cc < 1.5 then
+            local f = 0.15 + 0.85 * v
+            c = Color3.new(c1.R * f, c1.G * f, c1.B * f)
+        elseif cc < 2.5 then
+            c = c1:Lerp(c2, v)
+        else
+            local a = c1:Lerp(c2, clamp(v * 2, 0, 1))
+            c = a:Lerp(c3, clamp((v - 0.5) * 2, 0, 1))
+        end
+        return Color3.new(clamp(c.R ^ ct * br, 0, 1), clamp(c.G ^ ct * br, 0, 1), clamp(c.B ^ ct * br, 0, 1))
+    end
+
+    local function applyTint(fn)
+        if not current then return end
+        if fn == nil then
+            if tintedRec == current and not tintedOn then return end
+            for part, orig in pairs(current.tint) do
+                if part and part.Parent then
                     part.Color = orig.c
                     part.Material = orig.m
                     if part:IsA("MeshPart") and orig.tex ~= nil then part.TextureID = orig.tex end
                     if orig.sm and orig.sm.Parent and orig.smtex ~= nil then orig.sm.TextureId = orig.smtex end
                 end
             end
+            tintedRec, tintedOn = current, false
+            return
         end
+        local first = not (tintedRec == current and tintedOn)
+        for part, orig in pairs(current.tint) do
+            if part and part.Parent then
+                part.Color = fn(part, orig)
+                if first then
+                    part.Material = Enum.Material.Neon
+                    if part:IsA("MeshPart") then part.TextureID = "" end
+                    if orig.sm and orig.sm.Parent then orig.sm.TextureId = "" end
+                end
+            end
+        end
+        tintedRec, tintedOn = current, true
     end
 
     local function hideAll()
@@ -3346,10 +3492,12 @@ function Column:preview(o)
                 failMsg[name] = tostring(rec)
                 rec = records["Local Player"]
             end
+            if current then clearShells(current) end
             if current and current.model then current.model.Parent = nil end
             current = rec
             currentName = name
             tintedRec = nil
+            tintedOn = false
             if rec then rec.model.Parent = worldModel end
             loading = false
         end)
@@ -3406,6 +3554,7 @@ function Column:preview(o)
         if not on("enabled") then
             hideAll()
             applyTint(nil)
+            updateShells(nil)
             return
         end
 
@@ -3523,15 +3672,40 @@ function Column:preview(o)
             hideGroup(box3d)
         end
 
-        local tintWant, tintTr = nil, 0.3
+        local tintFn, shellMode, sFillC, sGlowC, sFillOp, sGlowOp = nil, nil, nil, nil, 0, 0
         if on("chams") then
-            tintWant = col("chams_color", Theme.v.accent)
-            tintTr = num("chams_fill", 0.3)
+            local cType = str("chams_type", "Shader")
+            local cc = floor(num("chams_colors", 3) + 0.5)
+            local c1 = col("chams_c1", rgb(12, 120, 110))
+            local c2 = col("chams_c2", rgb(48, 220, 245))
+            local c3 = col("chams_c3", rgb(195, 85, 235))
+            if cType == "Adornment" then
+                shellMode = "adorn"
+                sFillC, sGlowC = c1, c2
+                sFillOp = 1 - num("adorn_trans", 0.55)
+                sGlowOp = 1 - num("adorn_glow_trans", 0.78)
+            else
+                local designs = lib.esp and lib.esp.ChamsDesigns
+                local design = designs and designs[str("chams_design", "Neon")]
+                local style = design and design.Style or 0
+                local scale = num("chams_scale", 3) * 0.35
+                local br, ct = num("chams_brightness", 1.1), num("chams_contrast", 1)
+                local tt = tick() * num("chams_speed", 1)
+                tintFn = function(part)
+                    local p = part.Position
+                    return shaderColor(shaderPattern(style, p.X * scale, p.Y * scale, tt), c1, c2, c3, cc, br, ct)
+                end
+                shellMode = "shader"
+                sGlowC = (cc > 2.5 and c3) or (cc > 1.5 and c2) or c1
+                sGlowOp = clamp(num("chams_bloom", 0.4) * 0.4, 0, 0.6)
+            end
         elseif fillOn and boxType == "3D" then
-            tintWant = fillC1
-            tintTr = fillTrans
+            tintFn = function(part, orig)
+                return orig.c:Lerp(fillC1, clamp(1 - fillTrans, 0, 1))
+            end
         end
-        applyTint(tintWant, tintTr)
+        applyTint(tintFn)
+        updateShells(shellMode, sFillC, sGlowC, sFillOp, sGlowOp)
 
         local size = floor(num("textsize", 12))
         local animated = lib.flags.esp_text_gradient == "Animated"
@@ -4301,7 +4475,7 @@ local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/personalv
 
 local win = Library.new({
     name = "Stardust", version = "Private", folder = "catware",
-    logoIcon = "sparkles", fonts = ESP.Fonts,
+    logoIcon = "sparkles", fonts = ESP.Fonts, esp = ESP,
 })
 win.onUnload = function()
     ESP:Stop()
@@ -4342,6 +4516,15 @@ local function setPopupElemVisible(el, vis)
     if row then
         row.Visible = vis
     end
+end
+
+local designDrops = {}
+local designRefreshing = false
+
+local function designNames()
+    local out = {}
+    for i, n in ipairs(ESP.GetChamsDesignNames()) do out[i] = n end
+    return out
 end
 
 local function addESPSection(sec, tbl, prefix)
@@ -4412,13 +4595,16 @@ local function addESPSection(sec, tbl, prefix)
         callback = function(v) tbl.AdornmentGlowTransparency = v end
     })
 
-    shaderElems[#shaderElems + 1] = chamsPop:dropdown({name = "Design", items = ESP.GetChamsDesignNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
+    local designDD = chamsPop:dropdown({name = "Design", items = designNames(), default = cs.Design, flag = prefix.."_chams_design", callback = function(v)
+        if designRefreshing then return end
         ESP:SetChamsDesign(v, tbl)
         for i = 1, 3 do
             local setter = win.setters[prefix.."_chams_c"..i]
             if setter then pcall(setter, cs["Color" .. i]) end
         end
     end})
+    shaderElems[#shaderElems + 1] = designDD
+    designDrops[#designDrops + 1] = designDD
     shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Colors", min = 1, max = 3, default = cs.ColorCount, interval = 1, flag = prefix.."_chams_colors", callback = function(v) cs.ColorCount = v end})
     shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Bloom", min = 0, max = 1.5, default = cs.Bloom, interval = 0.05, flag = prefix.."_chams_bloom", callback = function(v) cs.Bloom = v end})
     shaderElems[#shaderElems + 1] = chamsPop:slider({name = "Bloom Spread", min = 0, max = 12, default = cs.BloomSpread, interval = 0.5, flag = prefix.."_chams_spread", callback = function(v) cs.BloomSpread = v end})
@@ -4554,6 +4740,21 @@ Setting:dropdown({name = "Flags Font", items = fontList, default = ESP.Settings.
 Setting:dropdown({name = "Health Font", items = fontList, default = ESP.Settings.HealthFont or "Tahoma", flag = "esp_health_font", callback = function(v) ensureFont(v) ESP.Settings.HealthFont = v end})
 Setting:dropdown({name = "Text Gradient", items = {"Static", "Animated"}, default = ESP.Settings.TextGradientAnimated and "Animated" or "Static", flag = "esp_text_gradient", callback = function(v) ESP.Settings.TextGradientAnimated = (v == "Animated") end})
 Setting:slider({name = "Refresh Rate", min = 60, max = 240, default = ESP.Settings.RefreshRate, flag = "esp_refresh_rate", callback = function(v) ESP.Settings.RefreshRate = v end})
+
+local designSource = Setting:textbox({name = "Design Loadstring", flag = "esp_design_source", placeholder = "URL or Lua returning designs"})
+Setting:button({name = "Load Designs", callback = function()
+    local ok, res = ESP:LoadDesigns(designSource.value or "")
+    if not ok then
+        win:notify({title = "Designs", text = "Failed: " .. tostring(res), kind = "error"})
+        return
+    end
+    designRefreshing = true
+    for _, dd in ipairs(designDrops) do
+        pcall(dd.setItems, designNames())
+    end
+    designRefreshing = false
+    win:notify({title = "Designs", text = "Loaded " .. tostring(res) .. " design(s)", kind = "success"})
+end})
 
 right:preview({ name = "Preview" })
 win:configTab(config)

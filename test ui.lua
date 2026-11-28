@@ -2889,9 +2889,10 @@ function Column:preview(o)
     local area = new("Frame", { Parent = sec.body, Size = dim2(1, 0, 0, o.height or 420), BackgroundColor3 = T("preview"), LayoutOrder = nxt(lib), ClipsDescendants = true })
     stroke(area, "line")
 
+    local LIT_AMBIENT = rgb(190, 190, 190)
     local viewport = new("ViewportFrame", {
         Parent = area, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1,
-        Ambient = rgb(190, 190, 190), LightColor = WHITE, ZIndex = 1,
+        Ambient = LIT_AMBIENT, LightColor = WHITE, ZIndex = 1,
     })
     local cam = Instance.new("Camera")
     cam.FieldOfView = 40
@@ -2900,6 +2901,14 @@ function Column:preview(o)
     viewport.CurrentCamera = cam
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewport
+
+    local flatOn = nil
+    local function setFlat(on)
+        if flatOn == on then return end
+        flatOn = on
+        viewport.Ambient = on and WHITE or LIT_AMBIENT
+        viewport.LightColor = on and rgb(0, 0, 0) or WHITE
+    end
 
     local ov = new("Frame", { Parent = area, Size = dim2(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 2 })
 
@@ -3262,6 +3271,40 @@ function Column:preview(o)
         return out
     end
 
+    local SKIN_CLASSES = {
+        SurfaceAppearance = true, Shirt = true, Pants = true,
+        ShirtGraphic = true, CharacterMesh = true, BodyColors = true,
+    }
+
+    local function collectSkin(m)
+        local list = {}
+        for _, d in ipairs(m:GetDescendants()) do
+            if SKIN_CLASSES[d.ClassName] then
+                list[#list + 1] = { inst = d, parent = d.Parent, kind = "p" }
+            elseif d:IsA("Decal") then
+                list[#list + 1] = { inst = d, tr = d.Transparency, kind = "d" }
+            end
+        end
+        return list
+    end
+
+    local function setSkin(rec, hide)
+        if not rec or not rec.skin or rec.skinHidden == hide then return end
+        rec.skinHidden = hide
+        for _, e in ipairs(rec.skin) do
+            local inst = e.inst
+            if e.kind == "p" then
+                if hide then
+                    inst.Parent = nil
+                elseif e.parent then
+                    inst.Parent = e.parent
+                end
+            else
+                inst.Transparency = hide and 1 or e.tr
+            end
+        end
+    end
+    
     local shellFolder = Instance.new("Folder")
     shellFolder.Name = "Shells"
     shellFolder.Parent = worldModel
@@ -3286,42 +3329,65 @@ function Column:preview(o)
         p.CanTouch = false
         p.CanQuery = false
         p.CastShadow = false
-        p.Material = Enum.Material.Neon
+        p.Material = Enum.Material.SmoothPlastic
+        p.Reflectance = 0
         if isHead then p.Shape = Enum.PartType.Cylinder end
         p.Parent = shellFolder
         return p
     end
 
-    local function buildShells(rec)
+    local function shellSources(rec)
+        local m = rec.model
         local list = {}
-        for _, d in ipairs(rec.model:GetDescendants()) do
-            if #list >= 40 then break end
-            if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" and d.Name ~= "Base" and d.Transparency < 0.95 then
-                local isHead = d.Name:lower() == "head"
-                local sz = d.Size
-                local e = { part = d, isHead = isHead, glow = {} }
-                e.fill = newShellPart(isHead)
-                if isHead then
-                    local hh = sz.Y * 1.05
-                    local dia = math.max(sz.X, sz.Z) * 1.04
-                    e.fill.Size = Vector3.new(hh, dia, dia)
-                    for i = 1, SHELL_LAYERS do
-                        local g = newShellPart(true)
-                        local pad = i * 0.055
-                        g.Size = Vector3.new(hh + pad * 2, dia + pad * 2, dia + pad * 2)
-                        e.glow[i] = g
-                    end
-                else
-                    e.fill.Size = sz + Vector3.new(0.04, 0.04, 0.04)
-                    for i = 1, SHELL_LAYERS do
-                        local g = newShellPart(false)
-                        local pad = i * 0.11
-                        g.Size = sz + Vector3.new(pad, pad, pad)
-                        e.glow[i] = g
+        if isRig(m) then
+            local names = m:FindFirstChild("UpperTorso") and R15_PARTS or R6_PARTS
+            for _, n in ipairs(names) do
+                if n ~= "HumanoidRootPart" then
+                    local p = m:FindFirstChild(n)
+                    if p and p:IsA("BasePart") and p.Transparency < 0.95 then
+                        list[#list + 1] = p
                     end
                 end
-                list[#list + 1] = e
             end
+        else
+            for _, d in ipairs(m:GetDescendants()) do
+                if #list >= 40 then break end
+                if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" and d.Name ~= "Base"
+                    and d.Transparency < 0.95 and not d:FindFirstAncestorOfClass("Accessory") then
+                    list[#list + 1] = d
+                end
+            end
+        end
+        return list
+    end
+
+    local function buildShells(rec)
+        local list = {}
+        for _, d in ipairs(shellSources(rec)) do
+            local isHead = d.Name:lower() == "head"
+            local sz = d.Size
+            local e = { part = d, isHead = isHead, glow = {} }
+            e.fill = newShellPart(isHead)
+            if isHead then
+                local hh = sz.Y * 1.05
+                local dia = math.max(sz.X, sz.Z) * 1.04
+                e.fill.Size = Vector3.new(hh, dia, dia)
+                for i = 1, SHELL_LAYERS do
+                    local g = newShellPart(true)
+                    local pad = i * 0.055
+                    g.Size = Vector3.new(hh + pad * 2, dia + pad * 2, dia + pad * 2)
+                    e.glow[i] = g
+                end
+            else
+                e.fill.Size = sz + Vector3.new(0.04, 0.04, 0.04)
+                for i = 1, SHELL_LAYERS do
+                    local g = newShellPart(false)
+                    local pad = i * 0.11
+                    g.Size = sz + Vector3.new(pad, pad, pad)
+                    e.glow[i] = g
+                end
+            end
+            list[#list + 1] = e
         end
         return list
     end
@@ -3371,12 +3437,16 @@ function Column:preview(o)
         elseif style == 8 then
             return 0.2 + 0.8 * (0.5 + 0.5 * s(t * 2 + y * 0.8))
         elseif style == 9 then
-            return 0.5 + 0.5 * s(math.sqrt(x * x + y * y) * 3 - t * 2.5)
+            local dx, dy = x - 2.5, y - 1.5
+            return 0.5 + 0.5 * s(math.sqrt(dx * dx + dy * dy) * 3 - t * 2.5)
         elseif style == 10 then
             local f = ((x + y) * 0.9 - t * 0.35) % 1
             return 1 - math.abs(f * 2 - 1)
         elseif style == 11 then
             return 0.5 + 0.5 * s(y * 0.9 + x * 0.25 - t * 0.6)
+        elseif style == 12 then
+            local yy = y + s(x * 1.6 + t) * 0.35 + s(x * 3.1 - t * 1.4) * 0.12
+            return 0.5 + 0.5 * s(yy * 3.2 - t * 0.9)
         elseif style == 13 then
             return 0.7 + 0.2 * s(y * 1.5 - t)
         end
@@ -3396,13 +3466,18 @@ function Column:preview(o)
             local a = c1:Lerp(c2, clamp(v * 2, 0, 1))
             c = a:Lerp(c3, clamp((v - 0.5) * 2, 0, 1))
         end
-        return Color3.new(clamp(c.R ^ ct * br, 0, 1), clamp(c.G ^ ct * br, 0, 1), clamp(c.B ^ ct * br, 0, 1))
+        return Color3.new(
+            clamp((c.R ^ ct) * br, 0, 1),
+            clamp((c.G ^ ct) * br, 0, 1),
+            clamp((c.B ^ ct) * br, 0, 1)
+        )
     end
 
     local function applyTint(fn)
         if not current then return end
         if fn == nil then
             if tintedRec == current and not tintedOn then return end
+            setSkin(current, false)
             for part, orig in pairs(current.tint) do
                 if part and part.Parent then
                     part.Color = orig.c
@@ -3415,11 +3490,12 @@ function Column:preview(o)
             return
         end
         local first = not (tintedRec == current and tintedOn)
+        if first then setSkin(current, true) end
         for part, orig in pairs(current.tint) do
             if part and part.Parent then
                 part.Color = fn(part, orig)
                 if first then
-                    part.Material = Enum.Material.Neon
+                    part.Material = Enum.Material.SmoothPlastic
                     if part:IsA("MeshPart") then part.TextureID = "" end
                     if orig.sm and orig.sm.Parent then orig.sm.TextureId = "" end
                 end
@@ -3479,6 +3555,8 @@ function Column:preview(o)
             end
             return nil
         end
+        rec.skin = collectSkin(rec.model)
+        rec.skinHidden = false
         records[name] = rec
         return rec
     end
@@ -3492,7 +3570,10 @@ function Column:preview(o)
                 failMsg[name] = tostring(rec)
                 rec = records["Local Player"]
             end
-            if current then clearShells(current) end
+            if current then
+                applyTint(nil)
+                clearShells(current)
+            end
             if current and current.model then current.model.Parent = nil end
             current = rec
             currentName = name
@@ -3555,6 +3636,7 @@ function Column:preview(o)
             hideAll()
             applyTint(nil)
             updateShells(nil)
+            setFlat(false)
             return
         end
 
@@ -3688,22 +3770,29 @@ function Column:preview(o)
                 local designs = lib.esp and lib.esp.ChamsDesigns
                 local design = designs and designs[str("chams_design", "Neon")]
                 local style = design and design.Style or 0
-                local scale = num("chams_scale", 3) * 0.35
+                local scale = num("chams_scale", 3)
                 local br, ct = num("chams_brightness", 1.1), num("chams_contrast", 1)
                 local tt = tick() * num("chams_speed", 1)
                 tintFn = function(part)
-                    local p = part.Position
-                    return shaderColor(shaderPattern(style, p.X * scale, p.Y * scale, tt), c1, c2, c3, cc, br, ct)
+                    local sp = projectPoint(part.Position, camCF, tanHalf, w, h)
+                    local px, py = 0, 0
+                    if sp then
+                        px = (sp.X / h) * scale
+                        py = (sp.Y / h) * scale
+                    end
+                    return shaderColor(shaderPattern(style, px, py, tt), c1, c2, c3, cc, br, ct)
                 end
                 shellMode = "shader"
                 sGlowC = (cc > 2.5 and c3) or (cc > 1.5 and c2) or c1
-                sGlowOp = clamp(num("chams_bloom", 0.4) * 0.4, 0, 0.6)
+                sGlowOp = clamp(num("chams_bloom", 0.4) * 0.6, 0, 0.75)
             end
         elseif fillOn and boxType == "3D" then
             tintFn = function(part, orig)
                 return orig.c:Lerp(fillC1, clamp(1 - fillTrans, 0, 1))
             end
         end
+
+        setFlat(tintFn ~= nil or shellMode ~= nil)
         applyTint(tintFn)
         updateShells(shellMode, sFillC, sGlowC, sFillOp, sGlowOp)
 

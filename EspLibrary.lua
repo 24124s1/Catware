@@ -438,6 +438,7 @@ local function getTeamValue(plr)
 end
 
 local SPECIAL_PLACE = 72920620366355
+local ARENA_PLACE = 107950040366711
 
 espModule.IsTeam = function(plr)
     if not plr or plr == LocalPlayer then return false end
@@ -1992,11 +1993,50 @@ local function bindCharacter(rec, character, humanoid, isVM)
         if p.Name ~= "HumanoidRootPart" then rec.adParts[#rec.adParts + 1] = p end
     end
 
-    local head = character:FindFirstChild("Head") or character:FindFirstChild("head")
+    local head = character:FindFirstChild("Bip001 Head", true)
+        or character:FindFirstChild("Head")
+        or character:FindFirstChild("head")
     if head then
         rec.headPart = head:IsA("BasePart") and head or head:FindFirstChildWhichIsA("BasePart", true)
     else
         rec.headPart = nil
+    end
+    if not rec.root or not rec.root.Parent then
+        rec.root = character:FindFirstChild("Bip001 Spine1", true)
+            or character:FindFirstChild("Bip001 Spine", true)
+            or character:FindFirstChild("Bip001 Pelvis", true)
+            or character:FindFirstChild("Bip001", true)
+            or character:FindFirstChildWhichIsA("BasePart", true)
+    end
+    if #rec.parts == 0 then
+        local bipNames = {
+            "Bip001 Head", "Bip001 Spine1", "Bip001 Spine", "Bip001 Pelvis",
+            "Bip001 L UpperArm", "Bip001 R UpperArm", "Bip001 L Forearm", "Bip001 R Forearm",
+            "Bip001 L Thigh", "Bip001 R Thigh", "Bip001 L Calf", "Bip001 R Calf",
+        }
+        for i = 1, #bipNames do
+            local p = character:FindFirstChild(bipNames[i], true)
+            if p and p:IsA("BasePart") then rec.parts[#rec.parts + 1] = p end
+        end
+        local bipBones = {
+            {"Bip001 Head", "Bip001 Spine1"}, {"Bip001 Spine1", "Bip001 Spine"}, {"Bip001 Spine", "Bip001 Pelvis"},
+            {"Bip001 Spine", "Bip001 L UpperArm"}, {"Bip001 Spine", "Bip001 R UpperArm"},
+            {"Bip001 Spine", "Bip001 L Thigh"}, {"Bip001 Spine", "Bip001 R Thigh"},
+            {"Bip001 L Thigh", "Bip001 L Calf"}, {"Bip001 R Thigh", "Bip001 R Calf"},
+        }
+        local pl2 = {}
+        for i = 1, #bipBones do
+            local a = character:FindFirstChild(bipBones[i][1], true)
+            local b = character:FindFirstChild(bipBones[i][2], true)
+            if a and b and a:IsA("BasePart") and b:IsA("BasePart") then
+                pl2[#pl2 + 1] = { a, b }
+            end
+        end
+        if #pl2 > 0 then buildBones(rec, pl2) end
+        rec.adParts = {}
+        for i = 1, #rec.parts do
+            rec.adParts[#rec.adParts + 1] = rec.parts[i]
+        end
     end
     rec.scanned = view.time
 end
@@ -3169,7 +3209,37 @@ local function step()
     if anyEntity then
         state.hadEntities = true
 
-        if game.PlaceId == SPECIAL_PLACE then
+        if game.PlaceId == ARENA_PLACE then
+            local folder = workspace:FindFirstChild("RemotePlayers")
+            if folder then
+                local kids = folder:GetChildren()
+                for i = 1, #kids do
+                    local model = kids[i]
+                    local rig = model:FindFirstChild("player") or model:FindFirstChild("Player") or model
+                    if typeof(rig) == "Instance" and (rig:IsA("Model") or rig:IsA("Folder")) then
+                        if rig:FindFirstChild("Bip001 Head", true) or rig:FindFirstChildWhichIsA("BasePart", true) then
+                            local plr = Players:FindFirstChild(model.Name)
+                            if plr and plr ~= LocalPlayer then
+                                processEntity(plr, true)
+                                local rec = state.records[plr]
+                                if rec and (not rec.character or rec.character ~= rig) then
+                                    bindCharacter(rec, rig, rec.humanoid, false)
+                                elseif not rec then
+                                    processEntity(rig, false, { Name = function() return model.Name end }, model.Name)
+                                end
+                            else
+                                processEntity(rig, false, {
+                                    Name = function() return model.Name end,
+                                }, model.Name)
+                            end
+                        end
+                    end
+                end
+            else
+                local list = state.players
+                for i = 1, #list do processEntity(list[i], true) end
+            end
+        elseif game.PlaceId == SPECIAL_PLACE then
             if now - state.vmAt > 0.25 then
                 state.vmAt = now
                 local folder = workspace:FindFirstChild("Viewmodels")

@@ -3304,11 +3304,11 @@ function Column:preview(o)
             end
         end
     end
-    
+
     local shellFolder = Instance.new("Folder")
     shellFolder.Name = "Shells"
     shellFolder.Parent = worldModel
-    local SHELL_LAYERS = 4
+    local SHELL_LAYERS = 5
     local HEAD_ROT = CFrame.Angles(0, 0, math.rad(90))
 
     local function clearShells(rec)
@@ -3374,7 +3374,7 @@ function Column:preview(o)
                 e.fill.Size = Vector3.new(hh, dia, dia)
                 for i = 1, SHELL_LAYERS do
                     local g = newShellPart(true)
-                    local pad = i * 0.055
+                    local pad = i * 0.04
                     g.Size = Vector3.new(hh + pad * 2, dia + pad * 2, dia + pad * 2)
                     e.glow[i] = g
                 end
@@ -3382,7 +3382,7 @@ function Column:preview(o)
                 e.fill.Size = sz + Vector3.new(0.04, 0.04, 0.04)
                 for i = 1, SHELL_LAYERS do
                     local g = newShellPart(false)
-                    local pad = i * 0.11
+                    local pad = i * 0.07
                     g.Size = sz + Vector3.new(pad, pad, pad)
                     e.glow[i] = g
                 end
@@ -3414,16 +3414,12 @@ function Column:preview(o)
             e.fill.CFrame = cf
             for i = 1, SHELL_LAYERS do e.glow[i].CFrame = cf end
             if dirty then
-                if mode == "adorn" then
-                    e.fill.Color = fillColor or glowColor
-                    e.fill.Transparency = 1 - fillOpacity
-                else
-                    e.fill.Transparency = 1
-                end
+                e.fill.Color = fillColor or glowColor
+                e.fill.Transparency = 1 - fillOpacity
                 for i = 1, SHELL_LAYERS do
-                    local layerScale = (SHELL_LAYERS - i + 1) / SHELL_LAYERS
+                    local k = (SHELL_LAYERS - i + 1) / SHELL_LAYERS
                     e.glow[i].Color = glowColor
-                    e.glow[i].Transparency = 1 - (glowOpacity * layerScale)
+                    e.glow[i].Transparency = 1 - (glowOpacity * k * k)
                 end
             end
         end
@@ -3782,9 +3778,6 @@ function Column:preview(o)
                     end
                     return shaderColor(shaderPattern(style, px, py, tt), c1, c2, c3, cc, br, ct)
                 end
-                shellMode = "shader"
-                sGlowC = (cc > 2.5 and c3) or (cc > 1.5 and c2) or c1
-                sGlowOp = clamp(num("chams_bloom", 0.4) * 0.6, 0, 0.75)
             end
         elseif fillOn and boxType == "3D" then
             tintFn = function(part, orig)

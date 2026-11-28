@@ -3584,7 +3584,6 @@ function Column:preview(o)
     local SGX = { -1, 1, -1, 1, -1, 1, -1, 1 }
     local SGY = { -1, -1, 1, 1, -1, -1, 1, 1 }
     local SGZ = { -1, -1, -1, -1, 1, 1, 1, 1 }
-    local DX, DY = {}, {}
 
     local function ensureCanvas(w, h)
         local nw, nh = mmax(8, mfloor(w / CELL)), mmax(8, mfloor(h / CELL))
@@ -3682,6 +3681,28 @@ function Column:preview(o)
         end
     end
 
+    local function fillEllipse(cx, cy, rx, ry)
+        local y0 = mmax(0, math.ceil(cy - ry - 0.5))
+        local y1 = mmin(IH - 1, mfloor(cy + ry - 0.5))
+        for y = y0, y1 do
+            local dy = (y + 0.5 - cy) / ry
+            local k = 1 - dy * dy
+            if k > 0 then
+                local dx = rx * math.sqrt(k)
+                local x0 = mmax(0, math.ceil(cx - dx - 0.5))
+                local x1 = mmin(IW - 1, mfloor(cx + dx - 0.5))
+                if x0 <= x1 then
+                    local row = y * IW + 1
+                    for x = x0, x1 do mask[row + x] = 1 end
+                    if x0 < mx0 then mx0 = x0 end
+                    if x1 > mx1 then mx1 = x1 end
+                    if y < my0 then my0 = y end
+                    if y > my1 then my1 = y end
+                end
+            end
+        end
+    end
+
     local function collectMaskParts(m)
         local list = {}
         for _, d in ipairs(m:GetDescendants()) do
@@ -3693,7 +3714,7 @@ function Column:preview(o)
         return list
     end
 
-    local function drawShader(style, t, camCF, tanHalf, w, h, gi, gs)
+    local function drawShader(style, t, camCF, tanHalf, w, h)
         if not ensureCanvas(w, h) then return false end
         local rec = current
         if not rec.maskParts then rec.maskParts = collectMaskParts(rec.model) end
@@ -3706,37 +3727,43 @@ function Column:preview(o)
             if part.Parent then
                 local cf, hs = part.CFrame, part.Size * 0.5
                 local pts, ok = {}, true
+                local sumX, sumY = 0, 0
+                local bx0, by0, bx1, by1 = math.huge, math.huge, -math.huge, -math.huge
                 for s = 1, 8 do
                     local sp = projectPoint(cf * Vector3.new(SGX[s] * hs.X, SGY[s] * hs.Y, SGZ[s] * hs.Z), camCF, tanHalf, w, h)
                     if not sp then
                         ok = false
                         break
                     end
-                    pts[s] = { sp.X * kx, sp.Y * ky }
+                    local px, py = sp.X * kx, sp.Y * ky
+                    pts[s] = { px, py }
+                    sumX, sumY = sumX + px, sumY + py
+                    if px < bx0 then bx0 = px end
+                    if py < by0 then by0 = py end
+                    if px > bx1 then bx1 = px end
+                    if py > by1 then by1 = py end
                 end
-                if ok then fillHull(hullOf(pts)) end
+                if ok then
+                    if part.Name:lower() == "head" then
+                        fillEllipse((bx0 + bx1) * 0.5, (by0 + by1) * 0.5, (bx1 - bx0) * 0.5 * 0.95, (by1 - by0) * 0.5 * 0.95)
+                    else
+                        local cx, cy = sumX / 8, sumY / 8
+                        for s = 1, 8 do
+                            pts[s][1] = cx + (pts[s][1] - cx) * 0.94
+                            pts[s][2] = cy + (pts[s][2] - cy) * 0.94
+                        end
+                        fillHull(hullOf(pts))
+                    end
+                end
             end
         end
 
         buffer.fill(shaderBuf, 0, 0)
 
         if mx1 >= mx0 then
-            local useGlow = gi > 0.001 and gs > 0.01
-            local gsC = mmax(1, mfloor(gs * 2 / CELL + 0.5))
-            for d = 1, 8 do
-                local ang = (d - 1) * math.pi / 4
-                DX[d] = mfloor(math.cos(ang) * gsC + 0.5)
-                DY[d] = mfloor(math.sin(ang) * gsC + 0.5)
-            end
-            local pad = useGlow and (gsC + 1) or 0
-            local x0, x1 = mmax(0, mx0 - pad), mmin(IW - 1, mx1 + pad)
-            local y0, y1 = mmax(0, my0 - pad), mmin(IH - 1, my1 + pad)
-            local gr = mfloor(sat(P.gr) * 255 + 0.5)
-            local gg = mfloor(sat(P.gg) * 255 + 0.5)
-            local gb = mfloor(sat(P.gb) * 255 + 0.5)
-            for y = y0, y1 do
+            for y = my0, my1 do
                 local row = y * IW
-                for x = x0, x1 do
+                for x = mx0, mx1 do
                     local i = row + x + 1
                     if mask[i] == 1 then
                         local r, g, b = evalPix(style, ((x + 0.5) / IW) * PREVIEW_UV, ((y + 0.5) / IH) * PREVIEW_UV, t)
@@ -3745,25 +3772,6 @@ function Column:preview(o)
                         buffer.writeu8(shaderBuf, o + 1, mfloor(sat(g) * 255 + 0.5))
                         buffer.writeu8(shaderBuf, o + 2, mfloor(sat(b) * 255 + 0.5))
                         buffer.writeu8(shaderBuf, o + 3, 255)
-                    elseif useGlow then
-                        local bl = 0
-                        for d = 1, 8 do
-                            local sx, sy = x + DX[d], y + DY[d]
-                            if sx >= 0 and sx < IW and sy >= 0 and sy < IH and mask[sy * IW + sx + 1] == 1 then
-                                bl = bl + 1
-                            end
-                        end
-                        if bl > 0 then
-                            bl = bl * 0.125
-                            local a = sat(bl * sstep(0.15, 0.75, bl) * gi * 1.1)
-                            if a > 0 then
-                                local o = (i - 1) * 4
-                                buffer.writeu8(shaderBuf, o, gr)
-                                buffer.writeu8(shaderBuf, o + 1, gg)
-                                buffer.writeu8(shaderBuf, o + 2, gb)
-                                buffer.writeu8(shaderBuf, o + 3, mfloor(a * 255 + 0.5))
-                            end
-                        end
                     end
                 end
             end
@@ -4064,7 +4072,7 @@ function Column:preview(o)
 
         local tintFn, shellMode, sFillC, sGlowC, sFillOp, sGlowOp = nil, nil, nil, nil, 0, 0
         local shaderOn = false
-        local shStyle, shT, shGi, shGs = 0, 0, 0.4, 3
+        local shStyle, shT = 0, 0
         if on("chams") then
             local cType = str("chams_type", "Shader")
             local cc = floor(num("chams_colors", 3) + 0.5)
@@ -4081,8 +4089,6 @@ function Column:preview(o)
                 local design = designs and designs[str("chams_design", "Neon")]
                 shStyle = design and design.Style or 0
                 shT = os.clock() * num("chams_speed", 1)
-                shGi = num("chams_bloom", 0.4)
-                shGs = num("chams_spread", 3)
                 fillParams(c1, c2, c3, cc, num("chams_brightness", 1.1), num("chams_contrast", 1), num("chams_scale", 3), w / h, h)
                 shaderOn = true
                 tintFn = function(part)
@@ -4110,7 +4116,7 @@ function Column:preview(o)
             local now = os.clock()
             if now - lastDraw >= 1 / 40 or not shaderLabel.Visible then
                 lastDraw = now
-                drawShader(shStyle, shT, camCF, tanHalf, w, h, shGi, shGs)
+                drawShader(shStyle, shT, camCF, tanHalf, w, h)
             end
             shaderLabel.Visible = not canvasFail
             if canvasFail then viewport.Visible = true end

@@ -193,6 +193,49 @@ end
 function espModule.GetChamsDesignNames() return CHAMS_DESIGN_NAMES end
 function espModule.GetChamsPresetNames() return CHAMS_DESIGN_NAMES end
 
+function espModule:AddDesign(name, d)
+    if type(name) ~= "string" or name == "" or type(d) ~= "table" then return false end
+    local style = clamp(floor((tonumber(d.Style) or 0) + 0.5), 0, 13)
+    if not CHAMS_DESIGNS[name] then
+        CHAMS_DESIGN_NAMES[#CHAMS_DESIGN_NAMES + 1] = name
+    end
+    CHAMS_DESIGNS[name] = {
+        Style = style,
+        Brightness = tonumber(d.Brightness) or 1.1,
+        Contrast = tonumber(d.Contrast) or 1.0,
+        Bloom = tonumber(d.Bloom) or 0.4,
+        BloomSpread = tonumber(d.BloomSpread) or 3.0,
+        Speed = tonumber(d.Speed) or 1.0,
+        Scale = tonumber(d.Scale) or 3.0,
+    }
+    return true
+end
+
+function espModule:LoadDesigns(source)
+    if type(source) ~= "string" or source == "" then return false, "empty source" end
+    local code = source
+    if source:match("^https?://") then
+        local ok, res = pcall(function() return game:HttpGet(source) end)
+        if not ok or type(res) ~= "string" then return false, "download failed" end
+        code = res
+    end
+    local fn, err = loadstring(code)
+    if not fn then return false, tostring(err) end
+    local ok, res = pcall(fn)
+    if not ok then return false, tostring(res) end
+    if type(res) ~= "table" then return false, "script must return a table" end
+
+    local count = 0
+    for key, d in pairs(res) do
+        local name = key
+        if type(key) == "number" and type(d) == "table" then name = d.Name end
+        if type(name) == "string" and self:AddDesign(name, d) then count += 1 end
+    end
+    if count == 0 then return false, "no designs found" end
+    fireRegistry()
+    return true, count
+end
+
 function espModule:SetChamsDesign(name, target)
     if not CHAMS_DESIGNS[name] then return false end
     local s = self.Settings
@@ -2129,7 +2172,6 @@ local function box3D(rec, now)
     return true
 end
 
-local HIDE_TR = 1
 local GLOW_LAYERS = 4
 local ROT_X = CFrame.Angles(math.rad(90), 0, 0)
 
@@ -2198,53 +2240,7 @@ local function updateAdornEntry(entry, part, c1, c2, adTr, glowOpacity, tr)
     fill.Visible = true
 end
 
-local function refreshTrList(rec)
-    local parts, decals = {}, {}
-    local char = rec.character
-    if char then
-        for _, obj in ipairs(char:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                parts[#parts + 1] = obj
-            elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                decals[#decals + 1] = obj
-            end
-        end
-    end
-    rec.trList = { parts = parts, decals = decals }
-    rec.trAt = view.time
-    rec.trApply = -10
-end
-
-local function applyTransparency(rec)
-    rec.trApply = view.time
-    local list = rec.trList
-    if not list then return end
-    local orig = rec.origTrans
-    if not orig then
-        orig = {}
-        rec.origTrans = orig
-    end
-    local parts, decals = list.parts, list.decals
-    for i = 1, #parts do
-        local obj = parts[i]
-        local cur = obj.LocalTransparencyModifier
-        if cur < 0.98 then
-            if orig[obj] == nil then orig[obj] = cur end
-            obj.LocalTransparencyModifier = HIDE_TR
-        end
-    end
-    for i = 1, #decals do
-        local obj = decals[i]
-        local cur = obj.Transparency
-        if cur ~= 1 then
-            if orig[obj] == nil then orig[obj] = cur end
-            obj.Transparency = 1
-        end
-    end
-end
-
 local function drawAdornments(rec, cfg, tr)
-    local now = view.time
     local cs = cfg.ChamsSettings
     local c1, c2 = cs.Color1, cs.Color2
     local fillOpacity = 1 - (cfg.AdornmentTransparency or 0.55)
@@ -2258,9 +2254,6 @@ local function drawAdornments(rec, cfg, tr)
         rec.adDirty = true
         rec.adScan = nil
     end
-
-    if not rec.trList or now - rec.trAt > 1 then refreshTrList(rec) end
-    if now - rec.trApply > 0.25 then applyTransparency(rec) end
 
     local dirty = rec.adDirty or rec.adC1 ~= c1 or rec.adC2 ~= c2 or rec.adFill ~= adTr or rec.adGlow ~= glowOpacity or rec.adFade ~= tr
     local scanChanged = rec.adScan ~= rec.scanned
